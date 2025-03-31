@@ -16,8 +16,14 @@
  */
 
 #pragma once
-typedef __builtin_va_list va_list;
-#define va_start __builtin_va_start
-#define va_arg __builtin_va_arg
-#define va_copy __builtin_va_copy
-#define va_end __builtin_va_end
+
+#if __STDC_VERSION__ < 201112L && (defined(__GNUC__) || defined(__TINYC__))
+#define _Alignas(t) __attribute__((__aligned__(t)))
+#define _Alignof(t) __alignof__(t)
+#endif
+
+#define alignas _Alignas
+#define alignof _Alignof
+
+#define __alignas_is_defined 1
+#define __alignof_is_defined 1
