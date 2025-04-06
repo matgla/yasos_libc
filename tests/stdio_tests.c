@@ -20,7 +20,10 @@
 #include <stdio.h>
 #include <syscalls.h>
 
+#include "syscalls_stub.h"
+
 int sut_puts(const char *str);
+int sut_fflush(FILE *stream);
 
 typedef struct write_call_context {
   int fd;
@@ -56,9 +59,10 @@ UTEST_F_TEARDOWN(stdio_tests) {
 
 UTEST_F(stdio_tests, puts) {
   write_call_context call;
+  trigger_supervisor_call_fake.custom_fake = process_syscall_write;
   context = &call;
-  ASSERT_EQ(sut_puts("Hello, World!"), 14);
+  ASSERT_GE(sut_puts("Hello, World!"), 0);
   ASSERT_EQ(call.fd, STDOUT_FILENO);
-  ASSERT_EQ(call.count, 13);
-  ASSERT_STREQ(call.buf, "Hello, World!");
+  ASSERT_EQ(call.count, 14);
+  ASSERT_STREQ(call.buf, "Hello, World!\n");
 }

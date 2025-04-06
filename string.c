@@ -145,9 +145,9 @@ char *strtok(char *str, const char *delimiters) {
   }
   int i = strcspn(str, delimiters);
   char *end = str + i;
-  printf("i: %d\n", i);
   if (*end != '\0') {
-    *end++ = '\0';
+    *end = '\0';
+    ++end;
   }
   last = end;
   return str;

@@ -21,8 +21,8 @@ int strncmp(const char *str1, const char *str2, size_t n);
 char *strstr(char *s, char *r);
 
 char *strdup(const char *s);
-size_t strspn(const char *str1, const char *str2);
-size_t strcspn(const char *str1, const char *str2);
+size_t strspn(const char *s, const char *accept);
+size_t strcspn(const char *s, const char *reject);
 
 /* faster implementations */
 #define memchr(s, c, n) __memchr_c(s, c, n)

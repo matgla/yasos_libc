@@ -38,6 +38,12 @@ trigger_supervisor_call(int number, const void *args, void *result,
   asm("svc 0");
   asm("bx lr");
 }
+
+size_t get_lr() {
+  size_t result;
+  asm("mov %0, lr" : "=r"(result));
+  return result;
+}
 #endif
 
 void trigger_supervisor_call(int number, const void *args, void *result,
@@ -138,7 +144,10 @@ void _putchar(char c) {
 
 pid_t fork() {
   pid_t result;
-  trigger_syscall(sys_fork, NULL, &result);
+  const fork_context context = {
+      .program_counter = 0,
+  };
+  trigger_syscall(sys_fork, &context, &result);
   return result;
 }
 
@@ -298,7 +307,19 @@ ssize_t getdents(int fd, struct dirent *de, size_t len) {
 }
 
 int ioctl(int fd, int op, ...) {
-  return 0;
+  va_list args;
+  va_start(args, op);
+  void *arg = va_arg(args, void *);
+  va_end(args);
+
+  int result;
+  const ioctl_context context = {
+      .fd = fd,
+      .op = op,
+      .arg = arg,
+  };
+  trigger_syscall(sys_ioctl, &context, &result);
+  return result;
 }
 
 int gettimeofday(struct timeval *tv, struct timezone *tz) {

@@ -1,5 +1,5 @@
 CC ?= tcc 
-CFLAGS = -Wall -pedantic -g -std=c11 -I../../../../../source/sys/include
+CFLAGS = -Wall -pedantic -g -std=c11 -I../../../source/sys/include
 
 SRCS = $(wildcard *.c)
 OBJS = $(patsubst %.c, build/%.o, $(SRCS))

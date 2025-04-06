@@ -17,7 +17,7 @@
 
 #pragma once
 
-#define bool _Bool
+#define bool unsigned char
 #define true 1
 #define false 0
 #define __bool_true_false_are_defined 1

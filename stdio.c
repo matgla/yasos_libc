@@ -327,10 +327,9 @@ int snprintf(char *dst, int sz, char *fmt, ...) {
 }
 
 int fputs(const char *s, FILE *fp) {
-  int i = 0;
-  while (s[i])
-    fputc((unsigned char)s[i++], fp);
-  return i;
+  while (*s)
+    fputc((unsigned char)*s++, fp);
+  return 0;
 }
 
 int puts(const char *s) {

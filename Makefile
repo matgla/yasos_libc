@@ -1,5 +1,5 @@
 CC ?= tcc 
-CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../../../source/sys/include
+CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include
 LDFLAGS_STATIC = -nostdlib
 LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
 
@@ -37,8 +37,8 @@ install: $(TARGET_SHARED) $(TARGET_STATIC)
 	mkdir -p $(LIBDIR)
 	cp $(TARGET_SHARED) $(LIBDIR)
 	cp $(TARGET_STATIC) $(LIBDIR)
-	cp libs/neatlibc/*.h $(INCLUDEDIR)
-	cp -r libs/neatlibc/sys $(INCLUDEDIR)
+	cp *.h $(INCLUDEDIR)
+	cp -r sys $(INCLUDEDIR)
 
 
 
