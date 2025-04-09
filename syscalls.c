@@ -39,11 +39,6 @@ trigger_supervisor_call(int number, const void *args, void *result,
   asm("bx lr");
 }
 
-size_t get_lr() {
-  size_t result;
-  asm("mov %0, lr" : "=r"(result));
-  return result;
-}
 #endif
 
 void trigger_supervisor_call(int number, const void *args, void *result,
@@ -142,7 +137,10 @@ void _putchar(char c) {
   trigger_syscall(sys_write, &context, &result);
 }
 
+// rename to vfork
 pid_t fork() {
+  // this variable can't be shared between processes, child can't modify it,
+  // since it belongs to parent
   pid_t result;
   const fork_context context = {
       .program_counter = 0,
