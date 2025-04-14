@@ -33,23 +33,23 @@ int execle(char *path, ...) {
 }
 
 int execvp(char *cmd, char *argv[]) {
-  char path[512];
-  char *p = getenv("PATH");
-  if (strchr(cmd, '/'))
-    return execve(cmd, argv, environ);
-  if (!p)
-    p = "/bin";
-  while (*p) {
-    char *s = path;
-    while (*p && *p != ':')
-      *s++ = *p++;
-    if (s != path)
-      *s++ = '/';
-    strcpy(s, cmd);
-    execve(path, argv, environ);
-    if (*p == ':')
-      p++;
-  }
+  // char path[512];
+  // char *p = getenv("PATH");
+  // if (strchr(cmd, '/'))
+  //   return execve(cmd, argv, environ);
+  // if (!p)
+  //   p = "/bin";
+  // while (*p) {
+  //   char *s = path;
+  //   while (*p && *p != ':')
+  //     *s++ = *p++;
+  //   if (s != path)
+  //     *s++ = '/';
+  //   strcpy(s, cmd);
+  //   execve(path, argv, environ);
+  //   if (*p == ':')
+  //     p++;
+  // }
   return -1;
 }
 
