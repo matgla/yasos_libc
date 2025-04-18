@@ -29,7 +29,7 @@ int system(char *cmd) {
   char *argv[] = {"/bin/sh", "-c", cmd, NULL};
   pid_t pid;
   int ret;
-  pid = fork();
+  pid = vfork();
   if (pid < 0)
     return -1;
   if (!pid) {

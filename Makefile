@@ -24,6 +24,7 @@ all: $(TARGET_SHARED) $(TARGET_STATIC)
 
 build/%.o: %.c
 	mkdir -p build
+	mkdir -p build/arm	
 	mkdir -p build/libs/neatlibc
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -39,11 +40,6 @@ install: $(TARGET_SHARED) $(TARGET_STATIC)
 	cp $(TARGET_STATIC) $(LIBDIR)
 	cp *.h $(INCLUDEDIR)
 	cp -r sys $(INCLUDEDIR)
-
-
-
-
-
 
 clean:
 	rm -rf build

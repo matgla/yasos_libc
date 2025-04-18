@@ -31,6 +31,7 @@ int pipe(int fds[2]);
 int dup(int fd);
 int dup2(int fd, int fd2);
 
+int vfork(void);
 int fork(void);
 int getpid(void);
 int getppid(void);

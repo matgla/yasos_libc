@@ -137,15 +137,9 @@ void _putchar(char c) {
   trigger_syscall(sys_write, &context, &result);
 }
 
-// rename to vfork
-pid_t fork() {
-  // this variable can't be shared between processes, child can't modify it,
-  // since it belongs to parent
+pid_t vfork() {
   pid_t result;
-  const fork_context context = {
-      .program_counter = 0,
-  };
-  trigger_syscall(sys_fork, &context, &result);
+  trigger_syscall(sys_vfork, NULL, &result);
   return result;
 }
 
@@ -347,5 +341,29 @@ int nanosleep(struct timespec *req, struct timespec *rem) {
       .rem = rem,
   };
   trigger_syscall(sys_nanosleep, &context, &result);
+  return result;
+}
+
+void *mmap(void *addr, int len, int prot, int flags, int fd, int offset) {
+  mmap_result result;
+  const mmap_context context = {
+      .addr = addr,
+      .length = len,
+      .prot = prot,
+      .flags = flags,
+      .fd = fd,
+      .offset = offset,
+  };
+  trigger_syscall(sys_mmap, &context, &result);
+  return result.memory;
+}
+
+int munmap(void *addr, int len) {
+  int result;
+  const munmap_context context = {
+      .addr = addr,
+      .length = len,
+  };
+  trigger_syscall(sys_munmap, &context, &result);
   return result;
 }
