@@ -150,13 +150,14 @@ int unlink(const char *pathname) {
 }
 
 int execve(const char *pathname, char *const argv[], char *const envp[]) {
-  int result;
+  execve_result result;
   const execve_context context = {
       .filename = pathname,
       .argv = argv,
       .envp = envp,
   };
   trigger_syscall(sys_execve, &context, &result);
+
   return 0;
 }
 

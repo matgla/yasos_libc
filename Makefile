@@ -22,10 +22,11 @@ INCLUDEDIR ?= $(PREFIX)/include
 # Rules
 all: $(TARGET_SHARED) $(TARGET_STATIC)
 
-build/%.o: %.c
+prepare: 
 	mkdir -p build
-	mkdir -p build/arm	
-	mkdir -p build/libs/neatlibc
+	mkdir -p build/arm
+
+build/%.o: %.c prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
@@ -34,10 +35,24 @@ $(TARGET_SHARED): $(OBJS)
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^
 
-install: $(TARGET_SHARED) $(TARGET_STATIC)
+build/arm/crt1.o: arm/crt1.c prepare
+	${CC} $(CFLAGS) -c $< -o $@
+
+build/arm/crti.o: arm/crti.c prepare
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build/arm/crtn.o: arm/crtn.c prepare
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+install: $(TARGET_SHARED) $(TARGET_STATIC) build/arm/crt1.o build/arm/crti.o build/arm/crtn.o
 	mkdir -p $(LIBDIR)
 	cp $(TARGET_SHARED) $(LIBDIR)
 	cp $(TARGET_STATIC) $(LIBDIR)
+	cp build/arm/crt1.o $(LIBDIR)
+	cp build/arm/crti.o $(LIBDIR)
+	cp build/arm/crtn.o $(LIBDIR)
+
 	cp *.h $(INCLUDEDIR)
 	cp -r sys $(INCLUDEDIR)
 
