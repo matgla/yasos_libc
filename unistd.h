@@ -47,6 +47,8 @@ void _exit(int status);
 
 int sleep(int n);
 
+char *getcwd(char *buf, size_t size);
+
 /* standard file descriptors */
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1

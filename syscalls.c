@@ -161,6 +161,16 @@ int execve(const char *pathname, char *const argv[], char *const envp[]) {
   return 0;
 }
 
+char *getcwd(char *buf, size_t size) {
+  char *result;
+  const getcwd_context context = {
+      .buf = buf,
+      .size = size,
+  };
+  trigger_syscall(sys_getcwd, &context, &result);
+  return result;
+}
+
 // void __libc_fini(void *array) {
 //   typedef void (*Destructor)();
 //   Destructor *fini_array = (Destructor *)(array);
