@@ -378,3 +378,12 @@ int munmap(void *addr, int len) {
   trigger_syscall(sys_munmap, &context, &result);
   return result;
 }
+
+int chdir(const char *path) {
+  int result;
+  const chdir_context context = {
+      .path = path,
+  };
+  trigger_syscall(sys_chdir, &context, &result);
+  return result;
+}
