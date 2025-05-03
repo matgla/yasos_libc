@@ -1,29 +1,60 @@
-# output architecture: x64, x86, arm
-OUT = x64
+CC ?= tcc 
+CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include
+LDFLAGS_STATIC = -nostdlib
+LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
 
-# default assemblers
-ASx64 = nasm -f elf64
-ASx86 = nasm -f elf
-ASarm = neatas
+ifeq ($(CC), armv8m-tcc)
+CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
+LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4
+endif
 
-CC = ncc
-AS = $(AS$(OUT))
-CFLAGS = -O2 -I.
+SRCS = $(wildcard *.c)
 
-all: start.o libc.a
+OBJS = $(patsubst %.c, build/%.o, $(SRCS))
 
-%.o: %.s
-	$(AS) $^ >/dev/null
-%.o: %.c
-	$(CC) -c $(CFLAGS) $^
+TARGET_SHARED = build/libc.so
+TARGET_STATIC = build/libc.a
 
-OBJS1 = $(patsubst %.c,%.o,$(wildcard *.c))
-OBJS2 = $(patsubst %.s,%.o,$(wildcard $(OUT)/*.s))
+PREFIX ?= /usr/local
+LIBDIR ?= $(PREFIX)/lib
+INCLUDEDIR ?= $(PREFIX)/include
 
-start.o: $(OUT)/start.o
-	cp $(OUT)/start.o .
-libc.a: $(OBJS1) $(OBJS2)
-	$(AR) rcs $@ $(OBJS1) $(filter-out $(OUT)/start.o, $(OBJS2))
+# Rules
+all: $(TARGET_SHARED) $(TARGET_STATIC)
+
+prepare: 
+	mkdir -p build
+	mkdir -p build/arm
+
+build/%.o: %.c prepare
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TARGET_SHARED): $(OBJS)
+	$(CC) $(LDFLAGS) $^ -o $@
+
+$(TARGET_STATIC): $(OBJS)
+	ar rcs $@ $^
+
+build/arm/crt1.o: arm/crt1.c prepare
+	${CC} $(CFLAGS) -c $< -o $@
+
+build/arm/crti.o: arm/crti.c prepare
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build/arm/crtn.o: arm/crtn.c prepare
+	$(CC) $(CFLAGS) -c $< -o $@
+
+
+install: $(TARGET_SHARED) $(TARGET_STATIC) build/arm/crt1.o build/arm/crti.o build/arm/crtn.o
+	mkdir -p $(LIBDIR)
+	cp $(TARGET_SHARED) $(LIBDIR)
+	cp $(TARGET_STATIC) $(LIBDIR)
+	cp build/arm/crt1.o $(LIBDIR)
+	cp build/arm/crti.o $(LIBDIR)
+	cp build/arm/crtn.o $(LIBDIR)
+
+	cp *.h $(INCLUDEDIR)
+	cp -r sys $(INCLUDEDIR)
 
 clean:
-	rm -f *.o *.a x86/*.o arm/*.o x64/*.o
+	rm -rf build

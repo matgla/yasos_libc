@@ -16,8 +16,8 @@
  */
 
 #pragma once
-typedef __builtin_va_list va_list;
-#define va_start __builtin_va_start
-#define va_arg __builtin_va_arg
-#define va_copy __builtin_va_copy
-#define va_end __builtin_va_end
+
+#define bool unsigned char
+#define true 1
+#define false 0
+#define __bool_true_false_are_defined 1

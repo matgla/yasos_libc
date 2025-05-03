@@ -1,18 +1,18 @@
 #include <stdarg.h>
 
-#define EOF		(-1)
-#define putc(c, fp)	(fputc(c, fp))
-#define getc(fp)	(fgetc(fp))
+#define EOF (-1)
+#define putc(c, fp) (fputc(c, fp))
+#define getc(fp) (fgetc(fp))
 
 typedef struct {
-	int fd;
-	int back;		/* pushback buffer */
-	char *ibuf, *obuf;	/* input/output buffer */
-	int isize, osize;	/* ibuf size */
-	int ilen, olen;		/* length of data in buf */
-	int iown, oown;		/* free the buffer when finished */
-	int icur;		/* current position in ibuf */
-	int ostat;
+  int fd;
+  int back;          /* pushback buffer */
+  char *ibuf, *obuf; /* input/output buffer */
+  int isize, osize;  /* ibuf size */
+  int ilen, olen;    /* length of data in buf */
+  int iown, oown;    /* free the buffer when finished */
+  int icur;          /* current position in ibuf */
+  int ostat;
 } FILE;
 
 extern FILE *stdin;
@@ -34,8 +34,8 @@ int vsprintf(char *dst, char *fmt, va_list ap);
 int vfprintf(FILE *fp, char *fmt, va_list ap);
 int snprintf(char *dst, int sz, char *fmt, ...);
 int vsnprintf(char *dst, int sz, char *fmt, va_list ap);
-int fputs(char *s, FILE *fp);
-int puts(char *s);
+int fputs(const char *s, FILE *fp);
+int puts(const char *s);
 
 int fgetc(FILE *fp);
 char *fgets(char *s, int sz, FILE *fp);
