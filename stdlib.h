@@ -1,6 +1,8 @@
 #include <stddef.h>
 
-#define RAND_MAX		0x7fffffff
+#define RAND_MAX 0x7fffffff
+#define EXIT_FAILURE 1
+#define EXIT_SUCCESS 0
 
 void *malloc(long n);
 void free(void *m);
@@ -32,8 +34,8 @@ void *memtst_malloc(long n);
 void memtst_free(void *v);
 void *memtst_calloc(long n, long sz);
 void *memtst_realloc(void *v, long sz);
-#define malloc	memtst_malloc
-#define free	memtst_free
-#define calloc	memtst_calloc
-#define realloc	memtst_realloc
+#define malloc memtst_malloc
+#define free memtst_free
+#define calloc memtst_calloc
+#define realloc memtst_realloc
 #endif
