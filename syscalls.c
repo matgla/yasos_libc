@@ -32,7 +32,7 @@
 #include "syscalls.h"
 
 #ifdef YASLIBC_ARM_SVC_TRIGGER
-void __attribute__((noinline)) __attribute__((naked))
+inline void __attribute__((naked))
 trigger_supervisor_call(int number, const void *args, void *result,
                         optional_errno *err) {
   asm("svc 0");
@@ -44,10 +44,18 @@ trigger_supervisor_call(int number, const void *args, void *result,
 void trigger_supervisor_call(int number, const void *args, void *result,
                              optional_errno *err);
 
+optional_errno err = {
+    .isset = 0,
+};
+
 void trigger_syscall(int number, const void *args, void *result) {
-  optional_errno err = {
-      .isset = 0,
-  };
+  // optional_errno err = {
+  //     .isset = 0,
+  // };
+  if (number > SYSCALL_COUNT && number == 0) {
+    printf("Invalid syscall number: %d\n", number);
+    return;
+  }
   trigger_supervisor_call(number, args, result, &err);
   // if (err.isset) {
   //   errno = err.err;
@@ -82,11 +90,6 @@ int close(int fd) {
   return result;
 }
 
-int fcntl(int filedes, int cmd, ...) {
-  // TODO: implement
-  return 0;
-}
-
 void exit(int status) {
   trigger_syscall(sys_exit, &status, NULL);
   while (1) {
@@ -115,16 +118,6 @@ ssize_t write(int fd, const void *buf, size_t count) {
   };
   trigger_syscall(sys_write, &context, &result);
   return result;
-}
-
-void __aeabi_memset(void *dest, size_t n, int c) {
-  /*Note that relative to ANSI memset, __aeabi_memset hase the order
-    of its second and third arguments reversed.  */
-  // uint8_t *ptr = (uint8_t *)dest;
-  // while (--n) *ptr++ = (uint8_t)c;
-}
-
-void __aeabi_uldivmod() {
 }
 
 void _putchar(char c) {
@@ -315,7 +308,7 @@ int ioctl(int fd, int op, ...) {
   void *arg = va_arg(args, void *);
   va_end(args);
 
-  int result;
+  int result = 0;
   const ioctl_context context = {
       .fd = fd,
       .op = op,
@@ -333,6 +326,15 @@ int gettimeofday(struct timeval *tv, struct timezone *tz) {
   };
   trigger_syscall(sys_gettimeofday, &context, &result);
   return 0;
+}
+
+time_t time(time_t *timep) {
+  time_t result;
+  time_context context = {
+      .timep = timep,
+  };
+  trigger_syscall(sys_time, &context, &result);
+  return result;
 }
 
 // int _fstat(int fd, struct stat *buf) {
@@ -385,5 +387,21 @@ int chdir(const char *path) {
       .path = path,
   };
   trigger_syscall(sys_chdir, &context, &result);
+  return result;
+}
+
+int fcntl(int fd, int op, ...) {
+  va_list args;
+  va_start(args, op);
+  void *arg = va_arg(args, void *);
+  va_end(args);
+
+  int result = 0;
+  const fcntl_context context = {
+      .fd = fd,
+      .op = op,
+      .arg = arg,
+  };
+  trigger_syscall(sys_fcntl, &context, &result);
   return result;
 }

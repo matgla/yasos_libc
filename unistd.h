@@ -49,8 +49,3 @@ int sleep(int n);
 
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
-
-/* standard file descriptors */
-#define STDIN_FILENO 0
-#define STDOUT_FILENO 1
-#define STDERR_FILENO 2

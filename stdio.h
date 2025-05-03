@@ -1,6 +1,12 @@
 #include <stdarg.h>
 
 #define EOF (-1)
+
+/* standard file descriptors */
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+
 #define putc(c, fp) (fputc(c, fp))
 #define getc(fp) (fgetc(fp))
 

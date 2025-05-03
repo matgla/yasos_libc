@@ -1,11 +1,11 @@
 CC ?= tcc 
-CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include
-LDFLAGS_STATIC = -nostdlib
+CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include 
+LDFLAGS_STATIC = -nostdlib -L../tinycc 
 LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
 
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
-LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4
+LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a
 endif
 
 SRCS = $(wildcard *.c)
@@ -30,10 +30,10 @@ build/%.o: %.c prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $^ -o $@ $(LDFLAGS) 
 
 $(TARGET_STATIC): $(OBJS)
-	ar rcs $@ $^
+	ar rcs $@ $^ ../tinycc/armv8m-libtcc1.a
 
 build/arm/crt1.o: arm/crt1.c prepare
 	${CC} $(CFLAGS) -c $< -o $@
