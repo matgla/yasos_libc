@@ -9,6 +9,9 @@
 #define X_OK 1
 #define F_OK 0
 
+#define TRUE 1
+#define FALSE 0
+
 int access(char *name, int type);
 int unlink(const char *path);
 
