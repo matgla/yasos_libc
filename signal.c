@@ -2,10 +2,6 @@
 
 #include <stddef.h>
 
-#define SIG_BLOCK 0
-#define SIG_UNBLOCK 1
-#define SIG_SETMASK 2
-
 #define SA_NOCLDSTOP 1
 #define SA_NOCLDWAIT 2
 #define SA_SIGINFO 4
@@ -14,18 +10,6 @@
 #define SA_NODEFER 0x40000000
 #define SA_RESETHAND 0x80000000
 #define SA_RESTORER 0x04000000
-
-struct sigset_t {
-  unsigned long __bits[128 / sizeof(long)];
-};
-typedef struct sigset_t sigset_t;
-
-struct sigaction {
-  void (*sa_handler)(int);
-  sigset_t sa_mask;
-  int sa_flags;
-  void (*sa_restorer)(void);
-};
 
 int sigreturn(unsigned long n);
 
@@ -36,10 +20,12 @@ struct ksa {
   sigset_t mask;
 };
 
-int sigaction(int sig, const struct sigaction *sa, struct sigaction *old_sa);
-
 int __sigaction(int sig, const struct sigaction *sa, struct sigaction *old) {
-  return 0;
+  return -1;
+}
+
+int sigaction(int sig, const struct sigaction *sa, struct sigaction *old_sa) {
+  return __sigaction(sig, sa, old_sa);
 }
 
 sighandler_t signal(int sig, sighandler_t func) {
@@ -47,4 +33,22 @@ sighandler_t signal(int sig, sighandler_t func) {
   if (__sigaction(sig, &sa, &sa) < 0)
     return SIG_ERR;
   return sa.sa_handler;
+}
+
+int sigemptyset(sigset_t *set) {
+  for (int i = 0; i < sizeof(set->__bits) / sizeof(long); i++)
+    set->__bits[i] = 0;
+  return 0;
+}
+
+int sigaddset(sigset_t *set, int signum) {
+  if (signum < 1 || signum > 31)
+    return -1;
+  set->__bits[signum / (sizeof(long) * 8)] |=
+      (1UL << (signum % (sizeof(long) * 8)));
+  return 0;
+}
+
+int sigprocmask(int howm, const sigset_t *set, sigset_t *oldset) {
+  return -1;
 }

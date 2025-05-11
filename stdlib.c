@@ -50,3 +50,91 @@ int atexit(void (*func)(void)) {
   atexit_func[atexit_cnt++] = func;
   return 0;
 }
+
+// TODO: Verify that
+unsigned long long int strtoull(const char *nptr, char **endptr, int base) {
+  unsigned long long int result = 0;
+  while (*nptr && *nptr != ' ' && *nptr != '\t') {
+    if (*nptr >= '0' && *nptr <= '9')
+      result = result * base + (*nptr - '0');
+    else if (*nptr >= 'a' && *nptr <= 'z')
+      result = result * base + (*nptr - 'a' + 10);
+    else if (*nptr >= 'A' && *nptr <= 'Z')
+      result = result * base + (*nptr - 'A' + 10);
+    else
+      break;
+    nptr++;
+  }
+  if (endptr)
+    *endptr = (char *)nptr;
+  return result;
+}
+
+float strtof(const char *nptr, char **endptr) {
+  float result = 0.0f;
+  int sign = 1;
+  while (*nptr && *nptr != ' ' && *nptr != '\t') {
+    if (*nptr == '-')
+      sign = -1;
+    else if (*nptr >= '0' && *nptr <= '9')
+      result = result * 10.0f + (*nptr - '0');
+    else
+      break;
+    nptr++;
+  }
+  if (endptr)
+    *endptr = (char *)nptr;
+  return result * sign;
+}
+
+long double strtold(const char *nptr, char **endptr) {
+  long double result = 0.0L;
+  int sign = 1;
+  while (*nptr && *nptr != ' ' && *nptr != '\t') {
+    if (*nptr == '-')
+      sign = -1;
+    else if (*nptr >= '0' && *nptr <= '9')
+      result = result * 10.0L + (*nptr - '0');
+    else
+      break;
+    nptr++;
+  }
+  if (endptr)
+    *endptr = (char *)nptr;
+  return result * sign;
+}
+
+double strtod(const char *nptr, char **endptr) {
+  double result = 0.0;
+  int sign = 1;
+  while (*nptr && *nptr != ' ' && *nptr != '\t') {
+    if (*nptr == '-')
+      sign = -1;
+    else if (*nptr >= '0' && *nptr <= '9')
+      result = result * 10.0 + (*nptr - '0');
+    else
+      break;
+    nptr++;
+  }
+  if (endptr)
+    *endptr = (char *)nptr;
+  return result * sign;
+}
+
+long long int strtoll(const char *nptr, char **endptr, int base) {
+  long long int result = 0;
+  while (*nptr && *nptr != ' ' && *nptr != '\t') {
+    if (*nptr >= '0' && *nptr <= '9')
+      result = result * base + (*nptr - '0');
+    else if (*nptr >= 'a' && *nptr <= 'z')
+      result = result * base + (*nptr - 'a' + 10);
+    else if (*nptr >= 'A' && *nptr <= 'Z')
+      result = result * base + (*nptr - 'A' + 10);
+    else
+      break;
+    nptr++;
+  }
+  if (endptr)
+    *endptr = (char *)nptr;
+  return result;
+}

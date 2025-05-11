@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdarg.h>
 
 #define EOF (-1)
@@ -19,6 +21,7 @@ typedef struct {
   int iown, oown;    /* free the buffer when finished */
   int icur;          /* current position in ibuf */
   int ostat;
+  int istat;
 } FILE;
 
 extern FILE *stdin;

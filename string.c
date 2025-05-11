@@ -78,13 +78,13 @@ char *strcpy(char *dst, const char *src) {
   return dst;
 }
 
-char *strchr(char *s, int c) {
+char *strchr(const char *s, int c) {
   while (*s != (char)c) {
     if (*s == 0)
       return NULL;
     ++s;
   }
-  return s;
+  return (char *)s;
 }
 
 int strncmp(const char *str1, const char *str2, size_t num) {
@@ -151,4 +151,42 @@ char *strtok(char *str, const char *delimiters) {
   }
   last = end;
   return str;
+}
+
+char *strpbrk(const char *str1, const char *str2) {
+  while (*str1 != 0) {
+    if (strchr((char *)str2, *str1) != NULL)
+      return (char *)str1;
+    ++str1;
+  }
+  return NULL;
+}
+
+char *strrchr(char *str, int c) {
+  const char *last = NULL;
+  while (*str != 0) {
+    if (*str == (char)c)
+      last = str;
+    ++str;
+  }
+  return (char *)last;
+}
+
+char *strerror(int errnum) {
+  switch (errnum) {
+  case 0:
+    return "Success";
+  case 1:
+    return "Operation not permitted";
+  case 2:
+    return "No such file or directory";
+  case 3:
+    return "No such process";
+  case 4:
+    return "Interrupted system call";
+  case 5:
+    return "Input/output error";
+  default:
+    return "Unknown error";
+  }
 }

@@ -15,10 +15,10 @@
  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <stddef.h>
+#pragma once
 
-extern void *memmove(void *dest, const void *src, size_t n);
+#include <semaphore.h>
 
-void *__aeabi_memmove4(void *dst, const void *src, size_t n) {
-  return memmove(dst, src, n);
-}
+typedef struct {
+  int value;
+} sem_t;

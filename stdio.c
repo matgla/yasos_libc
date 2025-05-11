@@ -7,6 +7,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <fcntl.h>
+
 #define BUFSZ 1024
 
 static char _ibuf[BUFSZ], _obuf[BUFSZ], _ebuf[BUFSZ];
@@ -39,6 +41,38 @@ FILE *fopen(char *path, char *mode) {
     free(fp);
     return NULL;
   }
+  fp->back = EOF;
+  fp->ibuf = malloc(BUFSZ);
+  fp->obuf = malloc(BUFSZ);
+  fp->isize = BUFSZ;
+  fp->osize = BUFSZ;
+  fp->iown = 1;
+  fp->oown = 1;
+  return fp;
+}
+
+FILE *fdopen(int fd, const char *mode) {
+  FILE *fp;
+  int flags;
+
+  if (strchr(mode, '+'))
+    flags = O_RDWR;
+  else
+    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
+  if (*mode != 'r')
+    flags |= O_CREAT;
+  if (*mode == 'w')
+    flags |= O_TRUNC;
+  if (*mode == 'a')
+    flags |= O_APPEND;
+
+  fp = malloc(sizeof(*fp));
+  memset(fp, 0, sizeof(*fp));
+  if (fcntl(fd, F_GETFL) < 0) {
+    free(fp);
+    return NULL;
+  }
+  fp->fd = fd;
   fp->back = EOF;
   fp->ibuf = malloc(BUFSZ);
   fp->obuf = malloc(BUFSZ);
@@ -346,4 +380,20 @@ long fwrite(void *v, long sz, long n, FILE *fp) {
     if (fputc(*s++, fp) == EOF)
       return n * sz - i - 1;
   return n * sz;
+}
+
+int fseek(FILE *fp, long offset, int whence) {
+  if (fp->fd < 0)
+    return -1;
+  if (lseek(fp->fd, offset, whence) < 0)
+    return -1;
+  fp->ilen = fp->olen = 0;
+  fp->icur = 0;
+  return 0;
+}
+
+long ftell(FILE *fp) {
+  if (fp->fd < 0)
+    return -1;
+  return lseek(fp->fd, 0, SEEK_CUR);
 }

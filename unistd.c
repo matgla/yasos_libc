@@ -15,6 +15,14 @@ int sleep(int n) {
   return 0;
 }
 
+int usleep(int n) {
+  struct timespec req = {0, n * 1000};
+  struct timespec rem;
+  if (nanosleep(&req, &rem))
+    return rem.tv_sec;
+  return 0;
+}
+
 #define EXECARGS (1 << 7)
 
 int execle(char *path, ...) {

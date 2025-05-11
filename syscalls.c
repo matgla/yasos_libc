@@ -33,49 +33,44 @@
 
 #ifdef YASLIBC_ARM_SVC_TRIGGER
 inline void __attribute__((naked))
-trigger_supervisor_call(int number, const void *args, void *result,
-                        optional_errno *err) {
+trigger_supervisor_call(int number, const void *args, syscall_result *result) {
   asm("svc 0");
   asm("bx lr");
 }
-
 #endif
 
-void trigger_supervisor_call(int number, const void *args, void *result,
-                             optional_errno *err);
+void trigger_supervisor_call(int number, const void *args,
+                             syscall_result *result);
 
-optional_errno err = {
-    .isset = 0,
-};
+int trigger_syscall(int number, const void *args) {
+  syscall_result sresult = {
+      .result = 0,
+      .err = 0,
+  };
 
-void trigger_syscall(int number, const void *args, void *result) {
-  // optional_errno err = {
-  //     .isset = 0,
-  // };
-  if (number > SYSCALL_COUNT && number == 0) {
-    printf("Invalid syscall number: %d\n", number);
-    return;
+  trigger_supervisor_call(number, args, &sresult);
+
+  if (sresult.result > 10) {
+    while (true) {
+    }
   }
-  trigger_supervisor_call(number, args, result, &err);
-  // if (err.isset) {
-  //   errno = err.err;
-  // }
+
+  if (sresult.err >= 1) {
+    errno = sresult.err;
+  }
+  return sresult.result;
 }
 
 pid_t getpid() {
-  pid_t result;
-  trigger_syscall(sys_getpid, NULL, &result);
-  return result;
+  return trigger_syscall(sys_getpid, NULL);
 }
 
 int kill(pid_t pid, int sig) {
-  int result;
   const kill_context context = {
       .pid = pid,
       .sig = sig,
   };
-  trigger_syscall(sys_kill, &context, &result);
-  return result;
+  return trigger_syscall(sys_kill, &context);
 }
 
 // int sigprocmask(int how, const sigset_t *set,
@@ -86,20 +81,24 @@ int kill(pid_t pid, int sig) {
 
 int close(int fd) {
   int result;
-  trigger_syscall(sys_close, &fd, &result);
-  return result;
+  return trigger_syscall(sys_close, &fd);
 }
 
 void exit(int status) {
-  trigger_syscall(sys_exit, &status, NULL);
+  trigger_syscall(sys_exit, &status);
   while (1) {
   }
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
   ssize_t result;
-  const read_context context = {.fd = fd, .buf = buf, .count = count};
-  trigger_syscall(sys_read, &context, &result);
+  const read_context context = {
+      .fd = fd,
+      .buf = buf,
+      .count = count,
+      .result = &result,
+  };
+  trigger_syscall(sys_read, &context);
   return result;
 }
 
@@ -115,43 +114,39 @@ ssize_t write(int fd, const void *buf, size_t count) {
       .fd = fd,
       .buf = buf,
       .count = count,
+      .result = &result,
   };
-  trigger_syscall(sys_write, &context, &result);
+  trigger_syscall(sys_write, &context);
   return result;
 }
 
 void _putchar(char c) {
-  ssize_t result;
   const write_context context = {
       .fd = 1,
       .buf = &c,
       .count = 1,
   };
-  trigger_syscall(sys_write, &context, &result);
+  trigger_syscall(sys_write, &context);
 }
 
 pid_t vfork() {
-  pid_t result;
-  trigger_syscall(sys_vfork, NULL, &result);
-  return result;
+  return trigger_syscall(sys_vfork, NULL);
 }
 
 int unlink(const char *pathname) {
-  int result;
-  trigger_syscall(sys_unlink, pathname, &result);
-  return result;
+  return trigger_syscall(sys_unlink, pathname);
 }
 
 int execve(const char *pathname, char *const argv[], char *const envp[]) {
   execve_result result;
+
   const execve_context context = {
       .filename = pathname,
-      .argv = argv,
-      .envp = envp,
+      .argv = (char **const)argv,
+      .envp = (char **const)envp,
+      .result = &result,
   };
-  trigger_syscall(sys_execve, &context, &result);
-
-  return 0;
+  return trigger_syscall(sys_execve, &context);
 }
 
 char *getcwd(char *buf, size_t size) {
@@ -159,8 +154,9 @@ char *getcwd(char *buf, size_t size) {
   const getcwd_context context = {
       .buf = buf,
       .size = size,
+      .result = &result,
   };
-  trigger_syscall(sys_getcwd, &context, &result);
+  trigger_syscall(sys_getcwd, &context);
   return result;
 }
 
@@ -207,22 +203,27 @@ char *getcwd(char *buf, size_t size) {
 //   return result;
 // }
 
-// off_t _lseek(int fd, off_t offset, int whence) {
-//   // off_t result;
-//   // const lseek_context context = {
-//   //     fd = fd,
-//   //     offset = offset,
-//   //     whence = whence,
-//   // };
-//   // trigger_syscall(sys_lseek, &context, &result);
-//   // return result;
-//   return 0;
-// }
+off_t lseek(int fd, off_t offset, int whence) {
+  off_t result;
+  const lseek_context context = {
+      .fd = fd,
+      .offset = offset,
+      .whence = whence,
+      .result = &result,
+  };
+  trigger_syscall(sys_lseek, &context);
+  return result;
+}
 
 int isatty(int fd) {
-  int result;
-  trigger_syscall(sys_isatty, &fd, &result);
-  return result;
+  return trigger_syscall(sys_isatty, &fd);
+}
+
+int remove(const char *pathname) {
+  const remove_context context = {
+      .pathname = pathname,
+  };
+  return trigger_syscall(sys_unlink, &context);
 }
 
 // pid_t _wait(int *_Nullable wstatus) {
@@ -232,14 +233,12 @@ int isatty(int fd) {
 // }
 
 pid_t waitpid(pid_t pid, int *status, int options) {
-  pid_t result;
   const waitpid_context context = {
       .pid = pid,
       .status = status,
       .options = options,
   };
-  trigger_syscall(sys_waitpid, &context, &result);
-  return result;
+  return trigger_syscall(sys_waitpid, &context);
 }
 
 // int _getentropy(void *buffer, size_t length) {
@@ -270,12 +269,6 @@ pid_t waitpid(pid_t pid, int *status, int options) {
 
 // void _init() {}
 
-void *sbrk(intptr_t increment) {
-  sbrk_result result;
-  trigger_syscall(sys_sbrk, &increment, &result);
-  return result.result;
-}
-
 int open(const char *filename, int flags, ...) {
   va_list args;
   va_start(args, flags);
@@ -286,9 +279,7 @@ int open(const char *filename, int flags, ...) {
       .flags = flags,
       .mode = mode,
   };
-  int result;
-  trigger_syscall(sys_open, &context, &result);
-  return result;
+  return trigger_syscall(sys_open, &context);
 }
 
 ssize_t getdents(int fd, struct dirent *de, size_t len) {
@@ -297,8 +288,9 @@ ssize_t getdents(int fd, struct dirent *de, size_t len) {
       .fd = fd,
       .dirp = de,
       .count = len,
+      .result = &result,
   };
-  trigger_syscall(sys_getdents, &context, &result);
+  trigger_syscall(sys_getdents, &context);
   return result;
 }
 
@@ -308,32 +300,29 @@ int ioctl(int fd, int op, ...) {
   void *arg = va_arg(args, void *);
   va_end(args);
 
-  int result = 0;
   const ioctl_context context = {
       .fd = fd,
       .op = op,
       .arg = arg,
   };
-  trigger_syscall(sys_ioctl, &context, &result);
-  return result;
+  return trigger_syscall(sys_ioctl, &context);
 }
 
 int gettimeofday(struct timeval *tv, struct timezone *tz) {
-  int result;
   const gettimeofday_context context = {
       .tv = tv,
       .tz = tz,
   };
-  trigger_syscall(sys_gettimeofday, &context, &result);
-  return 0;
+  return trigger_syscall(sys_gettimeofday, &context);
 }
 
 time_t time(time_t *timep) {
   time_t result;
   time_context context = {
       .timep = timep,
+      .result = &result,
   };
-  trigger_syscall(sys_time, &context, &result);
+  trigger_syscall(sys_time, &context);
   return result;
 }
 
@@ -348,17 +337,15 @@ time_t time(time_t *timep) {
 // }
 
 int nanosleep(struct timespec *req, struct timespec *rem) {
-  int result;
   const nanosleep_context context = {
       .req = req,
       .rem = rem,
   };
-  trigger_syscall(sys_nanosleep, &context, &result);
-  return result;
+  return trigger_syscall(sys_nanosleep, &context);
 }
 
 void *mmap(void *addr, int len, int prot, int flags, int fd, int offset) {
-  mmap_result result;
+  void *result = NULL;
   const mmap_context context = {
       .addr = addr,
       .length = len,
@@ -366,28 +353,36 @@ void *mmap(void *addr, int len, int prot, int flags, int fd, int offset) {
       .flags = flags,
       .fd = fd,
       .offset = offset,
+      .result = &result,
   };
-  trigger_syscall(sys_mmap, &context, &result);
-  return result.memory;
+  trigger_syscall(sys_mmap, &context);
+  return result;
 }
 
 int munmap(void *addr, int len) {
-  int result;
   const munmap_context context = {
       .addr = addr,
       .length = len,
   };
-  trigger_syscall(sys_munmap, &context, &result);
+  return trigger_syscall(sys_munmap, &context);
+}
+
+int mprotect(void *addr, size_t len, int prot) {
+  int result;
+  const mprotect_context context = {
+      .addr = addr,
+      .length = len,
+      .prot = prot,
+  };
+  trigger_syscall(sys_mprotect, &context);
   return result;
 }
 
 int chdir(const char *path) {
-  int result;
   const chdir_context context = {
       .path = path,
   };
-  trigger_syscall(sys_chdir, &context, &result);
-  return result;
+  return trigger_syscall(sys_chdir, &context);
 }
 
 int fcntl(int fd, int op, ...) {
@@ -396,12 +391,19 @@ int fcntl(int fd, int op, ...) {
   void *arg = va_arg(args, void *);
   va_end(args);
 
-  int result = 0;
   const fcntl_context context = {
       .fd = fd,
       .op = op,
       .arg = arg,
   };
-  trigger_syscall(sys_fcntl, &context, &result);
-  return result;
+  return trigger_syscall(sys_fcntl, &context);
+}
+
+char *realpath(const char *path, char *resolved_path) {
+  const realpath_context context = {
+      .path = path,
+      .resolved_path = resolved_path,
+  };
+  trigger_syscall(sys_realpath, &context);
+  return resolved_path;
 }

@@ -1,5 +1,5 @@
 CC ?= tcc 
-CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include 
+CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -Werror
 LDFLAGS_STATIC = -nostdlib -L../tinycc 
 LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
 
