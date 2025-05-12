@@ -92,6 +92,14 @@ void exit(int status) {
 
 ssize_t read(int fd, void *buf, size_t count) {
   ssize_t result;
+  if (buf == NULL) {
+    return -1;
+  }
+
+  if (count == 0) {
+    return 0;
+  }
+
   const read_context context = {
       .fd = fd,
       .buf = buf,
@@ -110,6 +118,13 @@ ssize_t read(int fd, void *buf, size_t count) {
 
 ssize_t write(int fd, const void *buf, size_t count) {
   ssize_t result;
+  if (buf == NULL) {
+    return -1;
+  }
+
+  if (count == 0) {
+    return 0;
+  }
   const write_context context = {
       .fd = fd,
       .buf = buf,

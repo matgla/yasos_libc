@@ -92,7 +92,7 @@ void *calloc(long n, long sz) {
 
 static long msize(void *v) {
   if ((unsigned long)v & PGMASK)
-    return ((struct mhdr *)(v - sizeof(*v)))->size;
+    return ((struct mhdr *)(v - sizeof(struct mhdr)))->size;
   return *(long *)(v - PGSIZE);
 }
 
