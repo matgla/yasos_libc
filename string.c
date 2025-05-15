@@ -71,6 +71,13 @@ size_t strlen(const char *str) {
   return r;
 }
 
+size_t strnlen(const char *str, size_t n) {
+  size_t r = 0;
+  while (r < n && str[r] != 0)
+    ++r;
+  return r;
+}
+
 char *strcpy(char *dst, const char *src) {
   char *d = dst;
   while ((*d++ = *src++) != 0)

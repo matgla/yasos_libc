@@ -13,6 +13,7 @@ char *strcpy(char *dst, const char *src);
 char *strchr(const char *s, int c);
 char *strrchr(char *s, int c);
 size_t strlen(const char *s);
+size_t strnlen(const char *s, size_t n);
 
 char *strncpy(char *d, char *s, long n);
 char *strcat(char *d, char *s);
