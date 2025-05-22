@@ -386,6 +386,7 @@ long fwrite(void *v, long sz, long n, FILE *fp) {
 int fseek(FILE *fp, long offset, int whence) {
   if (fp->fd < 0)
     return -1;
+  fflush(fp);
   if (lseek(fp->fd, offset, whence) < 0)
     return -1;
   fp->ilen = fp->olen = 0;
