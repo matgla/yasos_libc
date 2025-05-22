@@ -5,7 +5,7 @@ LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC}
 
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
-LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a
+LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a 
 endif
 
 SRCS = $(wildcard *.c)
@@ -20,7 +20,7 @@ LIBDIR ?= $(PREFIX)/lib
 INCLUDEDIR ?= $(PREFIX)/include
 
 # Rules
-all: $(TARGET_SHARED) $(TARGET_STATIC)
+all: $(TARGET_SHARED) $(TARGET_STATIC) $(TARGET_SHARED).elf
 
 prepare: 
 	mkdir -p build
@@ -30,6 +30,9 @@ build/%.o: %.c prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
+	$(CC) $^ -o $@ $(LDFLAGS) -Wl,-oformat=yaff
+
+$(TARGET_SHARED).elf: $(OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS) 
 
 $(TARGET_STATIC): $(OBJS)

@@ -30,6 +30,7 @@
 #include <sys/times.h>
 
 #include "syscalls.h"
+#include <stdio.h>
 
 #ifdef YASLIBC_ARM_SVC_TRIGGER
 inline void __attribute__((naked))

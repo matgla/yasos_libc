@@ -84,6 +84,7 @@ FILE *fdopen(int fd, const char *mode) {
 }
 
 int fclose(FILE *fp) {
+  fflush(fp);
   int ret = close(fp->fd);
   if (fp->iown)
     free(fp->ibuf);
@@ -395,5 +396,6 @@ int fseek(FILE *fp, long offset, int whence) {
 long ftell(FILE *fp) {
   if (fp->fd < 0)
     return -1;
+  fflush(fp);
   return lseek(fp->fd, 0, SEEK_CUR);
 }
