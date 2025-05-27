@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdarg.h>
+#include <stddef.h>
 
 #define EOF (-1)
 
@@ -59,3 +60,5 @@ long fwrite(void *s, long sz, long n, FILE *fp);
 long fread(void *s, long sz, long n, FILE *fp);
 
 void perror(char *s);
+
+int getline(char **lineptr, size_t *n, FILE *fp);
