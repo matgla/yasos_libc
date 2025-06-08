@@ -8,6 +8,26 @@
 
 char **environ;
 
+char *itoa(int n, char *s, int base) {
+  char *p = s;
+  int sign = n < 0 ? -1 : 1;
+  if (sign < 0)
+    n = -n;
+  do {
+    *p++ = "0123456789abcdef"[n % base];
+    n /= base;
+  } while (n);
+  if (sign < 0)
+    *p++ = '-';
+  *p-- = '\0';
+  while (s < p) {
+    char tmp = *s;
+    *s++ = *p;
+    *p-- = tmp;
+  }
+  return s;
+}
+
 int abs(int n) {
   return n >= 0 ? n : -n;
 }

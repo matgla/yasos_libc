@@ -24,7 +24,7 @@ char *strstr(char *s, char *r);
 char *strdup(const char *s);
 size_t strspn(const char *s, const char *accept);
 size_t strcspn(const char *s, const char *reject);
-
+char *strtok(char *str, const char *delimiters);
 /* faster implementations */
 #define memchr(s, c, n) __memchr_c(s, c, n)
 

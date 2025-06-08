@@ -29,21 +29,21 @@ extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 
-FILE *fopen(char *path, char *mode);
+FILE *fopen(const char *path, const char *mode);
 int fclose(FILE *fp);
 int fflush(FILE *fp);
 void setbuf(FILE *fp, char *buf);
 
 int fputc(int c, FILE *fp);
 int putchar(int c);
-int printf(char *fmt, ...);
-int vprintf(char *fmt, va_list ap);
-int fprintf(FILE *fp, char *fmt, ...);
-int sprintf(char *dst, char *fmt, ...);
-int vsprintf(char *dst, char *fmt, va_list ap);
-int vfprintf(FILE *fp, char *fmt, va_list ap);
-int snprintf(char *dst, int sz, char *fmt, ...);
-int vsnprintf(char *dst, int sz, char *fmt, va_list ap);
+int printf(const char *fmt, ...);
+int vprintf(const char *fmt, va_list ap);
+int fprintf(FILE *fp, const char *fmt, ...);
+int sprintf(char *dst, const char *fmt, ...);
+int vsprintf(char *dst, const char *fmt, va_list ap);
+int vfprintf(FILE *fp, const char *fmt, va_list ap);
+int snprintf(char *dst, int sz, const char *fmt, ...);
+int vsnprintf(char *dst, int sz, const char *fmt, va_list ap);
 int fputs(const char *s, FILE *fp);
 int puts(const char *s);
 

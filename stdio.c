@@ -19,7 +19,7 @@ FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
 
-FILE *fopen(char *path, char *mode) {
+FILE *fopen(const char *path, const char *mode) {
   FILE *fp;
   int flags;
 
@@ -211,8 +211,8 @@ static void oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
 
 static char *fmt_flags = "-+ #0";
 
-int vfprintf(FILE *fp, char *fmt, va_list ap) {
-  char *s = fmt;
+int vfprintf(FILE *fp, const char *fmt, va_list ap) {
+  const char *s = fmt;
   int beg = fp->ostat;
   while (*s) {
     int c = (unsigned char)*s++;
@@ -307,7 +307,7 @@ void perror(char *s) {
     fprintf(stderr, "%s\n", sys_errlist[idx]);
 }
 
-int vsnprintf(char *dst, int sz, char *fmt, va_list ap) {
+int vsnprintf(char *dst, int sz, const char *fmt, va_list ap) {
   FILE f = {-1, EOF};
   int ret;
   f.obuf = dst;
@@ -317,11 +317,11 @@ int vsnprintf(char *dst, int sz, char *fmt, va_list ap) {
   return ret;
 }
 
-int vsprintf(char *dst, char *fmt, va_list ap) {
+int vsprintf(char *dst, const char *fmt, va_list ap) {
   return vsnprintf(dst, 1 << 20, fmt, ap);
 }
 
-int printf(char *fmt, ...) {
+int printf(const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -330,11 +330,11 @@ int printf(char *fmt, ...) {
   return ret;
 }
 
-int vprintf(char *fmt, va_list ap) {
+int vprintf(const char *fmt, va_list ap) {
   return vfprintf(stdout, fmt, ap);
 }
 
-int fprintf(FILE *fp, char *fmt, ...) {
+int fprintf(FILE *fp, const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -343,7 +343,7 @@ int fprintf(FILE *fp, char *fmt, ...) {
   return ret;
 }
 
-int sprintf(char *dst, char *fmt, ...) {
+int sprintf(char *dst, const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -352,7 +352,7 @@ int sprintf(char *dst, char *fmt, ...) {
   return ret;
 }
 
-int snprintf(char *dst, int sz, char *fmt, ...) {
+int snprintf(char *dst, int sz, const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);

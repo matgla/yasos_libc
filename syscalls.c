@@ -51,11 +51,6 @@ int trigger_syscall(int number, const void *args) {
 
   trigger_supervisor_call(number, args, &sresult);
 
-  if (sresult.result > 10) {
-    while (true) {
-    }
-  }
-
   if (sresult.err >= 1) {
     errno = sresult.err;
   }
@@ -146,7 +141,12 @@ void _putchar(char c) {
 }
 
 pid_t vfork() {
-  return trigger_syscall(sys_vfork, NULL);
+  int result = trigger_syscall(sys_vfork, NULL);
+  int my_pid = getpid();
+  if (result != my_pid) {
+    return result;
+  }
+  return 0;
 }
 
 int unlink(const char *pathname) {
@@ -419,4 +419,9 @@ char *realpath(const char *path, char *resolved_path) {
   };
   trigger_syscall(sys_realpath, &context);
   return resolved_path;
+}
+
+int fsync(int fd) {
+  // TODO: implement me
+  return 0;
 }

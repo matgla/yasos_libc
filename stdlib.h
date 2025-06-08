@@ -11,6 +11,7 @@ void *realloc(void *v, long sz);
 
 int atoi(char *s);
 long atol(char *s);
+char *itoa(int n, char *s, int base);
 long strtol(const char *s, char **endptr, int base);
 unsigned long strtoul(const char *s, char **endptr, int base);
 int abs(int n);

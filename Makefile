@@ -1,5 +1,5 @@
 CC ?= tcc 
-CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -Werror
+CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include 
 LDFLAGS_STATIC = -nostdlib -L../tinycc 
 LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
 
@@ -33,7 +33,7 @@ $(TARGET_SHARED): $(OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS) -Wl,-oformat=yaff
 
 $(TARGET_SHARED).elf: $(OBJS)
-	$(CC) $^ -o $@ $(LDFLAGS) 
+	$(CC) $^ -o $@ $(LDFLAGS) -Wl,-oformat=elf32-littlearm
 
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^ ../tinycc/armv8m-libtcc1.a
