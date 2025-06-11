@@ -13,7 +13,14 @@
 static char _ibuf[BUFSIZ], _obuf[BUFSIZ], _ebuf[BUFSIZ];
 static FILE _stdin = {0, EOF, _ibuf, NULL, BUFSIZ, 0};
 static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
-static FILE _stderr = {2, EOF, NULL, _ebuf, 0, 1};
+/* stderr is LINE-buffered (osize = BUFSIZ), not unbuffered (osize = 1).
+ * fputc() already flushes on '\n' or when the buffer fills, so diagnostics
+ * still appear promptly, but a whole line is emitted in ONE block write()
+ * instead of one write(fd,&c,1) syscall per character. The latter loses ~half
+ * its bytes on this target (rapid single-byte writes outrun the console/FS
+ * write path), which was scrambling every error message to every-other-char
+ * (e.g. tcc's compile errors became unreadable). Block writes are reliable. */
+static FILE _stderr = {2, EOF, NULL, _ebuf, 0, BUFSIZ};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;

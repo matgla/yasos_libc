@@ -35,18 +35,7 @@ int abs(int n) {
 }
 
 double atof(const char *str) {
-  double result = 0.0;
-  int sign = 1;
-  while (*str && *str != ' ' && *str != '\t') {
-    if (*str == '-')
-      sign = -1;
-    else if (*str >= '0' && *str <= '9')
-      result = result * 10.0 + (*str - '0');
-    else
-      break;
-    str++;
-  }
-  return result * sign;
+  return strtod(str, NULL);
 }
 
 long int labs(long int n) {
@@ -170,7 +159,6 @@ unsigned long long int strtoull(const char *nptr, char **endptr, int base) {
 
 double strtod(const char *nptr, char **endptr) {
   const char *s = nptr;
-  double result = 0.0;
   int sign = 1;
 
   /* Skip leading whitespace */
@@ -185,50 +173,92 @@ double strtod(const char *nptr, char **endptr) {
     s++;
   }
 
+  /* Accumulate the mantissa as an exact 64-bit integer and track the decimal
+   * exponent separately; scale once at the end with correctly-rounded IEEE
+   * multiplies/divides by exact powers of ten.  A digit-by-digit
+   * `frac *= 0.1` accumulation is ~1 ulp low on most fractions (0.1 is not
+   * representable), which broke FP literal parsing in the on-target tcc:
+   * "1.25" parsed to the double just below 1.25. */
+  unsigned long long mant = 0;
+  int dec_exp = 0;
+  int digits = 0;
+
   /* Integer part */
   while (*s >= '0' && *s <= '9') {
-    result = result * 10.0 + (*s - '0');
+    if (mant != 0 || *s != '0') {
+      if (digits < 19) {
+        mant = mant * 10 + (unsigned long long)(*s - '0');
+        digits++;
+      } else {
+        dec_exp++;
+      }
+    }
     s++;
   }
 
   /* Fractional part */
   if (*s == '.') {
-    double frac = 0.1;
     s++;
     while (*s >= '0' && *s <= '9') {
-      result += (*s - '0') * frac;
-      frac *= 0.1;
+      if (mant == 0 && *s == '0') {
+        dec_exp--; /* leading fractional zero: pure scale-down */
+      } else if (digits < 19) {
+        mant = mant * 10 + (unsigned long long)(*s - '0');
+        digits++;
+        dec_exp--;
+      }
       s++;
     }
   }
 
-  /* Exponent part */
+  /* Exponent part (only if at least one digit follows the 'e'/sign) */
   if (*s == 'e' || *s == 'E') {
+    const char *e_start = s;
     s++;
     int exp_sign = 1;
-    int exp_val = 0;
     if (*s == '-') {
       exp_sign = -1;
       s++;
     } else if (*s == '+') {
       s++;
     }
-    while (*s >= '0' && *s <= '9') {
-      exp_val = exp_val * 10 + (*s - '0');
-      s++;
+    if (*s >= '0' && *s <= '9') {
+      int exp_val = 0;
+      while (*s >= '0' && *s <= '9') {
+        if (exp_val < 100000)
+          exp_val = exp_val * 10 + (*s - '0');
+        s++;
+      }
+      dec_exp += exp_sign * exp_val;
+    } else {
+      s = e_start; /* bare 'e' is not part of the number */
     }
-    double power = 1.0;
-    for (int i = 0; i < exp_val; i++)
-      power *= 10.0;
-    if (exp_sign > 0)
-      result *= power;
-    else
-      result /= power;
+  }
+
+  /* 10^0..10^22 are exactly representable as doubles, so a single multiply
+   * or divide below is correctly rounded.  Larger exponents step in chunks
+   * (rare; may cost an extra rounding). */
+  static const double pow10tab[23] = {1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,
+                                      1e8,  1e9,  1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
+                                      1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
+  double result = (double)mant;
+  if (result != 0.0) {
+    int e = dec_exp;
+    while (e > 0) {
+      int step = e > 22 ? 22 : e;
+      result *= pow10tab[step];
+      e -= step;
+    }
+    while (e < 0) {
+      int step = e < -22 ? 22 : -e;
+      result /= pow10tab[step];
+      e += step;
+    }
   }
 
   if (endptr)
     *endptr = (char *)s;
-  return result * sign;
+  return sign < 0 ? -result : result;
 }
 
 float strtof(const char *nptr, char **endptr) {
