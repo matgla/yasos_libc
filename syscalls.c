@@ -82,8 +82,6 @@ int close(int fd) {
 
 void exit(int status) {
   trigger_syscall(sys_exit, &status);
-  while (1) {
-  }
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
