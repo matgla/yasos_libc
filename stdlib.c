@@ -4,6 +4,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <stdio.h>
+
 #define ATEXIT_MAX 32
 
 char **environ;
@@ -157,4 +159,33 @@ long long int strtoll(const char *nptr, char **endptr, int base) {
   if (endptr)
     *endptr = (char *)nptr;
   return result;
+}
+
+long long atoll(const char *nptr) {
+  return strtoll(nptr, NULL, 10);
+}
+
+static unsigned long seed = 1;
+
+long random(void) {
+  seed = (seed * 1103515245 + 12345) & RAND_MAX;
+  return seed;
+}
+
+void srandom(unsigned int seed) {
+  if (seed == 0)
+    seed = 1; // Avoid zero seed
+  unsigned long long int s = seed;
+  s = (s * 1103515245 + 12345) & RAND_MAX;
+  seed = (unsigned long)s;
+}
+
+int setenv(const char *name, const char *value, int overwrite) {
+  printf("TODO: Implement setenv\n");
+  return -1; // Not implemented
+}
+
+int unsetenv(const char *name) {
+  printf("TODO: Implement unsetenv\n");
+  return -1; // Not implemented
 }

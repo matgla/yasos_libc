@@ -1,19 +1,22 @@
-/*
- *   Copyright (c) 2025 Mateusz Stadnik
-
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
-
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
-
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 #include <sys/types.h>
 
@@ -22,6 +25,8 @@
 #include <stdarg.h>
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <signal.h>
 #include <unistd.h>
@@ -29,8 +34,10 @@
 #include <sys/time.h>
 #include <sys/times.h>
 
-#include "syscalls.h"
+#include "sys/syscall.h"
 #include <stdio.h>
+
+#include <limits.h>
 
 #ifdef YASLIBC_ARM_SVC_TRIGGER
 inline void __attribute__((naked))
@@ -57,9 +64,14 @@ int trigger_syscall(int number, const void *args) {
   return sresult.result;
 }
 
-pid_t getpid() {
-  return trigger_syscall(sys_getpid, NULL);
+long syscall(long number, ...) {
+  // trigger_supervisor_call(number, NULL, &sresult);
+  // return 0;
+  printf("TODO: simplement syscall()\n");
+  return 0;
 }
+
+
 
 int kill(pid_t pid, int sig) {
   const kill_context context = {
@@ -162,6 +174,12 @@ int execve(const char *pathname, char *const argv[], char *const envp[]) {
 
 char *getcwd(char *buf, size_t size) {
   char *result;
+  if (buf == NULL && size != 0) {
+    buf = (char *)malloc(size);
+  } else if (buf == NULL) {
+    buf = (char *)malloc(PATH_MAX);
+    size = PATH_MAX;
+  }
   const getcwd_context context = {
       .buf = buf,
       .size = size,
@@ -417,6 +435,18 @@ char *realpath(const char *path, char *resolved_path) {
   };
   trigger_syscall(sys_realpath, &context);
   return resolved_path;
+}
+
+char *basename(const char *path) {
+  if (path == NULL) {
+    return NULL;
+  }
+
+  char *last_slash = strrchr(path, '/');
+  if (last_slash != NULL) {
+    return (char *)(last_slash + 1);
+  }
+  return (char *)path;
 }
 
 int fsync(int fd) {

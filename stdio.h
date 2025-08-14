@@ -1,7 +1,13 @@
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+
 #pragma once
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <sys/types.h>
 
 #define EOF (-1)
 
@@ -45,7 +51,12 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap);
 int snprintf(char *dst, int sz, const char *fmt, ...);
 int vsnprintf(char *dst, int sz, const char *fmt, va_list ap);
 int fputs(const char *s, FILE *fp);
+int ferror(FILE *stream);
 int puts(const char *s);
+int pclose(FILE *stream);
+int fseek(FILE *fp, long offset, int whence);
+long ftell(FILE *fp);
+FILE *popen(const char *command, const char *type);
 
 int fgetc(FILE *fp);
 char *fgets(char *s, int sz, FILE *fp);
@@ -62,3 +73,13 @@ long fread(void *s, long sz, long n, FILE *fp);
 void perror(char *s);
 
 int getline(char **lineptr, size_t *n, FILE *fp);
+int setvbuf(FILE *fp, char *buf, int mode, size_t size);
+int dprintf(int fildes, const char *format, ...);
+
+int fileno(FILE *fp);
+
+int rename(const char *oldpath, const char *newpath);
+FILE *fdopen(int fd, const char *mode);
+FILE *fmemopen(void *buf, size_t size, const char *mode);
+ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream);
+void clearerr(FILE *fp);

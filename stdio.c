@@ -118,16 +118,24 @@ int putchar(int c) {
   return fputc(c, stdout);
 }
 
-static void ostr(FILE *fp, char *s, int wid, int left) {
+static int ostr(FILE *fp, char *s, int wid, int left) {
   int fill = wid - strlen(s);
+  int n = 0;
   if (!left)
-    while (fill-- > 0)
+    while (fill-- > 0) {
       fputc(' ', fp);
-  while (*s)
+      ++n;
+    }
+  while (*s) {
     fputc((unsigned char)*s++, fp);
+    ++n;
+  }
   if (left)
-    while (fill-- > 0)
+    while (fill-- > 0) {
       fputc(' ', fp);
+      ++n;
+    }
+  return n;
 }
 
 static int digits(unsigned long n, int base) {
@@ -148,7 +156,7 @@ static char *digs_uc = "0123456789ABCDEF";
 #define FMT_SIGNED 0040 /* is the conversion signed? */
 #define FMT_UCASE 0100  /* uppercase hex digits? */
 
-static void oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
+static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
                  int flags) {
   char buf[64];
   char *s = buf;
@@ -161,6 +169,7 @@ static void oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   int prefix_len = 0; /* length of sign or base prefix */
   int d;
   int i;
+  int size = 0;
   if (flags & FMT_SIGNED) {
     if ((signed long)n < 0) {
       neg = 1;
@@ -191,22 +200,34 @@ static void oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   fill = (flags & FMT_ZERO) ? '0' : ' ';
   i = d + prefix_len;
   if (fill == ' ' && !left)
-    while (i++ < wid)
+    while (i++ < wid) {
       fputc(' ', fp);
+      ++size;
+    }
   if (sign) {
     fputc(sign, fp);
+    ++size;
   } else if (prefix_len) {
     fputc('0', fp);
+    ++size;
     if (base == 16)
+    {
       fputc(ucase ? 'X' : 'x', fp);
+      ++size;
+    }
   }
   if (fill == '0' && !left)
-    while (i++ < wid)
+    while (i++ < wid) {
       fputc('0', fp);
-  ostr(fp, buf, 0, 0);
+      ++size;
+    }
+  size += ostr(fp, buf, 0, 0);
   if (left)
-    while (i++ < wid)
+    while (i++ < wid) {
       fputc(' ', fp);
+      ++size;
+    }
+  return size;
 }
 
 static char *fmt_flags = "-+ #0";
@@ -214,6 +235,7 @@ static char *fmt_flags = "-+ #0";
 int vfprintf(FILE *fp, const char *fmt, va_list ap) {
   const char *s = fmt;
   int beg = fp->ostat;
+  int n = 0;
   while (*s) {
     int c = (unsigned char)*s++;
     int wid = 0;
@@ -223,6 +245,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     char *f;
     if (c != '%') {
       fputc(c, fp);
+      ++n;
       continue;
     }
     while ((f = strchr(fmt_flags, *s))) {
@@ -255,34 +278,40 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     case 'd':
     case 'i':
       flags |= FMT_SIGNED;
-      oint(fp, va_arg(ap, long), 10, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags);
       break;
     case 'u':
       flags &= ~FMT_ALT;
-      oint(fp, va_arg(ap, long), 10, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags);
       break;
     case 'o':
-      oint(fp, va_arg(ap, long), 8, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 8, wid, bytes, flags);
       break;
     case 'p':
       flags |= FMT_ALT;
     case 'x':
-      oint(fp, va_arg(ap, long), 16, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags);
       break;
     case 'X':
       flags |= FMT_UCASE;
-      oint(fp, va_arg(ap, long), 16, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags);
       break;
     case 'c':
-      if (left)
+      if (left) {
         fputc(va_arg(ap, int), fp);
-      while (wid-- > 1)
+        ++n;
+      }
+      while (wid-- > 1) {
         fputc(' ', fp);
-      if (!left)
+        ++n;
+      }
+      if (!left) {
         fputc(va_arg(ap, int), fp);
+        ++n;
+      }
       break;
     case 's':
-      ostr(fp, va_arg(ap, char *), wid, left);
+      n += ostr(fp, va_arg(ap, char *), wid, left);
       break;
     case 'n':
       *va_arg(ap, int *) = fp->ostat - beg;
@@ -290,11 +319,13 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     case '\0':
       s--;
       break;
-    default:
+    default: {
       fputc(c, fp);
+      ++n;
+    }
     }
   }
-  return fp->ostat - beg;
+  return n;
 }
 
 void perror(char *s) {
@@ -399,4 +430,65 @@ long ftell(FILE *fp) {
     return -1;
   fflush(fp);
   return lseek(fp->fd, 0, SEEK_CUR);
+}
+
+int ferror(FILE *fp) {
+  return 0;
+}
+
+int pclose(FILE *stream) {
+  int ret = fclose(stream);
+  if (ret < 0)
+    return EOF;
+  return ret;
+}
+
+FILE *popen(const char *command, const char *type) {
+  return NULL;
+}
+
+int rename(const char *oldpath, const char *newpath) {
+  printf("TODO: Implement rename\n");
+  return -1; // Not implemented
+}
+
+FILE *fmemopen(void *buf, size_t size, const char *mode) {
+  printf("TODO: Implement fmemopen\n");
+  return NULL; // Not implemented
+}
+
+ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) {
+  printf("TODO: Implement getdelim\n");
+  return -1; // Not implemented
+}
+
+void clearerr(FILE *fp) {
+  printf("TODO: Implement clearerr\n");
+}
+
+int setvbuf(FILE *fp, char *buf, int mode, size_t size) {
+  if (fp->fd < 0)
+    return -1;
+  if (buf == NULL) {
+    fp->obuf = malloc(size);
+    fp->oown = 1;
+  } else {
+    fp->obuf = buf;
+    fp->oown = 0;
+  }
+  fp->osize = size;
+  fp->olen = 0;
+  return 0;
+}
+int dprintf(int fildes, const char *format, ...) {
+  printf("TODO: Implement dprintf\n");
+  return -1; // Not implemented
+}
+
+int fileno(FILE *fp) {
+  if (fp == NULL) {
+    errno = EBADF;
+    return -1;
+  }
+  return fp->fd;
 }

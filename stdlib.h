@@ -11,6 +11,7 @@ void *realloc(void *v, long sz);
 
 int atoi(char *s);
 long atol(char *s);
+long long atoll(const char *s);
 char *itoa(int n, char *s, int base);
 long strtol(const char *s, char **endptr, int base);
 unsigned long strtoul(const char *s, char **endptr, int base);
@@ -29,6 +30,9 @@ int system(char *cmd);
 void srand(unsigned int seed);
 int rand(void);
 
+double strtod(const char *nptr, char **endptr);
+long long strtoll(const char *str, char **endptr, int base);
+
 /* for examining heap memory allocation */
 #ifdef MEMTST
 void *memtst_malloc(long n);
@@ -40,3 +44,11 @@ void *memtst_realloc(void *v, long sz);
 #define calloc memtst_calloc
 #define realloc memtst_realloc
 #endif
+
+int setenv(const char *name, const char *value, int overwrite);
+int unsetenv(const char *name);
+
+#define MB_CUR_MAX 1
+
+long random(void);
+void srandom(unsigned int seed);

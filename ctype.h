@@ -1,5 +1,8 @@
-#ifndef	_CTYPE_H
-#define _CTYPE_H
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+#pragma once
 
 int isascii(int c);
 int isblank(int c);
@@ -15,4 +18,6 @@ int ispunct(int c);
 int tolower(int c);
 int toupper(int c);
 
-#endif
+int iscntrl(int c);
+int isgraph(int c);
+int isxdigit(int c);

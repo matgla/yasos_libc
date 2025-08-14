@@ -1,5 +1,5 @@
 CC ?= tcc 
-CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include 
+CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include 
 LDFLAGS_STATIC = -nostdlib -L../tinycc 
 LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
 
@@ -8,7 +8,7 @@ CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
 LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a 
 endif
 
-SRCS = $(wildcard *.c)
+SRCS = $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c)
 
 OBJS = $(patsubst %.c, build/%.o, $(SRCS))
 
@@ -25,6 +25,8 @@ all: $(TARGET_SHARED) $(TARGET_STATIC) $(TARGET_SHARED).elf
 prepare: 
 	mkdir -p build
 	mkdir -p build/arm
+	mkdir -p build/sys
+	mkdir -p build/arpa
 
 build/%.o: %.c prepare
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -55,9 +57,15 @@ install: $(TARGET_SHARED) $(TARGET_STATIC) build/arm/crt1.o build/arm/crti.o bui
 	cp build/arm/crt1.o $(LIBDIR)
 	cp build/arm/crti.o $(LIBDIR)
 	cp build/arm/crtn.o $(LIBDIR)
-
 	cp *.h $(INCLUDEDIR)
+	cp ../tinycc/include/*.h $(INCLUDEDIR)
 	cp -r sys $(INCLUDEDIR)
+	cp -r arpa $(INCLUDEDIR)
+	cp -r net $(INCLUDEDIR)
+	cp -r netinet $(INCLUDEDIR)
 
 clean:
 	rm -rf build
+
+test: 
+	$(MAKE) -C tests

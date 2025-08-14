@@ -5,6 +5,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <stdio.h>
+
 struct __dirent_dir {
   int fd;
   int buf_pos;
@@ -49,4 +51,9 @@ struct dirent *readdir(DIR *dir) {
   de = (void *)(dir->buf + dir->buf_pos);
   dir->buf_pos += de->d_reclen;
   return de;
+}
+
+DIR *fdopendir(int fd) {
+  printf("TODO: Implement fdopendir\n");
+  return NULL; // Not implemented
 }

@@ -2,14 +2,7 @@
 
 #include <stddef.h>
 
-#define SA_NOCLDSTOP 1
-#define SA_NOCLDWAIT 2
-#define SA_SIGINFO 4
-#define SA_ONSTACK 0x08000000
-#define SA_RESTART 0x10000000
-#define SA_NODEFER 0x40000000
-#define SA_RESETHAND 0x80000000
-#define SA_RESTORER 0x04000000
+#include <stdio.h>
 
 int sigreturn(unsigned long n);
 
@@ -21,6 +14,7 @@ struct ksa {
 };
 
 int __sigaction(int sig, const struct sigaction *sa, struct sigaction *old) {
+  printf("TODO: Implement __sigaction\n");
   return -1;
 }
 
@@ -50,5 +44,16 @@ int sigaddset(sigset_t *set, int signum) {
 }
 
 int sigprocmask(int howm, const sigset_t *set, sigset_t *oldset) {
+  printf("TODO: Implement sigprocmask\n");
+  return -1;
+}
+
+int sigsuspend(const sigset_t *mask) {
+  printf("TODO: Implement sigsuspend\n");
+  return -1;
+}
+
+int sigfillset(sigset_t *set) {
+  printf("TODO: Implement sigfillset\n");
   return -1;
 }

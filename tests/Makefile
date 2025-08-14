@@ -1,5 +1,5 @@
-CC ?= tcc 
-CFLAGS = -Wall -pedantic -g -std=c11 -I../../../source/sys/include
+CC = gcc
+CFLAGS = -Wall -pedantic -g -std=c11
 
 SRCS = $(wildcard *.c)
 OBJS = $(patsubst %.c, build/%.o, $(SRCS))
@@ -12,7 +12,7 @@ SYMBOLS_REDEFINES = symbols_redefines.txt
 LIBC_SRCS = $(wildcard ../*.c) $(wildcard ../*.h)
 
 # Rules
-all: $(TARGET)
+all: $(TARGET) test
 
 build/%.o: %.c
 	mkdir -p build

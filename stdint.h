@@ -1,6 +1,8 @@
 #ifndef _INTTYPES_H
 #define _INTTYPES_H
 
+#include <limits.h>
+
 typedef char int8_t;
 typedef short int16_t;
 typedef int int32_t;

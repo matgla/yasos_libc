@@ -1,12 +1,20 @@
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+
+#include <unistd.h>
+
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 #include <sys/wait.h>
+#include <sys/syscall.h>
 
+#include <stdio.h>
 int sleep(int n) {
   struct timespec req = {n, 0};
   struct timespec rem;
@@ -73,8 +81,118 @@ int raise(int sig) {
   return kill(getpid(), sig);
 }
 
+pid_t getpid() {
+  bool parent = false;
+  return trigger_syscall(sys_getpid, &parent);
+}
+
+int getppid(void) {
+  bool parent = true;
+  return trigger_syscall(sys_getpid, &parent);
+}
+
 void abort(void) {
   raise(SIGABRT);
   while (1)
     ;
+}
+
+ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
+  const char *path = "/usr/bin/sh";
+  memcpy(buf, path, strlen(path)); 
+  return strlen(path);
+}
+
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
+  printf("TODO: Implement readlink\n");
+  return -1; // Not implemented
+}
+
+uid_t geteuid(void) {
+  return trigger_syscall(sys_geteuid, NULL);
+}
+
+uid_t getuid(void) {
+  return trigger_syscall(sys_getuid, NULL);
+}
+
+int setuid(uid_t uid) {
+  printf("TODO: Implement setuid\n");
+  return -1; // Not implementedj
+}
+
+pid_t setsid(void) {
+  printf("TODO: Implement setsid\n");
+  return -1; // Not implemented
+}
+
+int setgid(gid_t gid) {
+  printf("TODO: Implement setgid\n");
+  return -1; // Not implemented
+}
+
+int fchown(int fd, uid_t owner, gid_t group) {
+  printf("TODO: Implement fchown\n");
+  return -1; // Not implemented
+}
+
+int link(const char *oldpath, const char *newpath) {
+  printf("TODO: Implement link\n");
+  return -1; // Not implemented
+}
+
+int chroot(const char *path) {
+  printf("TODO: Implement chroot\n");
+  return -1; // Not implemented
+}
+
+int faccessat(int dirfd, const char *pathname, int mode, int flags) {
+  printf("TODO: Implement faccessat\n");
+  return -1; // Not implemented
+}
+
+int gethostname(char *name, size_t size) {
+  printf("TODO: Implement gethostname\n");
+  const char *default_hostname = "localhost";
+  const size_t hostname_size = strlen(default_hostname);
+  if (size > hostname_size) {
+    memcpy(name, default_hostname, hostname_size);
+    return 0; // Success
+  }
+  return -1;
+}
+
+int sethostname(const char *name, size_t size) {
+  printf("TODO: Implement sethostname\n");
+  return -1; // Not implemented
+}
+
+int access(char *name, int type) {
+  printf("TODO: Implement access\n");
+  return -1; // Not implemented
+}
+
+// int unlink(const char *path) {
+//   printf("TODO: Implement unlink\n");
+//   return -1; // Not implemented
+// }
+
+int pipe(int fds[2]) {
+  printf("TODO: Implement pipe\n");
+  return -1; // Not implemented
+}
+
+int dup(int fd) {
+  printf("TODO: Implement dup\n");
+  return -1; // Not implemented
+}
+
+int dup2(int fd, int fd2) {
+  printf("TODO: Implement dup2\n");
+  return -1; // Not implemented
+}
+
+void _exit(int status) {
+  printf("TODO: Implement _exit\n");
+  exit(status);
 }

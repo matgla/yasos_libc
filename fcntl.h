@@ -1,5 +1,13 @@
-#ifndef _FCNTL_H
-#define _FCNTL_H
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+
+#pragma once
+
+#include <stddef.h>
+#include <stdint.h>
+#include <sys/types.h>
 
 #define O_RDONLY 00000
 #define O_WRONLY 00001
@@ -49,4 +57,15 @@ int open(const char *path, int flags, ...);
 int creat(const char *path, int mode);
 int fcntl(int fd, int cmd, ...);
 
-#endif
+int openat(int dirfd, const char *pathname, int flags, ...);
+
+typedef int32_t pid_t;
+typedef signed long off_t;
+
+struct flock {
+  short l_type;   /* Type of lock: F_RDLCK, F_WRLCK, or F_UNLCK */
+  short l_whence; /* How to interpret l_start: SEEK_SET, SEEK_CUR, SEEK_END */
+  off_t l_start;  /* Starting offset for lock */
+  off_t l_len;    /* Length of lock (0 means until end of file) */
+  pid_t l_pid;    /* Process ID of the process holding the lock */
+};

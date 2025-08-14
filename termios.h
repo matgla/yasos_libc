@@ -1,3 +1,10 @@
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+
+#pragma once
+
 #include <sys/types.h>
 
 struct winsize {
@@ -156,5 +163,28 @@ struct termios {
 #define TCSADRAIN 1
 #define TCSAFLUSH 2
 
+#define TCIFLUSH 1
+#define TCOFLUSH 2
+#define TCIOFLUSH 3
+
+#define _IONBF 1
+#define _IOLBF 2
+#define _IOFBF 0
+
+typedef long speed_t;
+
 int tcgetattr(int fd, struct termios *term);
 int tcsetattr(int fd, int actions, struct termios *term);
+int tcflush(int fildes, int queue_selector);
+
+int tcdrain(int fd);
+int tcflow(int fd, int action);
+
+void cfmakeraw(struct termios *termios_p);
+
+speed_t cfgetispeed(const struct termios *termios_p);
+speed_t cfgetospeed(const struct termios *termios_p);
+
+int cfsetispeed(struct termios *termios_p, speed_t speed);
+int cfsetospeed(struct termios *termios_p, speed_t speed);
+int cfsetspeed(struct termios *termios_p, speed_t speed);

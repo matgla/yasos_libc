@@ -1,3 +1,10 @@
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+
+#pragma once
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -53,3 +60,21 @@ int sleep(int n);
 
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
+
+ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
+
+uid_t getuid(void);
+uid_t geteuid(void);
+int setuid(uid_t uid);
+pid_t setsid(void);
+int setgid(gid_t gid);
+
+int fchown(int fd, uid_t owner, gid_t group);
+int link(const char *oldpath, const char *newpath);
+int chroot(const char *path);
+int faccessat(int dirfd, const char *pathname, int mode, int flags);
+int gethostname(char *name, size_t size);
+int sethostname(const char *name, size_t size);
+
+#define _CS_PATH "/bin"

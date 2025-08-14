@@ -22,7 +22,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include <syscalls.h>
+#include <sys/syscall.h>
 
 void *dlopen(const char *path, int mode) {
   void *result;

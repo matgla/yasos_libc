@@ -1,4 +1,11 @@
+// Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
+// Please check the LICENSE file for copying conditions.
+// Modified by:
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
+
 #pragma once
+
+#include <sys/ucontext.h>
 
 #define NSIG 32
 
@@ -61,10 +68,6 @@ typedef struct siginfo {
   int si_code;
 } siginfo_t;
 
-typedef struct sigset {
-  unsigned long __bits[128 / sizeof(long)];
-} sigset_t;
-
 typedef struct sigaction {
   void (*sa_handler)(int);
   sigset_t sa_mask;
@@ -72,3 +75,26 @@ typedef struct sigaction {
   void (*sa_restorer)(void);
   int sa_sigaction;
 } sigaction_t;
+
+int sigsuspend(const sigset_t *mask);
+int sigaddset(sigset_t *set, int signum);
+int sigemptyset(sigset_t *set);
+int sigaction(int sig, const struct sigaction *sa, struct sigaction *old_sa);
+int sigfillset(sigset_t *set);
+int sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+int sigpending(sigset_t *set);
+
+typedef char sig_atomic_t;
+extern const char *const sys_siglist[];
+extern const char *const sys_signame[];
+
+#define SA_NOCLDSTOP 0x0001
+#define SA_NOCLDWAIT 0x0002
+#define SA_NODEFER 0x0004
+#define SA_ONSTACK 0x0008
+#define SA_RESETHAND 0x0010
+#define SA_RESTART 0x0020
+#define SA_RESTORER 0x0040
+#define SA_SIGINFO 0x0080
+#define SA_UNSUPPORTED 0x0100
+#define SA_EXPOSE_TAGBITS 0x0200
