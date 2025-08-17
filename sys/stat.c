@@ -35,10 +35,12 @@ int stat(char *file, struct stat *buf) {
 
   stat_context context = {
     .pathname = file,
-    .statbuf = &buf,
+    .statbuf = buf,
   };
 
-  return trigger_syscall(sys_stat, &context);
+  int rc = trigger_syscall(sys_stat, &context);
+  printf("Stat returned: %d, mode: %x\n", rc, buf->st_mode);
+  return rc;
 }
 
 int fstat(int fd, struct stat *buf) {

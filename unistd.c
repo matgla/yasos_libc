@@ -168,8 +168,7 @@ int sethostname(const char *name, size_t size) {
 }
 
 int access(char *name, int type) {
-  printf("TODO: Implement access\n");
-  return -1; // Not implemented
+  return 0;
 }
 
 // int unlink(const char *path) {
