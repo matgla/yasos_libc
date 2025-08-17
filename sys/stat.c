@@ -21,12 +21,24 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <sys/syscall.h>
+
 #include <stdio.h>
 
 int stat(char *file, struct stat *buf) {
-  printf("TODO: implement sys/stat stat, called for: %s\n", file);
+  if (file == NULL || buf == NULL) {
+    return -1;
+  }
 
-  return 0;
+  struct stat statinfo = {
+  };
+
+  stat_context context = {
+    .pathname = file,
+    .statbuf = &buf,
+  };
+
+  return trigger_syscall(sys_stat, &context);
 }
 
 int fstat(int fd, struct stat *buf) {
