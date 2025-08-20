@@ -14,7 +14,7 @@ struct ksa {
 };
 
 int __sigaction(int sig, const struct sigaction *sa, struct sigaction *old) {
-  printf("TODO: Implement __sigaction\n");
+  // printf("TODO: Implement __sigaction\n");
   return -1;
 }
 

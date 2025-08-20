@@ -188,6 +188,10 @@ typedef struct dlsym_context {
   void **result;
 } dlsym_context;
 
+typedef struct vfork_context {
+  pid_t *pid;
+} vfork_context;
+
 typedef enum SystemCall {
   sys_start_root_process = 1,
   sys_stop_root_process,

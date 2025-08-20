@@ -59,6 +59,7 @@ int trigger_syscall(int number, const void *args) {
   trigger_supervisor_call(number, args, &sresult);
 
   if (sresult.err >= 1) {
+  // printf("Error in syscall %d: %d (%s)\n", number, sresult.err, strerror(sresult.err));
     errno = sresult.err;
   }
   return sresult.result;
@@ -151,12 +152,12 @@ void _putchar(char c) {
 }
 
 pid_t vfork() {
-  int result = trigger_syscall(sys_vfork, NULL);
-  int my_pid = getpid();
-  if (result != my_pid) {
-    return result;
-  }
-  return 0;
+  pid_t pid = 0;
+  vfork_context context = {
+      .pid = &pid,
+  };
+  int result = trigger_syscall(sys_vfork, &context);
+  return pid;
 }
 
 int unlink(const char *pathname) {
