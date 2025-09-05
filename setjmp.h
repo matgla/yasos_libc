@@ -20,8 +20,12 @@
 
 #pragma once
 
-typedef long jmp_buf[8];
-typedef long sigjmp_buf[8];
+#include <stdint.h>
+
+#ifdef __arm__
+typedef uint32_t jmp_buf[16];
+typedef jmp_buf sigjmp_buf;
+#endif
 
 int setjmp(jmp_buf env);
 void longjmp(jmp_buf env, int val);

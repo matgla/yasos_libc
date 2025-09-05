@@ -18,24 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <setjmp.h>
+.global setjmp
+.thumb_func
+setjmp:
+    mov r1, sp
+    stmia r0, {r1, r4-r11, lr}
+    movs r0, #0
+    bx lr
 
-#include <stdio.h>
+.global longjmp
+.thumb_func
+longjmp:
+    ldmia r0, {r2, r4-r11, lr}
+    mov sp, r2
+    movs r0, r1
+    bx lr
 
-int setjmp(jmp_buf env) {
-  printf("TODO: Implement setjmp\n");
-  return 0;
-}
+.global siglongjmp
+.thumb_func
+siglongjmp:
+    ldmia r0, {r2, r4-r11, lr}
+    mov sp, r2
+    movs r0, r1
+    bx lr
 
-void longjmp(jmp_buf env, int val) {
-  printf("TODO: Implement longjmp\n");
-}
 
-void siglongjmp(sigjmp_buf env, int val) {
-  printf("TODO: Implement siglongjmp\n");
-}
+.global sigsetjmp
+.thumb_func
+sigsetjmp:
+    mov r1, sp
+    stmia r0, {r1, r4-r11, lr}
+    movs r0, #0
+    bx lr
 
-int sigsetjmp(sigjmp_buf env, int savemask) {
-  printf("TODO: Implement sigsetjmp\n");
-  return 0; // Not implemented
-}
+
+
+

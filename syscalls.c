@@ -59,7 +59,6 @@ int trigger_syscall(int number, const void *args) {
   trigger_supervisor_call(number, args, &sresult);
 
   if (sresult.err >= 1) {
-  // printf("Error in syscall %d: %d (%s)\n", number, sresult.err, strerror(sresult.err));
     errno = sresult.err;
   }
   return sresult.result;
@@ -71,8 +70,6 @@ long syscall(long number, ...) {
   printf("TODO: simplement syscall()\n");
   return 0;
 }
-
-
 
 int kill(pid_t pid, int sig) {
   const kill_context context = {

@@ -8,7 +8,14 @@ CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
 LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a 
 endif
 
-SRCS = $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c)
+LDFLAGS_ELF = $(LDFLAGS) -Wl,-oformat=elf32-littlearm
+ifeq ($(CC), armv8m-tcc)
+LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm
+endif
+
+
+
+SRCS = $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c) arm/setjmp.S
 
 OBJS = $(patsubst %.c, build/%.o, $(SRCS))
 
@@ -32,10 +39,10 @@ build/%.o: %.c prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
-	$(CC) $^ -o $@ $(LDFLAGS) -Wl,-oformat=yaff
+	$(CC) $^ -o $@ $(LDFLAGS)
 
 $(TARGET_SHARED).elf: $(OBJS)
-	$(CC) $^ -o $@ $(LDFLAGS) -Wl,-oformat=elf32-littlearm
+	$(CC) $^ -o $@ $(LDFLAGS_ELF)
 
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^ ../tinycc/armv8m-libtcc1.a
