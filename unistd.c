@@ -99,7 +99,7 @@ void abort(void) {
 
 ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
   const char *path = "/usr/bin/sh";
-  memcpy(buf, path, strlen(path)); 
+  memcpy(buf, path, strlen(path));
   return strlen(path);
 }
 
@@ -182,8 +182,10 @@ int pipe(int fds[2]) {
 }
 
 int dup(int fd) {
-  printf("TODO: Implement dup\n");
-  return -1; // Not implemented
+  dup_context ctx = {
+    .fd = fd
+};
+  return trigger_syscall(sys_dup, &ctx);
 }
 
 int dup2(int fd, int fd2) {

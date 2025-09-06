@@ -54,6 +54,13 @@ struct dirent *readdir(DIR *dir) {
 }
 
 DIR *fdopendir(int fd) {
-  printf("TODO: Implement fdopendir\n");
-  return NULL; // Not implemented
+  DIR *dir;
+  fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+  if (!(dir = malloc(sizeof(*dir)))) {
+    close(fd);
+    return NULL;
+  }
+  memset(dir, 0, sizeof(*dir));
+  dir->fd = fd;
+  return dir;
 }

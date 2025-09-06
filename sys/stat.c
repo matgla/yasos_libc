@@ -88,7 +88,6 @@ int mkfifo(char *path, int mode) {
 }
 
 int fstatat(int fd, const char *path, struct stat *buf, int flag) {
-  printf("fstatat called with fd=%d, path=%s, buf=%p, flag=%d\n", fd, path, buf, flag);
   if (buf == NULL) {
     return -1;
   }

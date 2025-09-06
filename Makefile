@@ -1,11 +1,11 @@
-CC ?= tcc 
-CFLAGS = -std=c11 -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include 
-LDFLAGS_STATIC = -nostdlib -L../tinycc 
-LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC} 
+CC ?= tcc
+CFLAGS = -std=c11 -g -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+LDFLAGS_STATIC = -nostdlib -L../tinycc
+LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC}
 
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
-LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a 
+LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a
 endif
 
 LDFLAGS_ELF = $(LDFLAGS) -Wl,-oformat=elf32-littlearm
@@ -29,7 +29,7 @@ INCLUDEDIR ?= $(PREFIX)/include
 # Rules
 all: $(TARGET_SHARED) $(TARGET_STATIC) $(TARGET_SHARED).elf
 
-prepare: 
+prepare:
 	mkdir -p build
 	mkdir -p build/arm
 	mkdir -p build/sys
@@ -74,5 +74,5 @@ install: $(TARGET_SHARED) $(TARGET_STATIC) build/arm/crt1.o build/arm/crti.o bui
 clean:
 	rm -rf build
 
-test: 
+test:
 	$(MAKE) -C tests
