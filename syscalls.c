@@ -310,6 +310,7 @@ int open(const char *filename, int flags, ...) {
 }
 
 ssize_t getdents(int fd, struct dirent *de, size_t len) {
+  printf("getdents called for: %d\n", fd);
   ssize_t result;
   const getdents_context context = {
       .fd = fd,

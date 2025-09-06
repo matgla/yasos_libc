@@ -73,6 +73,7 @@ typedef struct getentropy_context {
 typedef struct stat_context {
   const char *pathname;
   struct stat *statbuf;
+  int fd;
 } stat_context;
 
 typedef struct open_context {

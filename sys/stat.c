@@ -36,10 +36,10 @@ int stat(char *file, struct stat *buf) {
   stat_context context = {
     .pathname = file,
     .statbuf = buf,
+    .fd = 0,
   };
 
   int rc = trigger_syscall(sys_stat, &context);
-  printf("Stat returned: %d, mode: %x\n", rc, buf->st_mode);
   return rc;
 }
 
@@ -88,8 +88,22 @@ int mkfifo(char *path, int mode) {
 }
 
 int fstatat(int fd, const char *path, struct stat *buf, int flag) {
-  printf("TODO: implement sys/stat fstatat\n");
-  return 0;
+  printf("fstatat called with fd=%d, path=%s, buf=%p, flag=%d\n", fd, path, buf, flag);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  struct stat statinfo = {
+  };
+
+  stat_context context = {
+    .pathname = path,
+    .statbuf = buf,
+    .fd = fd,
+  };
+
+  int rc = trigger_syscall(sys_stat, &context);
+  return rc;
 }
 
 int mkdirat(int dirfd, const char *pathname, mode_t mode) {
