@@ -56,6 +56,13 @@ int getpwnam_r(const char *name, struct passwd *pwd, char *buf, size_t size,
 
 int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t size,
                struct passwd **result) {
-  result = &root_passwd;
-  return 0; 
+  *result = &root_passwd;
+  pwd->pw_name = root_passwd.pw_name;
+  pwd->pw_passwd = root_passwd.pw_passwd;
+  pwd->pw_uid = root_passwd.pw_uid;
+  pwd->pw_gid = root_passwd.pw_gid;
+  pwd->pw_gecos = root_passwd.pw_gecos;
+  pwd->pw_dir = root_passwd.pw_dir;
+  pwd->pw_shell = root_passwd.pw_shell;
+  return 0;
 }

@@ -11,8 +11,8 @@
 #include <string.h>
 #include <time.h>
 
-#include <sys/wait.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
 
 #include <stdio.h>
 int sleep(int n) {
@@ -182,9 +182,7 @@ int pipe(int fds[2]) {
 }
 
 int dup(int fd) {
-  dup_context ctx = {
-    .fd = fd
-};
+  dup_context ctx = {.fd = fd};
   return trigger_syscall(sys_dup, &ctx);
 }
 
@@ -194,6 +192,5 @@ int dup2(int fd, int fd2) {
 }
 
 void _exit(int status) {
-  printf("TODO: Implement _exit\n");
   exit(status);
 }

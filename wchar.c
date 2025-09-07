@@ -20,6 +20,7 @@
 
 #include <wchar.h>
 
+#include <ctype.h>
 #include <stdio.h>
 
 size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps) {
@@ -28,6 +29,5 @@ size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps) {
 }
 
 int wcwidth(wchar_t wc) {
-  printf("TODO: Implement wcwidth\n");
-  return 0;
+  return isprint(wc) ? 1 : 0;
 }

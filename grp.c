@@ -24,6 +24,14 @@
 
 #include <stdio.h>
 
+struct group default_group = (struct group){
+    .gr_name = "root",
+    .gr_passwd = "root",
+    .gr_gid = 0,
+    .gr_mem = (char *[]){NULL},
+};
+
+
 struct group *getgrgid(gid_t gid) {
   printf("TODO: Implement getgrgid\n");
   return NULL; // Not implemented
@@ -31,8 +39,12 @@ struct group *getgrgid(gid_t gid) {
 
 int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
                struct group **result) {
-  printf("TODO: Implement getgrgid_r\n");
-  return -1; // Not implemented
+  *result = &default_group;
+  grp->gr_name = default_group.gr_name;
+  grp->gr_passwd = default_group.gr_passwd;
+  grp->gr_gid = default_group.gr_gid;
+  grp->gr_mem = default_group.gr_mem;
+  return 0;
 }
 
 struct group *getgrnam(const char *name) {

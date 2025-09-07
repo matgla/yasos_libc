@@ -463,7 +463,7 @@ ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) {
 }
 
 void clearerr(FILE *fp) {
-  printf("TODO: Implement clearerr\n");
+  // printf("TODO: Implement clearerr\n");
 }
 
 int setvbuf(FILE *fp, char *buf, int mode, size_t size) {
