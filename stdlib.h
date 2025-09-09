@@ -9,8 +9,8 @@ void free(void *m);
 void *calloc(long n, long sz);
 void *realloc(void *v, long sz);
 
-int atoi(char *s);
-long atol(char *s);
+int atoi(const char *s);
+long atol(const char *s);
 long long atoll(const char *s);
 char *itoa(int n, char *s, int base);
 long strtol(const char *s, char **endptr, int base);
@@ -23,7 +23,7 @@ void abort(void);
 int atexit(void (*func)(void));
 
 char *getenv(char *name);
-void qsort(void *a, int n, int sz, int (*cmp)(void *, void *));
+void qsort(void *a, int n, int sz, int (*cmp)(const void *, const void *));
 int mkstemp(char *t);
 int system(char *cmd);
 
@@ -32,6 +32,7 @@ int rand(void);
 
 double strtod(const char *nptr, char **endptr);
 long long strtoll(const char *str, char **endptr, int base);
+unsigned long long int strtoull(const char *nptr, char **endptr, int base);
 
 /* for examining heap memory allocation */
 #ifdef MEMTST
@@ -52,3 +53,5 @@ int unsetenv(const char *name);
 
 long random(void);
 void srandom(unsigned int seed);
+
+char *realpath(const char *path, char *resolved_path);

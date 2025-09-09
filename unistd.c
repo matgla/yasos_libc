@@ -152,7 +152,6 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags) {
 }
 
 int gethostname(char *name, size_t size) {
-  printf("TODO: Implement gethostname\n");
   const char *default_hostname = "localhost";
   const size_t hostname_size = strlen(default_hostname);
   if (size > hostname_size) {
@@ -182,13 +181,13 @@ int pipe(int fds[2]) {
 }
 
 int dup(int fd) {
-  dup_context ctx = {.fd = fd};
+  dup_context ctx = {.fd = fd, .newfd = -1};
   return trigger_syscall(sys_dup, &ctx);
 }
 
 int dup2(int fd, int fd2) {
-  printf("TODO: Implement dup2\n");
-  return -1; // Not implemented
+  dup_context ctx = {.fd = fd, .newfd = fd2};
+  return trigger_syscall(sys_dup, &ctx);
 }
 
 void _exit(int status) {

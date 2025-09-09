@@ -91,6 +91,8 @@ int close(int fd) {
 }
 
 void exit(int status) {
+  fflush(stdout);
+  fflush(stderr);
   trigger_syscall(sys_exit, &status);
 }
 

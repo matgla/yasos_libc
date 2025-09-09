@@ -20,8 +20,8 @@ char *strrchr(char *s, int c);
 size_t strlen(const char *s);
 size_t strnlen(const char *s, size_t n);
 
-char *strncpy(char *d, char *s, long n);
-char *strcat(char *d, char *s);
+char *strncpy(char *d, const char *s, long n);
+char *strcat(char *d, const char *s);
 int strcmp(const char *str1, const char *str2);
 int strncmp(const char *str1, const char *str2, size_t n);
 char *strstr(char *s, char *r);
@@ -39,3 +39,5 @@ void *__memchr_c(void *s, int c, long n);
 char *strerror(int errnum);
 char *stpcpy(char *dst, const char *src);
 char *stpncpy(char *dst, const char *src, size_t n);
+
+char *strpbrk(const char *s, const char *accept);

@@ -13,6 +13,14 @@ static int ic(FILE *fp) {
     fp->back = EOF;
     return i;
   }
+
+  if (fp->ibuf == fp->obuf && fp->fd == -1) {
+    if (fp->icur < fp->olen) {
+      return (unsigned char)fp->ibuf[fp->icur++];
+    }
+    return EOF;
+  }
+
   while (fp->fd >= 0 && fp->icur == fp->ilen) {
     int nr = read(fp->fd, fp->ibuf, fp->isize);
     if (nr <= 0)

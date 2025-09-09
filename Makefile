@@ -1,19 +1,14 @@
 CC ?= tcc
-CFLAGS = -std=c11 -g -Wall -Ilibs -gdwarf -fpic -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
-LDFLAGS_STATIC = -nostdlib -L../tinycc
-LDFLAGS = -shared -fPIC -gdwarf ${LDFLAGS_STATIC}
+CFLAGS = -Wall -Ilibs -g -fPIC -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+LDFLAGS_STATIC = -nostdlib -L../tinycc -g
+LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
-LDFLAGS += -Wl,-image-base=0x0 -Wl,-section-alignment=0x4 -larmv8m-libtcc1.a
+LDFLAGS += -larmv8m-libtcc1.a
 endif
 
-LDFLAGS_ELF = $(LDFLAGS) -Wl,-oformat=elf32-littlearm
-ifeq ($(CC), armv8m-tcc)
-LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm
-endif
-
-
+LDFLAGS_ELF += $(LDFLAGS) -Wl,-oformat=elf32-littlearm -rdynamic
 
 SRCS = $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c) arm/setjmp.S
 

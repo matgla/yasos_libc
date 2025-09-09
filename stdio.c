@@ -415,8 +415,10 @@ long fwrite(void *v, long sz, long n, FILE *fp) {
 }
 
 int fseek(FILE *fp, long offset, int whence) {
-  if (fp->fd < 0)
-    return -1;
+  if (fp->fd < 0) {
+    printf("seek: %d, whence: %d\n", offset, whence);
+    return 0;
+  }
   fflush(fp);
   if (lseek(fp->fd, offset, whence) < 0)
     return -1;
@@ -453,8 +455,44 @@ int rename(const char *oldpath, const char *newpath) {
 }
 
 FILE *fmemopen(void *buf, size_t size, const char *mode) {
-  printf("TODO: Implement fmemopen\n");
-  return NULL; // Not implemented
+  FILE *fp;
+  int flags;
+
+  if (strchr(mode, '+'))
+    flags = O_RDWR;
+  else
+    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
+  if (*mode != 'r')
+    flags |= O_CREAT;
+  if (*mode == 'w')
+    flags |= O_TRUNC;
+  if (*mode == 'a')
+    flags |= O_APPEND;
+
+  fp = malloc(sizeof(*fp));
+  memset(fp, 0, sizeof(*fp));
+  fp->fd = -1;
+  if (buf == NULL) {
+    fp->ibuf = malloc(size);
+    fp->iown = 1;
+    fp->obuf = fp->ibuf;
+  } else {
+    fp->ibuf = buf;
+    fp->obuf = buf;
+  }
+
+  fp->isize = size;
+
+  if (flags & O_WRONLY || flags & O_RDWR) {
+    fp->osize = fp->isize;
+  }
+  fp->ilen = strnlen(buf, size);
+  fp->icur = 0;
+
+  fp->olen = fp->ilen;
+  fp->back = EOF;
+  fp->oown = 0;
+  return fp;
 }
 
 ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) {

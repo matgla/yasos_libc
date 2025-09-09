@@ -25,7 +25,6 @@
 #include <stdio.h>
 
 int uname(struct utsname *buf) {
-  printf("TODO: Implement uname\n");
   const char *default_sysname = "yasos";
   const char *default_nodename = "localhost";
   const char *default_release = "0.0.1";

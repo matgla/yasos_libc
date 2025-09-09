@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <stdlib.h>
 
-int atoi(char *s) {
+int atoi(const char *s) {
   int num = 0;
   int neg = 0;
   while (isspace(*s))
@@ -15,7 +15,7 @@ int atoi(char *s) {
   return neg ? -num : num;
 }
 
-long atol(char *s) {
+long atol(const char *s) {
   long num = 0;
   int neg = 0;
   while (isspace(*s))

@@ -83,3 +83,5 @@ FILE *fdopen(int fd, const char *mode);
 FILE *fmemopen(void *buf, size_t size, const char *mode);
 ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream);
 void clearerr(FILE *fp);
+
+int remove(const char *pathname);

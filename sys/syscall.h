@@ -195,6 +195,7 @@ typedef struct vfork_context {
 
 typedef struct dup_context {
   int fd;
+  int newfd;
 } dup_context;
 
 typedef enum SystemCall {
