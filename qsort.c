@@ -17,7 +17,7 @@ static void swap(char *a, char *b, int sz) {
   }
 }
 
-static void fix(char *a, int root, int n, int sz, int (*cmp)(void *, void *)) {
+static void fix(char *a, int root, int n, int sz, int (*cmp)(const void *, const void *)) {
   while (2 * root <= n) {
     int max = 2 * root;
     if (max < n && cmp(a + max * sz, a + (max + 1) * sz) < 0)

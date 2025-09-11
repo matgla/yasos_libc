@@ -77,4 +77,12 @@ int faccessat(int dirfd, const char *pathname, int mode, int flags);
 int gethostname(char *name, size_t size);
 int sethostname(const char *name, size_t size);
 
+long sysconf(int name);
+pid_t getsid(pid_t pid);
+
 #define _CS_PATH "/bin"
+
+#define _SC_ARG_MAX 1
+#define _SC_PAGESIZE 2
+#define _SC_CLK_TCK 3
+#define _SC_NPROCESSORS_CONF 4

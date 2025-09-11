@@ -16,7 +16,8 @@ char *itoa(int n, char *s, int base);
 long strtol(const char *s, char **endptr, int base);
 unsigned long strtoul(const char *s, char **endptr, int base);
 int abs(int n);
-long labs(long n);
+long int labs(long n);
+long long int llabs(long long int n);
 
 void exit(int status);
 void abort(void);

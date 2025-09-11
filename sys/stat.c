@@ -30,9 +30,6 @@ int stat(char *file, struct stat *buf) {
     return -1;
   }
 
-  struct stat statinfo = {
-  };
-
   stat_context context = {
     .pathname = file,
     .statbuf = buf,
@@ -44,8 +41,19 @@ int stat(char *file, struct stat *buf) {
 }
 
 int fstat(int fd, struct stat *buf) {
-  printf("TODO: implement sys/stat fstat\n");
-  return 0;
+  printf("fstat called with fd=%d\n", fd);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  stat_context context = {
+    .pathname = NULL,
+    .statbuf = buf,
+    .fd = fd,
+  };
+
+  int rc = trigger_syscall(sys_stat, &context);
+  return rc;
 }
 
 int lstat(char *file, struct stat *buf) {

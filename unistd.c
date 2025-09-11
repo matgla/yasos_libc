@@ -11,6 +11,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <errno.h>
+
 #include <sys/syscall.h>
 #include <sys/wait.h>
 
@@ -192,4 +194,14 @@ int dup2(int fd, int fd2) {
 
 void _exit(int status) {
   exit(status);
+}
+
+long sysconf(int name) {
+  errno = EINVAL;
+  return -1;
+}
+
+pid_t getsid(pid_t pid) {
+  printf("TODO: Implement getsid\n");
+  return -1; // Not implemented
 }

@@ -43,6 +43,18 @@ void *memcpy(void *dst, const void *src, size_t n) {
   return dst;
 }
 
+void *memccpy(void *dst, const void *src, int c, size_t n) {
+  uint8_t *d = (uint8_t *)dst;
+  const uint8_t *s = (const uint8_t *)src;
+  uint8_t uc = (uint8_t)c;
+  for (size_t i = 0; i < n; ++i) {
+    d[i] = s[i];
+    if (s[i] == uc)
+      return d + i + 1;
+  }
+  return NULL;
+}
+
 void *memmove(void *dst, const void *src, size_t n) {
   uint8_t *d = (uint8_t *)dst;
   const uint8_t *s = (const uint8_t *)src;
@@ -173,7 +185,7 @@ char *strpbrk(const char *str1, const char *str2) {
   return NULL;
 }
 
-char *strrchr(char *str, int c) {
+char *strrchr(const char *str, int c) {
   const char *last = NULL;
   while (*str != 0) {
     if (*str == (char)c)

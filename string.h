@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 void *memcpy(void *dst, const void *src, size_t n);
+void *memccpy(void *dst, const void *src, int c, size_t n);
 void *memmove(void *dst, const void *src, size_t n);
 void *memset(void *s, int v, size_t n);
 void *memchr(void *s, int c, long n);
@@ -16,7 +17,7 @@ int memcmp(const void *s1, const void *s2, size_t n);
 
 char *strcpy(char *dst, const char *src);
 char *strchr(const char *s, int c);
-char *strrchr(char *s, int c);
+char *strrchr(const char *s, int c);
 size_t strlen(const char *s);
 size_t strnlen(const char *s, size_t n);
 

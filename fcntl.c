@@ -21,6 +21,6 @@
 #include <stdio.h>
 
 int openat(int dirfd, const char *pathname, int flags, ...) {
-  printf("TODO: Implement openat\n");
+  printf("Openat: %d, n: '%s', flags: %d\n", dirfd, pathname, flags);
   return -1; // Not implemented
 }

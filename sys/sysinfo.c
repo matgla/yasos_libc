@@ -18,20 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#include "sys/sysinfo.h"
 
-struct sysinfo {
-    long uptime;
-    unsigned long loads[3];
-    unsigned long totalram;
-    unsigned long freeram;
-    unsigned long sharedram;
-    unsigned long bufferram;
-    unsigned long totalswap;
-    unsigned long freeswap;
-    unsigned short procs;
-    char _f[22];
-};
+int sysinfo(struct sysinfo *info) {
+    return -1;
+}
 
-int sysinfo(struct sysinfo *info);
 
