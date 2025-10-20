@@ -80,6 +80,7 @@ typedef struct open_context {
   const char *path;
   int flags;
   int mode;
+  int fd;
 } open_context;
 
 typedef struct fstat_context {

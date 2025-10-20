@@ -20,7 +20,16 @@
 
 #include <stdio.h>
 
+#include "sys/syscall.h"
+
 int openat(int dirfd, const char *pathname, int flags, ...) {
   printf("Openat: %d, n: '%s', flags: %d\n", dirfd, pathname, flags);
-  return -1; // Not implemented
+  const open_context context = {
+      .path = pathname,
+      .flags = flags,
+      .mode = 0,
+      .fd = dirfd,
+  };
+
+  return trigger_syscall(sys_open, &context);
 }

@@ -31,9 +31,9 @@ int stat(char *file, struct stat *buf) {
   }
 
   stat_context context = {
-    .pathname = file,
-    .statbuf = buf,
-    .fd = 0,
+      .pathname = file,
+      .statbuf = buf,
+      .fd = 0,
   };
 
   int rc = trigger_syscall(sys_stat, &context);
@@ -47,9 +47,9 @@ int fstat(int fd, struct stat *buf) {
   }
 
   stat_context context = {
-    .pathname = NULL,
-    .statbuf = buf,
-    .fd = fd,
+      .pathname = NULL,
+      .statbuf = buf,
+      .fd = fd,
   };
 
   int rc = trigger_syscall(sys_stat, &context);
@@ -100,13 +100,13 @@ int fstatat(int fd, const char *path, struct stat *buf, int flag) {
     return -1;
   }
 
-  struct stat statinfo = {
-  };
+  // struct stat statinfo = {
+  // };
 
   stat_context context = {
-    .pathname = path,
-    .statbuf = buf,
-    .fd = fd,
+      .pathname = path,
+      .statbuf = buf,
+      .fd = fd,
   };
 
   int rc = trigger_syscall(sys_stat, &context);

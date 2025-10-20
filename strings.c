@@ -31,7 +31,7 @@ int strncasecmp(const char *s1, const char *s2, size_t n) {
     if (c1 != c2)
       return c1 - c2;
   }
-  return n ? *s1 - *s2 : 0;
+  return 0;
 }
 
 int strncasecmp_l(const char *s1, const char *s2, size_t n, locale_t locale) {

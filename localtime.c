@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-#define isleap(y) (!((y) % 4) && ((y) % 100) || !((y) % 400))
+#define isleap(y) ((!((y) % 4) && ((y) % 100)) || !((y) % 400))
 #define SPD (24 * 60 * 60)
 
 long timezone;

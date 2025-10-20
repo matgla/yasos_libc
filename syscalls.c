@@ -86,14 +86,16 @@ int kill(pid_t pid, int sig) {
 // }
 
 int close(int fd) {
-  int result;
   return trigger_syscall(sys_close, &fd);
 }
 
+// suppress noreturn that returns
 void exit(int status) {
   fflush(stdout);
   fflush(stderr);
   trigger_syscall(sys_exit, &status);
+  while (true) {
+  }
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
@@ -155,7 +157,7 @@ pid_t vfork() {
   vfork_context context = {
       .pid = &pid,
   };
-  int result = trigger_syscall(sys_vfork, &context);
+  trigger_syscall(sys_vfork, &context);
   return pid;
 }
 
@@ -307,6 +309,7 @@ int open(const char *filename, int flags, ...) {
       .path = filename,
       .flags = flags,
       .mode = mode,
+      .fd = -100,
   };
   return trigger_syscall(sys_open, &context);
 }
@@ -403,7 +406,7 @@ int mprotect(void *addr, size_t len, int prot) {
       .length = len,
       .prot = prot,
   };
-  trigger_syscall(sys_mprotect, &context);
+  result = trigger_syscall(sys_mprotect, &context);
   return result;
 }
 

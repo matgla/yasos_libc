@@ -40,5 +40,6 @@ extern int sys_nerr;
 #define EDOM 33    /* Math argument out of domain of func */
 #define ERANGE 34  /* Math result not representable */
 #define ELOOP 35   /* Too many symbolic links encountered */
+#define ENOSYS 36  /* Function not implemented */
 
 #endif

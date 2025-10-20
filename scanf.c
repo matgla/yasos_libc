@@ -7,7 +7,6 @@
 #include <stdlib.h>
 
 static int ic(FILE *fp) {
-  int nr;
   if (fp->back != EOF) {
     int i = fp->back;
     fp->back = EOF;
@@ -48,61 +47,108 @@ int ungetc(int c, FILE *fp) {
   return fp->back;
 }
 
-static int idig(int c, int hex) {
+static int idig(int c, int base) {
   static char *digs = "0123456789abcdef";
-  char *r = memchr(digs, hex ? tolower(c) : c, hex ? 16 : 10);
+  char *r = memchr(digs, (base == 16) ? tolower(c) : c, base);
   return r == NULL ? -1 : r - digs;
 }
 
 /* t is 1 for char, 2 for short, 4 for int, and 8 for long */
-static int iint(FILE *fp, void *dst, int t, int hex, int wid) {
+static int iint(FILE *fp, void *dst, int t, int base, int wid, int skip) {
   long n = 0;
   int c;
   int neg = 0;
+  if (base < 0) {
+    neg = -1;
+    base = -base;
+  }
+
   c = ic(fp);
   if (c == '-')
     neg = 1;
   if ((c == '-' || c == '+') && wid-- > 0)
     c = ic(fp);
-  if (c == EOF || idig(c, hex) < 0 || wid <= 0) {
+  if (c == EOF || idig(c, base) < 0 || wid <= 0) {
     ungetc(c, fp);
+    if (base == 8) {
+      if (!skip) {
+        *(long *)dst = 0;
+        return 0;
+      }
+      return 0;
+    }
     return 1;
   }
   do {
-    n = n * (hex ? 16 : 10) + idig(c, hex);
-  } while ((c = ic(fp)) != EOF && idig(c, hex) >= 0 && --wid > 0);
+    n = n * base + idig(c, base);
+  } while ((c = ic(fp)) != EOF && idig(c, base) >= 0 && --wid > 0);
   ungetc(c, fp);
-  if (t == 8)
-    *(long *)dst = neg ? -n : n;
-  else if (t == 4)
-    *(int *)dst = neg ? -n : n;
-  else if (t == 2)
-    *(short *)dst = neg ? -n : n;
-  else
-    *(char *)dst = neg ? -n : n;
+  if (!skip) {
+    if (t == 8)
+      *(long *)dst = neg ? -n : n;
+    else if (t == 4)
+      *(int *)dst = neg ? -n : n;
+    else if (t == 2)
+      *(short *)dst = neg ? -n : n;
+    else
+      *(char *)dst = neg ? -n : n;
+  }
   return 0;
 }
 
-static int istr(FILE *fp, char *dst, int wid) {
+static int istr(FILE *fp, char *dst, int wid, int skip) {
   char *d = dst;
   int c;
-  while ((c = ic(fp)) != EOF && wid-- > 0 && !isspace(c))
+  while ((c = ic(fp)) != EOF && wid-- > 0 && !isspace(c)) {
+    if (skip)
+      continue;
+
     *d++ = c;
-  *d = '\0';
+  }
+  if (!skip) {
+    *d = '\0';
+  }
   ungetc(c, fp);
-  return d == dst;
+  return skip ? 0 : d == dst;
+}
+
+static int parse_base_from_input(FILE *fp) {
+  char c = ic(fp);
+  int sign = 1;
+  if (c == '-') {
+    sign = -1;
+    c = ic(fp);
+  } else if (c == '+') {
+    c = ic(fp);
+    sign = 1;
+  }
+
+  if (c == '0') {
+    char c2 = ic(fp);
+    if (c2 == 'x' || c2 == 'X') {
+      return 16 * sign;
+    } else {
+      ungetc(c2, fp);
+      return 8 * sign;
+    }
+  }
+  ungetc(c, fp);
+  return 10 * sign;
 }
 
 int vfscanf(FILE *fp, char *fmt, va_list ap) {
   int ret = 0;
   int t, c;
   int wid = 1 << 20;
+  int start_position = fp->icur;
+  int skip = 0;
   while (*fmt) {
-    while (isspace((unsigned char)*fmt))
+    while (isspace((unsigned char)*fmt)) {
       fmt++;
-    while (isspace(c = ic(fp)))
-      ;
-    ungetc(c, fp);
+      if (!isspace(c = ic(fp))) {
+        ungetc(c, fp);
+      }
+    }
     while (*fmt && *fmt != '%' && !isspace((unsigned char)*fmt))
       if (*fmt++ != ic(fp))
         return ret;
@@ -114,6 +160,67 @@ int vfscanf(FILE *fp, char *fmt, va_list ap) {
       while (isdigit((unsigned char)*fmt))
         wid = wid * 10 + *fmt++ - '0';
     }
+
+    if (*fmt == 'n') {
+      const int readed = fp->icur - start_position - (fp->back != EOF ? 1 : 0);
+      *(va_arg(ap, int *)) = readed;
+      fmt++;
+      continue;
+    }
+
+    if (*fmt == '[') {
+      while (isspace(c = ic(fp)))
+        ;
+      ungetc(c, fp);
+      char scanset[256] = {0};
+      int negate = 0;
+      fmt++;
+
+      if (*fmt == '^') {
+        negate = 1;
+        fmt++;
+      }
+
+      if (*fmt == ']') {
+        fmt++;
+      }
+      while (*fmt && *fmt != ']') {
+        if (fmt[1] == '-') {
+          for (int i = fmt[0]; i <= fmt[2]; i++)
+            scanset[(unsigned char)i] = 1;
+          fmt += 3;
+        } else {
+          scanset[(unsigned char)*fmt++] = 1;
+        }
+      }
+      if (*fmt != ']') {
+        return ret;
+      }
+      fmt++;
+
+      char *d = va_arg(ap, char *);
+      int count = 0;
+      while ((c = ic(fp)) != EOF && wid-- > 0 &&
+             ((negate && !scanset[(unsigned char)c]) ||
+              (!negate && scanset[(unsigned char)c]))) {
+        *d++ = c;
+        count++;
+      }
+      ungetc(c, fp);
+      *d = '\0';
+      if (count == 0) {
+        return ret;
+      }
+      ret++;
+      continue;
+    }
+
+    skip = 0;
+    if (*fmt == '*') {
+      skip = 1;
+      fmt++;
+    }
+
     t = sizeof(int);
     while (*fmt == 'l') {
       t = sizeof(long);
@@ -123,23 +230,63 @@ int vfscanf(FILE *fp, char *fmt, va_list ap) {
       t = t < sizeof(int) ? sizeof(char) : sizeof(short);
       fmt++;
     }
+
+    if (*fmt != 'c') {
+      while (isspace(c = ic(fp)))
+        ;
+      ungetc(c, fp);
+    }
+
     switch (*fmt++) {
+    case 'c':
+      const char c = ic(fp);
+      if (!skip) {
+        char *dst = va_arg(ap, char *);
+        if (c == EOF) {
+          return ret;
+        }
+        *dst = c;
+      }
+      ret += !skip;
+      break;
+    case 'i': {
+      // const int sign = parse_sign_from_input(fp);
+      const int base = parse_base_from_input(fp);
+      long *dst = skip ? NULL : va_arg(ap, long *);
+      if (iint(fp, dst, t, base, wid, skip)) {
+        return ret;
+      }
+      ret += !skip;
+      break;
+    }
     case 'u':
-    case 'd':
-      if (iint(fp, va_arg(ap, long *), t, 0, wid))
+    case 'd': {
+      long *dst = skip ? NULL : va_arg(ap, long *);
+      if (iint(fp, dst, t, 10, wid, skip))
         return ret;
-      ret++;
-      break;
-    case 'x':
-      if (iint(fp, va_arg(ap, long *), t, 1, wid))
+      ret += !skip;
+    } break;
+    case 'x': {
+      parse_base_from_input(fp);
+      long *dst = skip ? NULL : va_arg(ap, long *);
+      if (iint(fp, dst, t, 16, wid, skip))
         return ret;
-      ret++;
-      break;
-    case 's':
-      if (istr(fp, va_arg(ap, char *), wid))
+      ret += !skip;
+    } break;
+    case 'o': {
+      parse_base_from_input(fp);
+      long *dst = skip ? NULL : va_arg(ap, long *);
+      if (iint(fp, dst, t, 8, wid, skip))
         return ret;
-      ret++;
-      break;
+      ret += !skip;
+    } break;
+    case 's': {
+      char *dst = skip ? NULL : va_arg(ap, char *);
+
+      if (istr(fp, dst, wid, skip))
+        return ret;
+      ret += !skip;
+    } break;
     }
   }
   return ret;
@@ -234,5 +381,5 @@ int getline(char **lineptr, size_t *n, FILE *fp) {
   }
   (*lineptr)[i] = '\0';
   *n = i;
-  return i > 0 ?: -1;
+  return i > 0 ? i : -1;
 }

@@ -18,8 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
-
 #include <stddef.h>
 #include <sys/types.h>
 
@@ -27,22 +25,20 @@
 
 #include <stdio.h>
 
-
 struct passwd *getpwnam(const char *name) {
   printf("TODO: Implement getpwnam\n");
   return NULL; // Not implemented
 }
 
-struct passwd root_passwd = (struct passwd) {
-  .pw_name = "root",
-  .pw_passwd = "root",
-  .pw_uid = 0,
-  .pw_gid = 0,
-  .pw_gecos = "root",
-  .pw_dir = "/root",
-  .pw_shell = "/bin/sh",
+struct passwd root_passwd = {
+    .pw_name = "root",
+    .pw_passwd = "root",
+    .pw_uid = 0,
+    .pw_gid = 0,
+    .pw_gecos = "root",
+    .pw_dir = "/root",
+    .pw_shell = "/bin/sh",
 };
-
 
 struct passwd *getpwuid(uid_t uid) {
   return &root_passwd; // Return root user for now

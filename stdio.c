@@ -157,10 +157,9 @@ static char *digs_uc = "0123456789ABCDEF";
 #define FMT_UCASE 0100  /* uppercase hex digits? */
 
 static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
-                 int flags) {
+                int flags) {
   char buf[64];
   char *s = buf;
-  int neg = 0;
   int sign = '\0';
   char fill;
   int left = flags & FMT_LEFT;
@@ -172,7 +171,6 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   int size = 0;
   if (flags & FMT_SIGNED) {
     if ((signed long)n < 0) {
-      neg = 1;
       sign = '-';
       n = -n;
     } else {
@@ -210,8 +208,7 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   } else if (prefix_len) {
     fputc('0', fp);
     ++size;
-    if (base == 16)
-    {
+    if (base == 16) {
       fputc(ucase ? 'X' : 'x', fp);
       ++size;
     }
@@ -338,7 +335,7 @@ void perror(char *s) {
     fprintf(stderr, "%s\n", sys_errlist[idx]);
 }
 
-int vsnprintf(char *dst, int sz, const char *fmt, va_list ap) {
+int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) {
   FILE f = {-1, EOF};
   int ret;
   f.obuf = dst;
@@ -383,7 +380,7 @@ int sprintf(char *dst, const char *fmt, ...) {
   return ret;
 }
 
-int snprintf(char *dst, int sz, const char *fmt, ...) {
+int snprintf(char *dst, size_t sz, const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -416,7 +413,6 @@ long fwrite(void *v, long sz, long n, FILE *fp) {
 
 int fseek(FILE *fp, long offset, int whence) {
   if (fp->fd < 0) {
-    printf("seek: %d, whence: %d\n", offset, whence);
     return 0;
   }
   fflush(fp);

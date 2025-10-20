@@ -24,13 +24,12 @@
 
 #include <stdio.h>
 
-struct group default_group = (struct group){
+struct group default_group = {
     .gr_name = "root",
     .gr_passwd = "root",
     .gr_gid = 0,
     .gr_mem = (char *[]){NULL},
 };
-
 
 struct group *getgrgid(gid_t gid) {
   printf("TODO: Implement getgrgid\n");

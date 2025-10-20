@@ -20,8 +20,9 @@
 
 #include "sys/sysinfo.h"
 
+#include <stdio.h>
+
 int sysinfo(struct sysinfo *info) {
-    return -1;
+  printf("sysinfo() not implemented\n");
+  return -1;
 }
-
-

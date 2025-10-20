@@ -8,7 +8,7 @@ OBJS = $(patsubst %.c, build/%.o, $(SRCS))
 TARGET = build/libc_tests
 LIBC_STATIC = ../build/libc.a
 LIBC_TEST_STATIC = build/libc_sut.a
-SYMBOLS_REDEFINES = symbols_redefines.txt 
+SYMBOLS_REDEFINES = symbols_redefines.txt
 LIBC_SRCS = $(wildcard ../*.c) $(wildcard ../*.h)
 
 # Rules
@@ -25,10 +25,12 @@ $(LIBC_TEST_STATIC): $(LIBC_STATIC)
 	cp $(LIBC_STATIC) $(LIBC_TEST_STATIC)
 	./rename_symbols.sh $(LIBC_TEST_STATIC)
 $(TARGET): $(OBJS) $(LIBC_TEST_STATIC)
-	$(CC) $(CFLAGS) $^ -o $@ 
+	$(CC) $(CFLAGS) $^ -o $@
 
 test: $(TARGET)
 	./$(TARGET)
+
+build_tests: $(TARGET)
 
 clean:
 	rm -rf build

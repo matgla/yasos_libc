@@ -75,9 +75,9 @@ long strftime(char *s, size_t n, const char *f, struct tm *tm) {
     case 'B':
       s = putstr(s, mon[tm->tm_mon]);
       break;
-    case 'c':
-      s += strftime(s, e - s, "%b %a %d %k:%M:%S %Z %Y", tm);
-      break;
+    // case 'c':
+    //   s += strftime(s, e - s, "%b %a %d %k:%M:%S %Z %Y", tm);
+    //   break;
     case 'C':
       s = puti(s, (1900 + tm->tm_year) / 100, 2, 1);
       break;
@@ -145,9 +145,9 @@ long strftime(char *s, size_t n, const char *f, struct tm *tm) {
     case 'x':
       s += strftime(s, e - s, "%b %a %d", tm);
       break;
-    case 'X':
-      s += strftime(s, e - s, "%k:%M:%S", tm);
-      break;
+    // case 'X':
+    //   s += strftime(s, e - s, "%k:%M:%S", tm);
+    //   break;
     case 'y':
       s = puti(s, tm->tm_year % 100, 2, 1);
       break;
