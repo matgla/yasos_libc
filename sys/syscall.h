@@ -199,6 +199,15 @@ typedef struct dup_context {
   int newfd;
 } dup_context;
 
+typedef struct sysinfo_context {
+  struct sysinfo *info;
+} sysinfo_context;
+
+typedef struct sysconf_context {
+  int name;
+  long *result;
+} sysconf_context;
+
 typedef enum SystemCall {
   sys_start_root_process = 1,
   sys_stop_root_process,
@@ -245,6 +254,8 @@ typedef enum SystemCall {
   sys_geteuid,
   sys_getuid,
   sys_dup,
+  sys_sysinfo,
+  sys_sysconf,
   SYSCALL_COUNT,
 } SystemCall;
 

@@ -53,6 +53,8 @@
 #define F_WRLCK 1
 #define F_UNLCK 2
 
+#define AT_FDCWD -100
+
 int open(const char *path, int flags, ...);
 int creat(const char *path, int mode);
 int fcntl(int fd, int cmd, ...);

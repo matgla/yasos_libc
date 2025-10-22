@@ -118,21 +118,28 @@ int putchar(int c) {
   return fputc(c, stdout);
 }
 
-static int ostr(FILE *fp, char *s, int wid, int left) {
-  int fill = wid - strlen(s);
+static int ostr(FILE *fp, char *s, int wid, int left, int max_len,
+                char fill_character) {
+  int str_len = strlen(s);
+  str_len = str_len < max_len ? str_len : max_len;
+  int fill = wid - str_len;
+  if (fill < 0)
+    fill = 0;
   int n = 0;
+  if (max_len < INT_MAX - fill)
+    max_len += fill;
   if (!left)
-    while (fill-- > 0) {
-      fputc(' ', fp);
+    while (n < fill) {
+      fputc(fill_character, fp);
       ++n;
     }
-  while (*s) {
+  while (*s && n < max_len) {
     fputc((unsigned char)*s++, fp);
     ++n;
   }
   if (left)
     while (fill-- > 0) {
-      fputc(' ', fp);
+      fputc(fill_character, fp);
       ++n;
     }
   return n;
@@ -157,7 +164,7 @@ static char *digs_uc = "0123456789ABCDEF";
 #define FMT_UCASE 0100  /* uppercase hex digits? */
 
 static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
-                int flags) {
+                int flags, int max_len) {
   char buf[64];
   char *s = buf;
   int sign = '\0';
@@ -169,8 +176,10 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   int d;
   int i;
   int size = 0;
+
   if (flags & FMT_SIGNED) {
-    if ((signed long)n < 0) {
+    if ((bytes == 4 && ((int)n < 0)) || (bytes == 8 && ((long)n < 0)) ||
+        (bytes == 2 && ((short)n < 0)) || (bytes == 1 && ((char)n < 0))) {
       sign = '-';
       n = -n;
     } else {
@@ -197,6 +206,14 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   s[d] = '\0';
   fill = (flags & FMT_ZERO) ? '0' : ' ';
   i = d + prefix_len;
+  if (max_len < INT_MAX - (sign ? 1 : 0)) {
+    max_len += sign ? 1 : 0;
+  }
+
+  if (max_len != INT_MAX) {
+    wid = max_len;
+  }
+
   if (fill == ' ' && !left)
     while (i++ < wid) {
       fputc(' ', fp);
@@ -218,7 +235,7 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
       fputc('0', fp);
       ++size;
     }
-  size += ostr(fp, buf, 0, 0);
+  size += ostr(fp, buf, 0, 0, max_len, '0');
   if (left)
     while (i++ < wid) {
       fputc(' ', fp);
@@ -239,6 +256,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     int bytes = sizeof(int);
     int flags = 0;
     int left;
+    int max_len = INT_MAX;
     char *f;
     if (c != '%') {
       fputc(c, fp);
@@ -254,6 +272,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       wid = va_arg(ap, int);
       if (wid < 0) {
         flags |= FMT_LEFT;
+        left = 1;
         wid = -wid;
       }
       s++;
@@ -263,6 +282,31 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
         wid += *s++ - '0';
       }
     }
+
+    if (*s == '.') {
+      ++s;
+      flags |= FMT_ZERO;
+      if (*s == '*') {
+        max_len = va_arg(ap, int);
+        s++;
+        if (max_len < 0) {
+          max_len = INT_MAX;
+        }
+      } else {
+        if (isdigit(*s)) {
+          max_len = 0;
+        }
+        while (isdigit(*s)) {
+          max_len *= 10;
+          max_len += *s++ - '0';
+        }
+        if (max_len < 0) {
+          max_len = -max_len;
+          flags |= FMT_LEFT;
+        }
+      }
+    }
+
     while (*s == 'l') {
       bytes = sizeof(long);
       s++;
@@ -275,23 +319,23 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     case 'd':
     case 'i':
       flags |= FMT_SIGNED;
-      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags, max_len);
       break;
     case 'u':
       flags &= ~FMT_ALT;
-      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags, max_len);
       break;
     case 'o':
-      n += oint(fp, va_arg(ap, long), 8, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 8, wid, bytes, flags, max_len);
       break;
     case 'p':
       flags |= FMT_ALT;
     case 'x':
-      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags, max_len);
       break;
     case 'X':
       flags |= FMT_UCASE;
-      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags);
+      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags, max_len);
       break;
     case 'c':
       if (left) {
@@ -308,7 +352,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       }
       break;
     case 's':
-      n += ostr(fp, va_arg(ap, char *), wid, left);
+      n += ostr(fp, va_arg(ap, char *), wid, left, max_len, ' ');
       break;
     case 'n':
       *va_arg(ap, int *) = fp->ostat - beg;

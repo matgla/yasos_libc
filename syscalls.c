@@ -309,7 +309,7 @@ int open(const char *filename, int flags, ...) {
       .path = filename,
       .flags = flags,
       .mode = mode,
-      .fd = -100,
+      .fd = AT_FDCWD,
   };
   return trigger_syscall(sys_open, &context);
 }

@@ -197,8 +197,10 @@ void _exit(int status) {
 }
 
 long sysconf(int name) {
-  errno = EINVAL;
-  return -1;
+  long result;
+  sysconf_context ctx = {.name = name, .result = &result};
+  int rc = trigger_syscall(sys_sysconf, &ctx);
+  return result;
 }
 
 pid_t getsid(pid_t pid) {

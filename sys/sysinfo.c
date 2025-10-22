@@ -22,7 +22,12 @@
 
 #include <stdio.h>
 
+#include "sys/syscall.h"
+
 int sysinfo(struct sysinfo *info) {
-  printf("sysinfo() not implemented\n");
-  return -1;
+  sysinfo_context context = {
+      .info = info,
+  };
+
+  return trigger_syscall(sys_sysinfo, &context);
 }

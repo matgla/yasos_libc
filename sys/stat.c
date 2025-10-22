@@ -33,7 +33,7 @@ int stat(char *file, struct stat *buf) {
   stat_context context = {
       .pathname = file,
       .statbuf = buf,
-      .fd = 0,
+      .fd = AT_FDCWD,
   };
 
   int rc = trigger_syscall(sys_stat, &context);
@@ -41,7 +41,6 @@ int stat(char *file, struct stat *buf) {
 }
 
 int fstat(int fd, struct stat *buf) {
-  printf("fstat called with fd=%d\n", fd);
   if (buf == NULL) {
     return -1;
   }
