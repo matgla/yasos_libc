@@ -471,7 +471,7 @@ long ftell(FILE *fp) {
   if (fp->fd < 0)
     return -1;
   fflush(fp);
-  return lseek(fp->fd, 0, SEEK_CUR);
+  return lseek(fp->fd, 0, SEEK_CUR) - fp->ilen + fp->icur;
 }
 
 int ferror(FILE *fp) {
