@@ -162,7 +162,12 @@ pid_t vfork() {
 }
 
 int unlink(const char *pathname) {
-  return trigger_syscall(sys_unlink, pathname);
+  unlink_context context = {
+      .dirfd = AT_FDCWD,
+      .pathname = pathname,
+      .flags = 0,
+  };
+  return trigger_syscall(sys_unlink, &context);
 }
 
 int execve(const char *pathname, char *const argv[], char *const envp[]) {
@@ -251,8 +256,10 @@ int isatty(int fd) {
 }
 
 int remove(const char *pathname) {
-  const remove_context context = {
+  unlink_context context = {
+      .dirfd = AT_FDCWD,
       .pathname = pathname,
+      .flags = 0,
   };
   return trigger_syscall(sys_unlink, &context);
 }
