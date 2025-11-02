@@ -138,9 +138,26 @@ int fchown(int fd, uid_t owner, gid_t group) {
   return -1; // Not implemented
 }
 
-int link(const char *oldpath, const char *newpath) {
-  printf("TODO: Implement link\n");
+int lchown(const char *path, uid_t owner, gid_t group) {
+  printf("TODO: Implement lchown\n");
   return -1; // Not implemented
+}
+
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
+             int flags) {
+  printf("TODO: Implement fchownat\n");
+  return -1; // Not implemented
+}
+
+int link(const char *oldpath, const char *newpath) {
+  link_context context = {
+      .olddirfd = AT_FDCWD,
+      .oldpath = oldpath,
+      .newdirfd = AT_FDCWD,
+      .newpath = newpath,
+      .flags = 0,
+  };
+  return trigger_syscall(sys_link, &context);
 }
 
 int chroot(const char *path) {
@@ -149,8 +166,13 @@ int chroot(const char *path) {
 }
 
 int faccessat(int dirfd, const char *pathname, int mode, int flags) {
-  printf("TODO: Implement faccessat\n");
-  return -1; // Not implemented
+  access_context context = {
+      .pathname = pathname,
+      .mode = mode,
+      .dirfd = dirfd,
+      .flags = flags,
+  };
+  return trigger_syscall(sys_access, &context);
 }
 
 int gethostname(char *name, size_t size) {
@@ -168,8 +190,16 @@ int sethostname(const char *name, size_t size) {
   return -1; // Not implemented
 }
 
-int access(char *name, int type) {
-  return 0;
+int access(char *name, int mode) {
+  access_context context = {
+      .pathname = (const char *)name,
+      .mode = mode,
+      .dirfd = AT_FDCWD,
+      .flags = 0,
+  };
+
+  int rc = trigger_syscall(sys_access, &context);
+  return rc;
 }
 
 // int unlink(const char *path) {
@@ -206,4 +236,32 @@ long sysconf(int name) {
 pid_t getsid(pid_t pid) {
   printf("TODO: Implement getsid\n");
   return -1; // Not implemented
+}
+
+int unlinkat(int dirfd, const char *pathname, int flags) {
+  unlink_context context = {
+      .dirfd = dirfd,
+      .pathname = pathname,
+      .flags = flags,
+  };
+
+  int rc = trigger_syscall(sys_unlink, &context);
+  return rc;
+}
+
+int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
+           int flags) {
+  link_context context = {
+      .olddirfd = olddirfd,
+      .oldpath = oldpath,
+      .newdirfd = newdirfd,
+      .newpath = newpath,
+      .flags = flags,
+  };
+  return trigger_syscall(sys_link, &context);
+}
+
+int symlinkat(const char *target, int newdirfd, const char *linkpath) {
+  printf("TODO: implement symlinkat\n");
+  return 0;
 }

@@ -1,3 +1,20 @@
+/*
+ *   Copyright (c) 2025 Mateusz Stadnik
+
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 // Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
 // Please check the LICENSE file for copying conditions.
 // Modified by:
@@ -71,6 +88,9 @@ pid_t setsid(void);
 int setgid(gid_t gid);
 
 int fchown(int fd, uid_t owner, gid_t group);
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
+             int flags);
+int lchown(const char *path, uid_t owner, gid_t group);
 int link(const char *oldpath, const char *newpath);
 int chroot(const char *path);
 int faccessat(int dirfd, const char *pathname, int mode, int flags);
@@ -79,6 +99,11 @@ int sethostname(const char *name, size_t size);
 
 long sysconf(int name);
 pid_t getsid(pid_t pid);
+
+int unlinkat(int dirfd, const char *pathname, int flags);
+int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
+           int flags);
+int symlinkat(const char *target, int newdirfd, const char *linkpath);
 
 #define _CS_PATH "/bin"
 

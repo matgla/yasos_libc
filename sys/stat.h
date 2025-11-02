@@ -43,31 +43,6 @@
 #define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
-#ifdef __x86_64__
-
-struct stat {
-  unsigned long st_dev;
-  unsigned long st_ino;
-  unsigned long st_nlink;
-  uint32_t st_mode;
-  uint32_t st_uid;
-  uint32_t st_gid;
-  uint32_t __pad0;
-  unsigned long st_rdev;
-  unsigned long st_size;
-  unsigned long st_blksize;
-  unsigned long st_blocks;
-  unsigned long st_atime;
-  unsigned long st_atime_nsec;
-  unsigned long st_mtime;
-  unsigned long st_mtime_nsec;
-  unsigned long st_ctime;
-  unsigned long st_ctime_nsec;
-  long __unused[3];
-};
-
-#else
-
 struct stat {
   uint32_t st_dev;
   unsigned long st_ino;
@@ -87,8 +62,6 @@ struct stat {
 #define st_ctime st_ctim.tv_sec
 };
 
-#endif
-
 int stat(char *file, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int lstat(char *file, struct stat *buf);
@@ -103,3 +76,10 @@ int mkfifo(char *path, int mode);
 
 int fstatat(int fd, const char *path, struct stat *buf, int flag);
 int mkdirat(int dirfd, const char *pathname, mode_t mode);
+
+int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);
+
+int utimensat(int dirfd, const char *pathname, const struct timespec times[2],
+              int flags);
+
+int futimens(int fd, const struct timespec times[2]);

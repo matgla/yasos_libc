@@ -24,6 +24,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#include <stdint.h>
+
 typedef struct syscall_result {
   int err; // errno returned by OS
   int result;
@@ -49,13 +51,17 @@ typedef struct write_context {
 } write_context;
 
 typedef struct link_context {
+  int olddirfd;
   const char *oldpath;
+  int newdirfd;
   const char *newpath;
+  int flags;
 } link_context;
 
 typedef struct mkdir_context {
   const char *path;
   mode_t mode;
+  int fd;
 } mkdir_context;
 
 typedef struct lseek_context {
@@ -74,6 +80,7 @@ typedef struct stat_context {
   const char *pathname;
   struct stat *statbuf;
   int fd;
+  uint8_t follow_links;
 } stat_context;
 
 typedef struct open_context {
@@ -208,6 +215,19 @@ typedef struct sysconf_context {
   long *result;
 } sysconf_context;
 
+typedef struct unlink_context {
+  int dirfd;
+  const char *pathname;
+  int flags;
+} unlink_context;
+
+typedef struct access_context {
+  const char *pathname;
+  int mode;
+  int dirfd;
+  int flags;
+} access_context;
+
 typedef enum SystemCall {
   sys_start_root_process = 1,
   sys_stop_root_process,
@@ -256,6 +276,7 @@ typedef enum SystemCall {
   sys_dup,
   sys_sysinfo,
   sys_sysconf,
+  sys_access,
   SYSCALL_COUNT,
 } SystemCall;
 

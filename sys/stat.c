@@ -23,6 +23,8 @@
 
 #include <sys/syscall.h>
 
+#include <fcntl.h>
+
 #include <stdio.h>
 
 int stat(char *file, struct stat *buf) {
@@ -34,6 +36,7 @@ int stat(char *file, struct stat *buf) {
       .pathname = file,
       .statbuf = buf,
       .fd = AT_FDCWD,
+      .follow_links = true,
   };
 
   int rc = trigger_syscall(sys_stat, &context);
@@ -49,15 +52,20 @@ int fstat(int fd, struct stat *buf) {
       .pathname = NULL,
       .statbuf = buf,
       .fd = fd,
+      .follow_links = true,
   };
 
-  int rc = trigger_syscall(sys_stat, &context);
-  return rc;
+  return trigger_syscall(sys_stat, &context);
 }
 
 int lstat(char *file, struct stat *buf) {
-  printf("TODO: implement sys/stat lstat\n");
-  return 0;
+  stat_context context = {
+      .pathname = file,
+      .statbuf = buf,
+      .fd = AT_FDCWD,
+      .follow_links = false,
+  };
+  return trigger_syscall(sys_stat, &context);
 }
 
 int chmod(char *file, int mode) {
@@ -80,12 +88,22 @@ int umask(int mask) {
 }
 
 int mkdir(char *path, int mode) {
-  printf("TODO: implement sys/stat mkdir\n");
-  return 0;
+  mkdir_context context = {
+      .path = (const char *)path,
+      .mode = mode,
+      .fd = AT_FDCWD,
+  };
+
+  return trigger_syscall(sys_mkdir, &context);
 }
 
 int mknod(char *path, int mode, int dev) {
   printf("TODO: implement sys/stat mknod\n");
+  return 0;
+}
+
+int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev) {
+  printf("TODO: implement sys/stat mknodat\n");
   return 0;
 }
 
@@ -106,6 +124,7 @@ int fstatat(int fd, const char *path, struct stat *buf, int flag) {
       .pathname = path,
       .statbuf = buf,
       .fd = fd,
+      .follow_links = !(flag & AT_SYMLINK_NOFOLLOW),
   };
 
   int rc = trigger_syscall(sys_stat, &context);
@@ -113,6 +132,22 @@ int fstatat(int fd, const char *path, struct stat *buf, int flag) {
 }
 
 int mkdirat(int dirfd, const char *pathname, mode_t mode) {
-  printf("TODO: implement sys/stat mkdirat\n");
+  mkdir_context context = {
+      .path = (const char *)pathname,
+      .mode = mode,
+      .fd = dirfd,
+  };
+
+  return trigger_syscall(sys_mkdir, &context);
+}
+
+int utimensat(int dirfd, const char *pathname, const struct timespec times[2],
+              int flags) {
+  printf("TODO: implement sys/stat utimensat\n");
+  return 0;
+}
+
+int futimens(int fd, const struct timespec times[2]) {
+  printf("TODO: implement sys/stat futimens\n");
   return 0;
 }
