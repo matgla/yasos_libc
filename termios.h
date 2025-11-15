@@ -167,10 +167,6 @@ struct termios {
 #define TCOFLUSH 2
 #define TCIOFLUSH 3
 
-#define _IONBF 1
-#define _IOLBF 2
-#define _IOFBF 0
-
 typedef long speed_t;
 
 int tcgetattr(int fd, struct termios *term);

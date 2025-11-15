@@ -11,6 +11,10 @@
 
 #define EOF (-1)
 
+#define _IONBF 1
+#define _IOLBF 2
+#define _IOFBF 0
+
 /* standard file descriptors */
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
