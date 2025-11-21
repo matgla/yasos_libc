@@ -11,8 +11,8 @@
 #define LONGOFF(s) ((unsigned long)s & (sizeof(long) - 1))
 #define HASZERO(x) (((x) - LONG01) & ~(x) & LONG80)
 
-void *__memchr_c(void *src, int c, long n) {
-  unsigned char *s = src;
+void *__memchr_c(const void *src, int c, long n) {
+  const unsigned char *s = src;
   c = (unsigned char)c;
   unsigned long k = LONG01 * c;
   while (LONGOFF(s) && n && *s != c)

@@ -19,7 +19,8 @@
 #define PATH_MAX 128
 
 #define LLONG_MAX 9223372036854775807
-#define LLONG_MIN -9223372036854775807
+#define LLONG_MIN (-9223372036854775807LL - 1)
+#define ULLONG_MAX 0xffffffffffffffffULL
 
 #if defined(__x86_64__) || defined(__aarch64__)
 #define LONG_MIN -9223372036854775807l
@@ -30,6 +31,7 @@
 #define LONG_MAX 2147483647l
 #define ULONG_MAX 4294967295ul
 #define SIZE_MAX 0xfffffffflu
+
 #endif
 
 #endif

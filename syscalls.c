@@ -93,9 +93,7 @@ int close(int fd) {
 void exit(int status) {
   fflush(stdout);
   fflush(stderr);
-  trigger_syscall(sys_exit, &status);
-  while (true) {
-  }
+  _exit(status);
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
@@ -152,13 +150,14 @@ void _putchar(char c) {
   trigger_syscall(sys_write, &context);
 }
 
-pid_t vfork() {
+pid_t _vfork_process(void *lr, void *r9) {
   pid_t pid = 0;
   vfork_context context = {
       .pid = &pid,
+      .lr = lr,
+      .r9 = r9,
   };
-  trigger_syscall(sys_vfork, &context);
-  return pid;
+  return trigger_syscall(sys_vfork, &context);
 }
 
 int unlink(const char *pathname) {

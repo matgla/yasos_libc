@@ -26,6 +26,8 @@
 
 #include <stdint.h>
 
+#include "syscall_ids.h"
+
 typedef struct syscall_result {
   int err; // errno returned by OS
   int result;
@@ -199,6 +201,8 @@ typedef struct dlsym_context {
 
 typedef struct vfork_context {
   pid_t *pid;
+  void *lr;
+  void *r9;
 } vfork_context;
 
 typedef struct dup_context {
@@ -232,6 +236,7 @@ typedef enum SystemCall {
   sys_start_root_process = 1,
   sys_stop_root_process,
   sys_create_process,
+  sys_vfork = SYS_VFORK_ID,
   sys_semaphore_acquire,
   sys_semaphore_release,
   sys_getpid,
@@ -244,7 +249,6 @@ typedef enum SystemCall {
   sys_read,
   sys_kill,
   sys_write,
-  sys_vfork,
   sys_unlink,
   sys_link,
   sys_stat,

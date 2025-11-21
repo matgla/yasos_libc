@@ -62,9 +62,9 @@ struct stat {
 #define st_ctime st_ctim.tv_sec
 };
 
-int stat(char *file, struct stat *buf);
+int stat(const char *file, struct stat *buf);
 int fstat(int fd, struct stat *buf);
-int lstat(char *file, struct stat *buf);
+int lstat(const char *file, struct stat *buf);
 
 int chmod(char *file, int mode);
 int fchmod(int fd, int mode);

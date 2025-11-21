@@ -41,5 +41,6 @@ extern int sys_nerr;
 #define ERANGE 34  /* Math result not representable */
 #define ELOOP 35   /* Too many symbolic links encountered */
 #define ENOSYS 36  /* Function not implemented */
+#define ENOTSUP 37 /* Not supported */
 
 #endif

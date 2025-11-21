@@ -136,7 +136,7 @@ static int parse_base_from_input(FILE *fp) {
   return 10 * sign;
 }
 
-int vfscanf(FILE *fp, char *fmt, va_list ap) {
+int vfscanf(FILE *fp, const char *fmt, va_list ap) {
   int ret = 0;
   int t, c;
   int wid = 1 << 20;
@@ -292,7 +292,7 @@ int vfscanf(FILE *fp, char *fmt, va_list ap) {
   return ret;
 }
 
-int fscanf(FILE *fp, char *fmt, ...) {
+int fscanf(FILE *fp, const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -301,7 +301,7 @@ int fscanf(FILE *fp, char *fmt, ...) {
   return ret;
 }
 
-int scanf(char *fmt, ...) {
+int scanf(const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -310,14 +310,14 @@ int scanf(char *fmt, ...) {
   return ret;
 }
 
-int vsscanf(char *s, char *fmt, va_list ap) {
+int vsscanf(const char *s, const char *fmt, va_list ap) {
   FILE f = {-1, EOF};
-  f.ibuf = s;
+  f.ibuf = (char *)s;
   f.ilen = strlen(s);
   return vfscanf(&f, fmt, ap);
 }
 
-int sscanf(char *s, char *fmt, ...) {
+int sscanf(const char *s, const char *fmt, ...) {
   va_list ap;
   int ret;
   va_start(ap, fmt);
@@ -345,6 +345,15 @@ long fread(void *v, long sz, long n, FILE *fp) {
     if ((*s++ = ic(fp)) == EOF)
       return n * sz - i - 1;
   return n * sz;
+}
+
+int feof(FILE *fp) {
+  char c = ic(fp);
+  if (c != EOF) {
+    ungetc(c, fp);
+    return 0;
+  }
+  return EOF;
 }
 
 int getline(char **lineptr, size_t *n, FILE *fp) {

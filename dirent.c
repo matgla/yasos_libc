@@ -14,7 +14,7 @@ struct __dirent_dir {
   char buf[2048];
 };
 
-DIR *opendir(char *path) {
+DIR *opendir(const char *path) {
   DIR *dir;
   int fd;
   if ((fd = open(path, O_RDONLY | O_DIRECTORY)) < 0)

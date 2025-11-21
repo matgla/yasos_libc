@@ -7,7 +7,7 @@ EXTERNAL_LIBS =
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
 LDFLAGS += -larmv8m-libtcc1.a
-SRCS = arm/setjmp.S
+SRCS = arm/setjmp.S arm/vfork.S
 LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm
 ARM_BUILD = y
 EXTERNAL_LIBS += ../tinycc/armv8m-libtcc1.a

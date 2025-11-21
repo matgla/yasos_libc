@@ -56,3 +56,7 @@ int ispunct(int c) {
 int isxdigit(int c) {
   return (unsigned)((c | 0x20) - 'a') < 6u || (unsigned)(c - '0') < 10u;
 }
+
+int iscntrl(int c) {
+  return (unsigned)(c & 0x7f) < 32u || (c & 0x7f) == 127;
+}

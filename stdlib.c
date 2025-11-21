@@ -34,6 +34,21 @@ int abs(int n) {
   return n >= 0 ? n : -n;
 }
 
+double atof(const char *str) {
+  double result = 0.0;
+  int sign = 1;
+  while (*str && *str != ' ' && *str != '\t') {
+    if (*str == '-')
+      sign = -1;
+    else if (*str >= '0' && *str <= '9')
+      result = result * 10.0 + (*str - '0');
+    else
+      break;
+    str++;
+  }
+  return result * sign;
+}
+
 long int labs(long int n) {
   return n >= 0 ? n : -n;
 }
@@ -42,13 +57,18 @@ long long int llabs(long long int n) {
   return n >= 0 ? n : -n;
 }
 
-char *getenv(char *name) {
+char *getenv(const char *name) {
   char **p = environ;
   int len = strlen(name);
   for (; *p; p++)
     if (!memcmp(name, *p, len) && (*p)[len] == '=')
       return *p + len + 1;
   return NULL;
+}
+
+int putenv(char *string) {
+  printf("TODO: Implement putenv\n");
+  return -1; // Not implemented
 }
 
 int system(char *cmd) {

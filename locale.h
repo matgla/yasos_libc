@@ -29,3 +29,5 @@ void freelocale(locale_t locobj);
 
 #define LC_CTYPE 1
 #define LC_CTYPE_MASK (1 << LC_CTYPE)
+
+#define LC_ALL 6

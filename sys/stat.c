@@ -27,7 +27,7 @@
 
 #include <stdio.h>
 
-int stat(char *file, struct stat *buf) {
+int stat(const char *file, struct stat *buf) {
   if (file == NULL || buf == NULL) {
     return -1;
   }
@@ -58,7 +58,7 @@ int fstat(int fd, struct stat *buf) {
   return trigger_syscall(sys_stat, &context);
 }
 
-int lstat(char *file, struct stat *buf) {
+int lstat(const char *file, struct stat *buf) {
   stat_context context = {
       .pathname = file,
       .statbuf = buf,

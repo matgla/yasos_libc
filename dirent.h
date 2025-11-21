@@ -19,7 +19,7 @@ struct dirent {
   char d_name[256];
 };
 
-DIR *opendir(char *path);
+DIR *opendir(const char *path);
 int closedir(DIR *dir);
 struct dirent *readdir(DIR *dir);
 

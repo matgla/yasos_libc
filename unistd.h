@@ -65,9 +65,9 @@ int getpid(void);
 int getppid(void);
 
 int execve(const char *path, char *const argv[], char *const envp[]);
-int execle(char *path, ...);
-int execvp(char *file, char *argv[]);
-int execv(char *path, char *argv[]);
+int execle(const char *path, ...);
+int execvp(const char *file, char *argv[]);
+int execv(const char *path, char *argv[]);
 
 void *sbrk(intptr_t increment);
 
@@ -105,9 +105,16 @@ int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
            int flags);
 int symlinkat(const char *target, int newdirfd, const char *linkpath);
 
+int ftruncate(int fd, off_t length);
+
+char *getlogin(void);
+unsigned alarm(unsigned seconds);
+
 #define _CS_PATH "/bin"
 
 #define _SC_ARG_MAX 1
 #define _SC_PAGESIZE 2
 #define _SC_CLK_TCK 3
 #define _SC_NPROCESSORS_CONF 4
+
+#define _POSIX_VERSION 200112L

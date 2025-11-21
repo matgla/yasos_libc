@@ -35,7 +35,7 @@ int usleep(int n) {
 
 #define EXECARGS (1 << 7)
 
-int execle(char *path, ...) {
+int execle(const char *path, ...) {
   va_list ap;
   char *argv[EXECARGS];
   char **envp;
@@ -50,7 +50,7 @@ int execle(char *path, ...) {
   return -1;
 }
 
-int execvp(char *cmd, char *argv[]) {
+int execvp(const char *cmd, char *argv[]) {
   char path[512];
   char *p = getenv("PATH");
   if (strchr(cmd, '/'))
@@ -71,7 +71,7 @@ int execvp(char *cmd, char *argv[]) {
   return -1;
 }
 
-int execv(char *path, char *argv[]) {
+int execv(const char *path, char *argv[]) {
   return execve(path, argv, environ);
 }
 
@@ -223,7 +223,9 @@ int dup2(int fd, int fd2) {
 }
 
 void _exit(int status) {
-  exit(status);
+  trigger_syscall(sys_exit, &status);
+  while (true) {
+  }
 }
 
 long sysconf(int name) {
@@ -264,4 +266,25 @@ int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
 int symlinkat(const char *target, int newdirfd, const char *linkpath) {
   printf("TODO: implement symlinkat\n");
   return 0;
+}
+
+int ftruncate(int fd, off_t length) {
+  printf("TODO: Implement ftruncate\n");
+  return -1;
+  // truncate_context context = {
+  //     .fd = fd,
+  //     .length = length,
+  // };
+  // return trigger_syscall(sys_ftruncate, &context);
+}
+
+char login_[8] = {'r', 'o', 'o', 't', '\0'};
+char *getlogin(void) {
+  printf("TODO: Implement getlogin\n");
+  return login_;
+}
+
+unsigned alarm(unsigned seconds) {
+  printf("TODO: Implement alarm\n");
+  return 0; // Not implemented
 }

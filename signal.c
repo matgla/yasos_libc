@@ -6,6 +6,14 @@
 
 int sigreturn(unsigned long n);
 
+const char *const sys_siglist[] = {
+    "Undefined signal 0",
+};
+
+const char *const sys_signame[] = {
+    "SIGNULL",
+};
+
 struct ksa {
   void *handler;
   unsigned long flags;

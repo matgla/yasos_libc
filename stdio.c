@@ -9,15 +9,18 @@
 
 #include <fcntl.h>
 
-#define BUFSZ 1024
-
-static char _ibuf[BUFSZ], _obuf[BUFSZ], _ebuf[BUFSZ];
-static FILE _stdin = {0, EOF, _ibuf, NULL, BUFSZ, 0};
-static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSZ};
+static char _ibuf[BUFSIZ], _obuf[BUFSIZ], _ebuf[BUFSIZ];
+static FILE _stdin = {0, EOF, _ibuf, NULL, BUFSIZ, 0};
+static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
 static FILE _stderr = {2, EOF, NULL, _ebuf, 0, 1};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
+
+FILE *tmpfile(void) {
+  printf("TODO: implement tmpfile()\n");
+  return NULL;
+}
 
 FILE *fopen(const char *path, const char *mode) {
   FILE *fp;
@@ -42,10 +45,10 @@ FILE *fopen(const char *path, const char *mode) {
     return NULL;
   }
   fp->back = EOF;
-  fp->ibuf = malloc(BUFSZ);
-  fp->obuf = malloc(BUFSZ);
-  fp->isize = BUFSZ;
-  fp->osize = BUFSZ;
+  fp->ibuf = malloc(BUFSIZ);
+  fp->obuf = malloc(BUFSIZ);
+  fp->isize = BUFSIZ;
+  fp->osize = BUFSIZ;
   fp->iown = 1;
   fp->oown = 1;
   return fp;
@@ -74,10 +77,10 @@ FILE *fdopen(int fd, const char *mode) {
   }
   fp->fd = fd;
   fp->back = EOF;
-  fp->ibuf = malloc(BUFSZ);
-  fp->obuf = malloc(BUFSZ);
-  fp->isize = BUFSZ;
-  fp->osize = BUFSZ;
+  fp->ibuf = malloc(BUFSIZ);
+  fp->obuf = malloc(BUFSIZ);
+  fp->isize = BUFSIZ;
+  fp->osize = BUFSIZ;
   fp->iown = 1;
   fp->oown = 1;
   return fp;
@@ -104,6 +107,11 @@ int fflush(FILE *fp) {
 }
 
 int fputc(int c, FILE *fp) {
+  if (fp->osize == 0) {
+    if (write(fp->fd, (char *)&c, 1) != 1)
+      return EOF;
+    return c;
+  }
   if (fp->olen < fp->osize) {
     fp->obuf[fp->olen++] = c;
     fp->ostat++;
@@ -369,7 +377,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
   return n;
 }
 
-void perror(char *s) {
+void perror(const char *s) {
   int idx = errno;
   if (idx >= sys_nerr)
     idx = 0;

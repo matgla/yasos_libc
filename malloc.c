@@ -42,7 +42,7 @@ static int mk_pool(void) {
   return 0;
 }
 
-void *malloc(long n) {
+void *malloc(size_t n) {
   void *m;
   if (n >= MSETMAX) {
     m = mmap(NULL, n + PGSIZE, PROT_READ | PROT_WRITE,
@@ -83,7 +83,7 @@ void free(void *v) {
   }
 }
 
-void *calloc(long n, long sz) {
+void *calloc(size_t n, size_t sz) {
   void *r = malloc(n * sz);
   if (r)
     memset(r, 0, n * sz);
@@ -96,7 +96,7 @@ static long msize(void *v) {
   return *(long *)(v - PGSIZE);
 }
 
-void *realloc(void *v, long sz) {
+void *realloc(void *v, size_t sz) {
   void *r = malloc(sz);
   if (r && v) {
     memcpy(r, v, msize(v));

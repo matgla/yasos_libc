@@ -4,10 +4,12 @@
 #define EXIT_FAILURE 1
 #define EXIT_SUCCESS 0
 
-void *malloc(long n);
+void *malloc(size_t n);
 void free(void *m);
-void *calloc(long n, long sz);
-void *realloc(void *v, long sz);
+void *calloc(size_t n, size_t sz);
+void *realloc(void *v, size_t sz);
+
+#define alloca(sz) __builtin_alloca(sz)
 
 int atoi(const char *s);
 long atol(const char *s);
@@ -18,12 +20,15 @@ unsigned long strtoul(const char *s, char **endptr, int base);
 int abs(int n);
 long int labs(long n);
 long long int llabs(long long int n);
+double atof(const char *str);
 
 void exit(int status);
 void abort(void);
 int atexit(void (*func)(void));
 
-char *getenv(char *name);
+char *getenv(const char *name);
+int putenv(char *string);
+
 void qsort(void *a, int n, int sz, int (*cmp)(const void *, const void *));
 int mkstemp(char *t);
 int system(char *cmd);

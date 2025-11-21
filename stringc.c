@@ -15,13 +15,13 @@ char *strcat(char *d, const char *s) {
   return d;
 }
 
-char *strstr(char *s, char *r) {
+char *strstr(const char *s, const char *r) {
   int len = strlen(r);
   if (!len)
-    return s;
+    return (char*)s;
   while (s) {
     if (!memcmp(s, r, len))
-      return s;
+      return (char*)s;
     s = strchr(s + 1, *r);
   }
   return NULL;

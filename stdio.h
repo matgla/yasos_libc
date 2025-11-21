@@ -35,6 +35,9 @@ typedef struct {
   int istat;
 } FILE;
 
+
+#define BUFSIZ 1024
+
 extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
@@ -44,6 +47,7 @@ int fclose(FILE *fp);
 int fflush(FILE *fp);
 void setbuf(FILE *fp, char *buf);
 
+FILE *tmpfile(void);
 int fputc(int c, FILE *fp);
 int putchar(int c);
 int printf(const char *fmt, ...);
@@ -64,17 +68,18 @@ FILE *popen(const char *command, const char *type);
 
 int fgetc(FILE *fp);
 char *fgets(char *s, int sz, FILE *fp);
-int scanf(char *fmt, ...);
-int fscanf(FILE *fp, char *fmt, ...);
-int sscanf(char *s, char *fmt, ...);
-int vsscanf(char *s, char *fmt, va_list ap);
-int vfscanf(FILE *fp, char *fmt, va_list ap);
+int scanf(const char *fmt, ...);
+int fscanf(FILE *fp, const char *fmt, ...);
+int sscanf(const char *s, const char *fmt, ...);
+int vsscanf(const char *s, const char *fmt, va_list ap);
+int vfscanf(FILE *fp, const char *fmt, va_list ap);
 int getchar(void);
 int ungetc(int c, FILE *fp);
 long fwrite(void *s, long sz, long n, FILE *fp);
 long fread(void *s, long sz, long n, FILE *fp);
+int feof(FILE *fp);
 
-void perror(char *s);
+void perror(const char *s);
 
 int getline(char **lineptr, size_t *n, FILE *fp);
 int setvbuf(FILE *fp, char *buf, int mode, size_t size);
