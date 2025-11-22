@@ -61,6 +61,7 @@
 
 int open(const char *path, int flags, ...);
 int creat(const char *path, int mode);
+
 int fcntl(int fd, int cmd, ...);
 
 int openat(int dirfd, const char *pathname, int flags, ...);
@@ -75,3 +76,5 @@ struct flock {
   off_t l_len;    /* Length of lock (0 means until end of file) */
   pid_t l_pid;    /* Process ID of the process holding the lock */
 };
+
+

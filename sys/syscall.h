@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -107,7 +108,7 @@ typedef struct getdents_context {
 typedef struct ioctl_context {
   int fd;
   int op;
-  void *arg;
+  ssize_t arg; // int or void* //
 } ioctl_context;
 
 typedef struct gettimeofday_context {
@@ -165,7 +166,7 @@ typedef struct time_context {
 typedef struct fcntl_context {
   int fd;
   int op;
-  void *arg;
+  ssize_t arg; // int or flock* or void*
 } fcntl_context;
 
 typedef struct remove_context {

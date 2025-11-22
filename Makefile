@@ -1,6 +1,6 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
-LDFLAGS_STATIC = -nostdlib -L../tinycc -g
+CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -Wl,-Ttext=0x0 -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+LDFLAGS_STATIC = -nostdlib -Wl,-Ttext=0x0, -L../tinycc -g
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic
 EXTERNAL_LIBS =
@@ -8,7 +8,7 @@ ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
 LDFLAGS += -larmv8m-libtcc1.a
 SRCS = arm/setjmp.S arm/vfork.S
-LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm
+LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm, -Wl,-Ttext=0x0
 ARM_BUILD = y
 EXTERNAL_LIBS += ../tinycc/armv8m-libtcc1.a
 else

@@ -335,7 +335,7 @@ ssize_t getdents(int fd, struct dirent *de, size_t len) {
 int ioctl(int fd, int op, ...) {
   va_list args;
   va_start(args, op);
-  void *arg = va_arg(args, void *);
+  ssize_t arg = va_arg(args, ssize_t);
   va_end(args);
 
   const ioctl_context context = {
@@ -426,7 +426,7 @@ int chdir(const char *path) {
 int fcntl(int fd, int op, ...) {
   va_list args;
   va_start(args, op);
-  void *arg = va_arg(args, void *);
+  ssize_t arg = va_arg(args, ssize_t);
   va_end(args);
 
   const fcntl_context context = {
