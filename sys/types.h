@@ -15,7 +15,7 @@ typedef uint16_t mode_t;
 typedef uint16_t nlink_t;
 typedef uint16_t uid_t;
 
-// typedef long ssize_t;
+typedef intptr_t ssize_t;
 typedef long long time_t;
 typedef long useconds_t;
 
