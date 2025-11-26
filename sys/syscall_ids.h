@@ -20,4 +20,3 @@
 
 #pragma once
 
-#define SYS_VFORK_ID 5

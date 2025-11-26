@@ -150,14 +150,18 @@ void _putchar(char c) {
   trigger_syscall(sys_write, &context);
 }
 
-pid_t _vfork_process(void *lr, void *r9) {
+pid_t _vfork_process(void *lr, void *r9, void *sp, uint32_t is_fpu_used) {
   pid_t pid = 0;
   vfork_context context = {
       .pid = &pid,
       .lr = lr,
       .r9 = r9,
+      .sp = sp,
+      .is_fpu_used = is_fpu_used,
   };
-  return trigger_syscall(sys_vfork, &context);
+  int rc = trigger_syscall(sys_vfork, &context);
+  printf("vfork rc=%d pid=%d\n", rc, pid);
+  return rc;
 }
 
 int unlink(const char *pathname) {

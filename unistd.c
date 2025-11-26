@@ -46,6 +46,7 @@ int execle(const char *path, ...) {
   envp = va_arg(ap, char **);
   va_end(ap);
   argv[argc] = NULL;
+  printf("execle: path=%s argc=%d\n", path, argc);
   execve(path, argv, envp);
   return -1;
 }

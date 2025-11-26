@@ -204,6 +204,8 @@ typedef struct vfork_context {
   pid_t *pid;
   void *lr;
   void *r9;
+  void *sp;
+  uint32_t is_fpu_used;
 } vfork_context;
 
 typedef struct dup_context {
@@ -234,10 +236,10 @@ typedef struct access_context {
 } access_context;
 
 typedef enum SystemCall {
-  sys_start_root_process = 1,
+  sys_start_root_process = 5,
   sys_stop_root_process,
   sys_create_process,
-  sys_vfork = SYS_VFORK_ID,
+  sys_vfork,
   sys_semaphore_acquire,
   sys_semaphore_release,
   sys_getpid,

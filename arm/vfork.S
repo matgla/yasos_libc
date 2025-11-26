@@ -23,12 +23,13 @@
 vfork:
     mrs r0, control
     tst r0, #4
-    mov r0, #0
+    mov r3, #0
     bne vfork_omit_fpu
-    mov r0, #1
-//    vpush {s16-s31}
+    mov r3, #1
+    vpush {s0-s31}
 vfork_omit_fpu:
     push {r4-r11, lr}
+    mov r2, sp
     push {r0}
 
     mov r0, lr
@@ -38,6 +39,10 @@ vfork_omit_fpu:
     pop {r4-r11, lr}
     cmp r1, #1
     bne vfork_omit_load_fpu
-//    vpop {s16-s31}
+    vpop {s0-s31}
 vfork_omit_load_fpu:
+    push {r0}
+    mov r0, #1 // unblock context switch
+    svc #0
+    pop {r0}
     bx lr
