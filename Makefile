@@ -1,6 +1,6 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -Wl,-Ttext=0x0 -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
-LDFLAGS_STATIC = -nostdlib -Wl,-Ttext=0x0, -L../tinycc -g
+CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -gdwarf -Wl,-Ttext=0x0 -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+LDFLAGS_STATIC = -nostdlib -Wl,-Ttext=0x0, -gdwarf -L../tinycc -g
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic
 EXTERNAL_LIBS =

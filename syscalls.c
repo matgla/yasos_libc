@@ -159,9 +159,7 @@ pid_t _vfork_process(void *lr, void *r9, void *sp, uint32_t is_fpu_used) {
       .sp = sp,
       .is_fpu_used = is_fpu_used,
   };
-  int rc = trigger_syscall(sys_vfork, &context);
-  printf("vfork rc=%d pid=%d\n", rc, pid);
-  return rc;
+  return trigger_syscall(sys_vfork, &context);
 }
 
 int unlink(const char *pathname) {

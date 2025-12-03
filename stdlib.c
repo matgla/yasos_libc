@@ -211,5 +211,5 @@ int setenv(const char *name, const char *value, int overwrite) {
 
 int unsetenv(const char *name) {
   printf("TODO: Implement unsetenv\n");
-  return -1; // Not implemented
+  return 0; // Not implemented
 }
