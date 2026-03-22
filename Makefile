@@ -60,6 +60,7 @@ build/arm/crtn.o: arm/crtn.c prepare
 
 install: $(TARGET_SHARED) $(TARGET_STATIC) build/arm/crt1.o build/arm/crti.o build/arm/crtn.o
 	mkdir -p $(LIBDIR)
+	mkdir -p $(INCLUDEDIR)
 	cp $(TARGET_SHARED) $(LIBDIR)
 	cp $(TARGET_STATIC) $(LIBDIR)
 	cp build/arm/crt1.o $(LIBDIR)
