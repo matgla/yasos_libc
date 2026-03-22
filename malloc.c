@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -62,7 +63,14 @@ void *malloc(size_t n) {
   pool->size += (n + sizeof(struct mhdr) + 7) & ~7;
   if (!((unsigned long)(pool + pool->size + sizeof(struct mhdr)) & PGMASK))
     pool->size += sizeof(long);
-  return m + sizeof(struct mhdr);
+  {
+    void *ret = m + sizeof(struct mhdr);
+    void *end = ret + n;
+    /* Check if this small alloc overlaps with any page header boundary */
+    unsigned long ret_page = (unsigned long)ret & ~(unsigned long)PGMASK;
+    unsigned long end_page = (unsigned long)end & ~(unsigned long)PGMASK;
+    return ret;
+  }
 }
 
 void free(void *v) {
@@ -79,7 +87,8 @@ void free(void *v) {
         pool1 = mset;
     }
   } else {
-    munmap(v - PGSIZE, *(long *)(v - PGSIZE));
+    long stored_len = *(long *)(v - PGSIZE);
+    munmap(v - PGSIZE, stored_len);
   }
 }
 
@@ -93,13 +102,14 @@ void *calloc(size_t n, size_t sz) {
 static long msize(void *v) {
   if ((unsigned long)v & PGMASK)
     return ((struct mhdr *)(v - sizeof(struct mhdr)))->size;
-  return *(long *)(v - PGSIZE);
+  return *(long *)(v - PGSIZE) - PGSIZE;
 }
 
 void *realloc(void *v, size_t sz) {
   void *r = malloc(sz);
   if (r && v) {
-    memcpy(r, v, msize(v));
+    long old_size = msize(v);
+    memcpy(r, v, old_size < (long)sz ? old_size : sz);
     free(v);
   }
   return r;

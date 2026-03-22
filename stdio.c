@@ -153,7 +153,7 @@ static int ostr(FILE *fp, char *s, int wid, int left, int max_len,
   return n;
 }
 
-static int digits(unsigned long n, int base) {
+static int digits(unsigned long long n, int base) {
   int i;
   for (i = 0; n; i++)
     n /= base;
@@ -171,7 +171,7 @@ static char *digs_uc = "0123456789ABCDEF";
 #define FMT_SIGNED 0040 /* is the conversion signed? */
 #define FMT_UCASE 0100  /* uppercase hex digits? */
 
-static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
+static int oint(FILE *fp, unsigned long long n, int base, int wid, int bytes,
                 int flags, int max_len) {
   char buf[64];
   char *s = buf;
@@ -186,7 +186,7 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   int size = 0;
 
   if (flags & FMT_SIGNED) {
-    if ((bytes == 4 && ((int)n < 0)) || (bytes == 8 && ((long)n < 0)) ||
+    if ((bytes == 4 && ((int)n < 0)) || (bytes == 8 && ((long long)n < 0)) ||
         (bytes == 2 && ((short)n < 0)) || (bytes == 1 && ((char)n < 0))) {
       sign = '-';
       n = -n;
@@ -252,7 +252,7 @@ static int oint(FILE *fp, unsigned long n, int base, int wid, int bytes,
   return size;
 }
 
-static char *fmt_flags = "-+ #0";
+static const char *fmt_flags = "-+ #0";
 
 int vfprintf(FILE *fp, const char *fmt, va_list ap) {
   const char *s = fmt;
@@ -265,7 +265,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     int flags = 0;
     int left;
     int max_len = INT_MAX;
-    char *f;
+    const char *f;
     if (c != '%') {
       fputc(c, fp);
       ++n;
@@ -315,9 +315,16 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       }
     }
 
-    while (*s == 'l') {
-      bytes = sizeof(long);
-      s++;
+    {
+      int l_count = 0;
+      while (*s == 'l') {
+        l_count++;
+        s++;
+      }
+      if (l_count >= 2)
+        bytes = sizeof(long long);
+      else if (l_count == 1)
+        bytes = sizeof(long);
     }
     while (*s == 'h') {
       bytes = bytes < sizeof(int) ? sizeof(char) : sizeof(short);
@@ -327,23 +334,38 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     case 'd':
     case 'i':
       flags |= FMT_SIGNED;
-      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags, max_len);
+      if (bytes >= (int)sizeof(long long))
+        n += oint(fp, va_arg(ap, long long), 10, wid, bytes, flags, max_len);
+      else
+        n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags, max_len);
       break;
     case 'u':
       flags &= ~FMT_ALT;
-      n += oint(fp, va_arg(ap, long), 10, wid, bytes, flags, max_len);
+      if (bytes >= (int)sizeof(long long))
+        n += oint(fp, va_arg(ap, unsigned long long), 10, wid, bytes, flags, max_len);
+      else
+        n += oint(fp, va_arg(ap, unsigned long), 10, wid, bytes, flags, max_len);
       break;
     case 'o':
-      n += oint(fp, va_arg(ap, long), 8, wid, bytes, flags, max_len);
+      if (bytes >= (int)sizeof(long long))
+        n += oint(fp, va_arg(ap, unsigned long long), 8, wid, bytes, flags, max_len);
+      else
+        n += oint(fp, va_arg(ap, unsigned long), 8, wid, bytes, flags, max_len);
       break;
     case 'p':
       flags |= FMT_ALT;
     case 'x':
-      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags, max_len);
+      if (bytes >= (int)sizeof(long long))
+        n += oint(fp, va_arg(ap, unsigned long long), 16, wid, bytes, flags, max_len);
+      else
+        n += oint(fp, va_arg(ap, unsigned long), 16, wid, bytes, flags, max_len);
       break;
     case 'X':
       flags |= FMT_UCASE;
-      n += oint(fp, va_arg(ap, long), 16, wid, bytes, flags, max_len);
+      if (bytes >= (int)sizeof(long long))
+        n += oint(fp, va_arg(ap, unsigned long long), 16, wid, bytes, flags, max_len);
+      else
+        n += oint(fp, va_arg(ap, unsigned long), 16, wid, bytes, flags, max_len);
       break;
     case 'c':
       if (left) {
@@ -566,9 +588,22 @@ int setvbuf(FILE *fp, char *buf, int mode, size_t size) {
   fp->olen = 0;
   return 0;
 }
+int vdprintf(int fildes, const char *format, va_list ap) {
+  char buf[BUFSIZ];
+  FILE f = {fildes, EOF, NULL, buf, 0, sizeof(buf)};
+  int ret = vfprintf(&f, format, ap);
+  if (f.olen > 0)
+    write(fildes, f.obuf, f.olen);
+  return ret;
+}
+
 int dprintf(int fildes, const char *format, ...) {
-  printf("TODO: Implement dprintf\n");
-  return -1; // Not implemented
+  va_list ap;
+  int ret;
+  va_start(ap, format);
+  ret = vdprintf(fildes, format, ap);
+  va_end(ap);
+  return ret;
 }
 
 int fileno(FILE *fp) {
