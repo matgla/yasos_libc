@@ -233,6 +233,7 @@ long sysconf(int name) {
   long result;
   sysconf_context ctx = {.name = name, .result = &result};
   int rc = trigger_syscall(sys_sysconf, &ctx);
+  (void)rc;
   return result;
 }
 

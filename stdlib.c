@@ -87,14 +87,59 @@ int system(char *cmd) {
   return ret;
 }
 
-static void (*atexit_func[ATEXIT_MAX])(void);
+static void *atexit_func[ATEXIT_MAX];
+static void *atexit_arg[ATEXIT_MAX];
 static int atexit_cnt;
+void *__yasos_fini_table;
+void *__yasos_fini_got;
+
+extern void __call_with_got(void (*func)(void), void *got_base);
+
+int on_exit(void (*func)(int, void *), void *arg) {
+  if (atexit_cnt >= ATEXIT_MAX)
+    return -1;
+  atexit_func[atexit_cnt] = (void *)func;
+  atexit_arg[atexit_cnt] = arg;
+  atexit_cnt++;
+  return 0;
+}
 
 int atexit(void (*func)(void)) {
   if (atexit_cnt >= ATEXIT_MAX)
     return -1;
-  atexit_func[atexit_cnt++] = func;
+  atexit_func[atexit_cnt] = (void *)func;
+  atexit_arg[atexit_cnt] = 0;
+  atexit_cnt++;
   return 0;
+}
+
+void __libc_finalize_and_exit(int status) {
+  /* Run destructors from the YAFF initfini table.
+   * These are raw code addresses (not thunked), so we call them
+   * via __call_with_got which switches R9 to the originating
+   * module's GOT base. */
+  void *ft = __yasos_fini_table;
+  __yasos_fini_table = 0;
+  if (ft && __yasos_fini_got) {
+    unsigned int *tbl = (unsigned int *)ft;
+    unsigned int init_count = tbl[0];
+    unsigned int fini_count = tbl[1];
+    void (**fini_funcs)(void) = (void (**)(void))&tbl[2 + init_count];
+    unsigned int i;
+    for (i = fini_count; i > 0;) {
+      --i;
+      __call_with_got(fini_funcs[i], __yasos_fini_got);
+    }
+  }
+  /* Run atexit/on_exit handlers (LIFO) */
+  while (atexit_cnt > 0) {
+    --atexit_cnt;
+    ((void (*)(int, void *))atexit_func[atexit_cnt])(status,
+                                                     atexit_arg[atexit_cnt]);
+  }
+  fflush(stdout);
+  fflush(stderr);
+  _exit(status);
 }
 
 // TODO: Verify that
@@ -116,55 +161,75 @@ unsigned long long int strtoull(const char *nptr, char **endptr, int base) {
   return result;
 }
 
-float strtof(const char *nptr, char **endptr) {
-  float result = 0.0f;
+double strtod(const char *nptr, char **endptr) {
+  const char *s = nptr;
+  double result = 0.0;
   int sign = 1;
-  while (*nptr && *nptr != ' ' && *nptr != '\t') {
-    if (*nptr == '-')
-      sign = -1;
-    else if (*nptr >= '0' && *nptr <= '9')
-      result = result * 10.0f + (*nptr - '0');
-    else
-      break;
-    nptr++;
+
+  /* Skip leading whitespace */
+  while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r')
+    s++;
+
+  /* Sign */
+  if (*s == '-') {
+    sign = -1;
+    s++;
+  } else if (*s == '+') {
+    s++;
   }
+
+  /* Integer part */
+  while (*s >= '0' && *s <= '9') {
+    result = result * 10.0 + (*s - '0');
+    s++;
+  }
+
+  /* Fractional part */
+  if (*s == '.') {
+    double frac = 0.1;
+    s++;
+    while (*s >= '0' && *s <= '9') {
+      result += (*s - '0') * frac;
+      frac *= 0.1;
+      s++;
+    }
+  }
+
+  /* Exponent part */
+  if (*s == 'e' || *s == 'E') {
+    s++;
+    int exp_sign = 1;
+    int exp_val = 0;
+    if (*s == '-') {
+      exp_sign = -1;
+      s++;
+    } else if (*s == '+') {
+      s++;
+    }
+    while (*s >= '0' && *s <= '9') {
+      exp_val = exp_val * 10 + (*s - '0');
+      s++;
+    }
+    double power = 1.0;
+    for (int i = 0; i < exp_val; i++)
+      power *= 10.0;
+    if (exp_sign > 0)
+      result *= power;
+    else
+      result /= power;
+  }
+
   if (endptr)
-    *endptr = (char *)nptr;
+    *endptr = (char *)s;
   return result * sign;
+}
+
+float strtof(const char *nptr, char **endptr) {
+  return (float)strtod(nptr, endptr);
 }
 
 long double strtold(const char *nptr, char **endptr) {
-  long double result = 0.0L;
-  int sign = 1;
-  while (*nptr && *nptr != ' ' && *nptr != '\t') {
-    if (*nptr == '-')
-      sign = -1;
-    else if (*nptr >= '0' && *nptr <= '9')
-      result = result * 10.0L + (*nptr - '0');
-    else
-      break;
-    nptr++;
-  }
-  if (endptr)
-    *endptr = (char *)nptr;
-  return result * sign;
-}
-
-double strtod(const char *nptr, char **endptr) {
-  double result = 0.0;
-  int sign = 1;
-  while (*nptr && *nptr != ' ' && *nptr != '\t') {
-    if (*nptr == '-')
-      sign = -1;
-    else if (*nptr >= '0' && *nptr <= '9')
-      result = result * 10.0 + (*nptr - '0');
-    else
-      break;
-    nptr++;
-  }
-  if (endptr)
-    *endptr = (char *)nptr;
-  return result * sign;
+  return (long double)strtod(nptr, endptr);
 }
 
 long long int strtoll(const char *nptr, char **endptr, int base) {

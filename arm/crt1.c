@@ -15,20 +15,51 @@
  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 
 extern char **environ;
 
+/* Struct appended to .data by the YAFF linker (tcc_yaff_prepare_init_fini).
+ * Layout:
+ * [init_count:u32][fini_count:u32][init_func_ptrs...][fini_func_ptrs...]
+ * Accessed via a single LOCAL symbol through a GOT local relocation.
+ * Declared weak so that ELF-format builds (which skip the YAFF linker
+ * step) link without error — the pointer resolves to NULL/0. */
+extern unsigned int __yaff_initfini[] __attribute__((weak));
+extern void *__yasos_fini_table;
+extern void *__yasos_fini_got;
+
 int main(int argc, char *argv[]);
 
-void _start(int argc, char *argv[]) {
-  // Initialize the environment
+/* Pure-assembly _start: capture R9 (GOT base) into R2 before any
+ * GOT-relative C code runs, then tail-call __crt1_main. */
+__asm__(".syntax unified\n"
+        ".thumb\n"
+        ".global _start\n"
+        ".thumb_func\n"
+        "_start:\n"
+        "  mov r2, r9\n"
+        "  b __crt1_main\n");
+
+void __crt1_main(int argc, char *argv[], void *r9_value) {
   environ = (char **)malloc(sizeof(char *));
   environ[0] = 0;
 
-  // Call the main function with the provided arguments
-  int ret = main(argc, argv);
+  __yasos_fini_got = r9_value;
 
-  // Exit the program with the return value from main
-  exit(ret);
+  if (__yaff_initfini) {
+    unsigned int init_count = __yaff_initfini[0];
+    void (**init_funcs)(void) = (void (**)(void))&__yaff_initfini[2];
+
+    /* Run constructors (forward order) */
+    for (unsigned int i = 0; i < init_count; i++)
+      init_funcs[i]();
+  }
+
+  __yasos_fini_table = __yaff_initfini;
+
+  fflush(stdout);
+  fflush(stderr);
+  exit(main(argc, argv));
 }

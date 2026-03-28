@@ -36,6 +36,99 @@ UTEST(sprintf, basic_formats) {
   ASSERT_STREQ(buf, "255 377 FF");
 }
 
+UTEST(sprintf, floating_point_fixed_format) {
+  char buf[128];
+
+  sut_sprintf(buf, "%f", 1.5);
+  ASSERT_STREQ(buf, "1.500000");
+
+  sut_sprintf(buf, "%.2f", 1.5);
+  ASSERT_STREQ(buf, "1.50");
+
+  sut_sprintf(buf, "%8.2f", 1.5);
+  ASSERT_STREQ(buf, "    1.50");
+
+  sut_sprintf(buf, "%08.2f", 1.5);
+  ASSERT_STREQ(buf, "00001.50");
+
+  sut_sprintf(buf, "%-8.2f", 1.5);
+  ASSERT_STREQ(buf, "1.50    ");
+}
+
+UTEST(sprintf, floating_point_rounding_and_signs) {
+  char buf[128];
+
+  sut_sprintf(buf, "%.2f", 9.999);
+  ASSERT_STREQ(buf, "10.00");
+
+  sut_sprintf(buf, "%.0f", 2.6);
+  ASSERT_STREQ(buf, "3");
+
+  sut_sprintf(buf, "%+.2f", 1.5);
+  ASSERT_STREQ(buf, "+1.50");
+
+  sut_sprintf(buf, "% .2f", 1.5);
+  ASSERT_STREQ(buf, " 1.50");
+
+  sut_sprintf(buf, "%.2f", -0.0);
+  ASSERT_STREQ(buf, "-0.00");
+}
+
+UTEST(sprintf, floating_point_special_values) {
+  char buf[128];
+  double inf = 1.0 / 0.0;
+  double nan = 0.0 / 0.0;
+
+  sut_sprintf(buf, "%f", inf);
+  ASSERT_STREQ(buf, "inf");
+
+  sut_sprintf(buf, "%F", inf);
+  ASSERT_STREQ(buf, "INF");
+
+  sut_sprintf(buf, "%+f", inf);
+  ASSERT_STREQ(buf, "+inf");
+
+  sut_sprintf(buf, "%f", -inf);
+  ASSERT_STREQ(buf, "-inf");
+
+  sut_sprintf(buf, "%f", nan);
+  ASSERT_STREQ(buf, "nan");
+
+  sut_sprintf(buf, "%G", inf);
+  ASSERT_STREQ(buf, "INF");
+
+  sut_sprintf(buf, "%g", nan);
+  ASSERT_STREQ(buf, "nan");
+}
+
+UTEST(sprintf, floating_point_general_format) {
+  char buf[128];
+
+  sut_sprintf(buf, "%g", 12.3400);
+  ASSERT_STREQ(buf, "12.34");
+
+  sut_sprintf(buf, "%g", 1234567.0);
+  ASSERT_STREQ(buf, "1.23457e+06");
+
+  sut_sprintf(buf, "%G", 1234567.0);
+  ASSERT_STREQ(buf, "1.23457E+06");
+
+  sut_sprintf(buf, "%g", 0.0001234);
+  ASSERT_STREQ(buf, "0.0001234");
+
+  sut_sprintf(buf, "%g", 0.00001234);
+  ASSERT_STREQ(buf, "1.234e-05");
+
+  sut_sprintf(buf, "%.0g", 12.34);
+  ASSERT_STREQ(buf, "1e+01");
+
+  sut_sprintf(buf, "%#g", 12.0);
+  ASSERT_STREQ(buf, "12.0000");
+
+  sut_sprintf(buf, "%+10.3g", 12.34);
+  ASSERT_STREQ(buf, "     +12.3");
+}
+
 UTEST(sprintf, precision_star_string) {
   char buf[64];
   const char *s = "abcdefgh";
@@ -130,8 +223,8 @@ UTEST(sprintf, cppref_example) {
   ASSERT_STREQ(buf, "\tOctal:\t\t12 012 04\n");
   sut_sprintf(buf, "Floating-point:\n");
   ASSERT_STREQ(buf, "Floating-point:\n");
-  //   sut_sprintf(buf, "\tPadding:\t%05.2f %.2f %5.2f\n", 1.5, 1.5, 1.5);
-  //   ASSERT_STREQ(buf, "\tPadding:\t01.50 1.50  1.50\n");
+  sut_sprintf(buf, "\tPadding:\t%05.2f %.2f %5.2f\n", 1.5, 1.5, 1.5);
+  ASSERT_STREQ(buf, "\tPadding:\t01.50 1.50  1.50\n");
   //   sprintf(buf, "\tScientific:\t%E %e\n", 1.5, 1.5);
   //   ASSERT_STREQ(buf, "\tScientific:\t1.500000E+00 1.500000e+00\n");
   //   sprintf(buf, "\tHexadecimal:\t%a %A\n", 1.5, 1.5);
@@ -151,11 +244,11 @@ UTEST(sprintf, align_text_ps_like) {
   int len = 0;
   len += sut_sprintf(buf, "%*s", 7, "PID");
   ASSERT_STREQ("    PID", buf);
-  len += sut_sprintf(buf+len, " %*s", -8, "TTY");
+  len += sut_sprintf(buf + len, " %*s", -8, "TTY");
   ASSERT_STREQ("    PID TTY     ", buf);
-  len += sut_sprintf(buf+len, " %*s", 8, "TIME");
+  len += sut_sprintf(buf + len, " %*s", 8, "TIME");
   ASSERT_STREQ("    PID TTY          TIME", buf);
-  len += sut_sprintf(buf+len, " %*s", -15, "CMD");
+  len += sut_sprintf(buf + len, " %*s", -15, "CMD");
   ASSERT_STREQ("    PID TTY          TIME CMD            ", buf);
 
   buf[0] = '1';
@@ -171,8 +264,6 @@ UTEST(sprintf, align_text_ps_like) {
   ASSERT_STREQ(" 1?       00:00:00", buf);
   len += sut_sprintf(buf + len, "%*.*s", -1, 59, "stub");
   ASSERT_STREQ(" 1?       00:00:00stub", buf);
-
-
 
   // sut_sprintf(buf, "[%-10s]", "abc");
   // ASSERT_STREQ(buf, "[abc       ]");

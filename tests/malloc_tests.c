@@ -15,6 +15,8 @@
  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#define _GNU_SOURCE
+
 #include "utest.h"
 
 #include <stdio.h>
@@ -42,6 +44,17 @@
 #undef free
 #undef calloc
 #undef realloc
+
+static void reset_allocator_state(void) {
+  if (pool1 != NULL) {
+    munmap(pool1, MSETLEN);
+    pool1 = NULL;
+  }
+  if (pool != NULL) {
+    munmap(pool, MSETLEN);
+    pool = NULL;
+  }
+}
 
 /* ---- msize correctness ---- */
 
@@ -157,4 +170,19 @@ UTEST(malloc_tests, malloc_free_small_roundtrip) {
   ASSERT_TRUE(p != NULL);
   memset(p, 0xBB, 64);
   test_free(p);
+}
+
+UTEST(malloc_tests, small_alloc_never_returns_page_aligned_pointer) {
+  reset_allocator_state();
+
+  void *filler = test_malloc(4072);
+  ASSERT_TRUE(filler != NULL);
+
+  void *p = test_malloc(1);
+  ASSERT_TRUE(p != NULL);
+  ASSERT_NE((unsigned long)p & PGMASK, 0UL);
+
+  test_free(p);
+  test_free(filler);
+  reset_allocator_state();
 }

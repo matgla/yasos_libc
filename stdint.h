@@ -3,7 +3,7 @@
 
 #include <limits.h>
 
-typedef char int8_t;
+typedef signed char int8_t;
 typedef short int16_t;
 typedef int int32_t;
 typedef unsigned char uint8_t;

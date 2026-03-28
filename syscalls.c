@@ -90,10 +90,9 @@ int close(int fd) {
 }
 
 // suppress noreturn that returns
+extern void __libc_finalize_and_exit(int status);
 void exit(int status) {
-  fflush(stdout);
-  fflush(stderr);
-  _exit(status);
+  __libc_finalize_and_exit(status);
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
@@ -405,6 +404,19 @@ int munmap(void *addr, int len) {
       .length = len,
   };
   return trigger_syscall(sys_munmap, &context);
+}
+
+void *mremap(void *addr, int old_len, int new_len, int flags) {
+  void *result = NULL;
+  const mremap_context context = {
+      .addr = addr,
+      .old_length = old_len,
+      .new_length = new_len,
+      .flags = flags,
+      .result = &result,
+  };
+  trigger_syscall(sys_mremap, &context);
+  return result;
 }
 
 int mprotect(void *addr, size_t len, int prot) {

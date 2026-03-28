@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,6 +164,11 @@ static int digits(unsigned long long n, int base) {
 static char *digs = "0123456789abcdef";
 static char *digs_uc = "0123456789ABCDEF";
 
+typedef union {
+  double d;
+  unsigned long long u;
+} fmt_double_bits;
+
 #define FMT_LEFT 0001   /* flag '-' */
 #define FMT_PLUS 0002   /* flag '+' */
 #define FMT_BLANK 0004  /* flag ' ' */
@@ -170,6 +176,270 @@ static char *digs_uc = "0123456789ABCDEF";
 #define FMT_ZERO 0020   /* flag '0' */
 #define FMT_SIGNED 0040 /* is the conversion signed? */
 #define FMT_UCASE 0100  /* uppercase hex digits? */
+
+static double fmt_pow10(int exp) {
+  double value = 1.0;
+
+  while (exp > 0) {
+    value *= 10.0;
+    --exp;
+  }
+  while (exp < 0) {
+    value /= 10.0;
+    ++exp;
+  }
+  return value;
+}
+
+static int fmt_ilog10(double value) {
+  int exp = 0;
+
+  if (value <= 0.0)
+    return 0;
+  while (value >= 10.0) {
+    value /= 10.0;
+    ++exp;
+  }
+  while (value < 1.0) {
+    value *= 10.0;
+    --exp;
+  }
+  return exp;
+}
+
+static char *fmt_append_uint_dec(char *out, unsigned int value,
+                                 int min_digits) {
+  char tmp[16];
+  int len = 0;
+
+  do {
+    tmp[len++] = '0' + (value % 10);
+    value /= 10;
+  } while (value > 0);
+
+  while (len < min_digits)
+    tmp[len++] = '0';
+
+  while (len-- > 0)
+    *out++ = tmp[len];
+
+  return out;
+}
+
+static char *fmt_build_fixed(char *out, double value, int precision,
+                             int alt_form) {
+  int mag;
+
+  if (value != 0.0)
+    value += fmt_pow10(-precision) / 2.0;
+
+  mag = value == 0.0 ? 0 : fmt_ilog10(value);
+  if (mag < 0)
+    mag = 0;
+
+  do {
+    double scale;
+    int digit;
+
+    if (mag == -1 && (precision > 0 || alt_form))
+      *out++ = '.';
+    scale = fmt_pow10(mag);
+    digit = scale == 0.0 ? 0 : (int)(value / scale);
+    if (digit < 0)
+      digit = 0;
+    if (digit > 9)
+      digit = 9;
+    value -= digit * scale;
+    if (value < 0.0)
+      value = 0.0;
+    *out++ = '0' + digit;
+  } while (--mag >= -precision);
+
+  if (precision == 0 && alt_form)
+    *out++ = '.';
+
+  *out = '\0';
+  return out;
+}
+
+static char *fmt_build_scientific(char *out, double value, int precision,
+                                  int alt_form, int upper) {
+  int exp = value == 0.0 ? 0 : fmt_ilog10(value);
+  unsigned int abs_exp;
+
+  if (value != 0.0)
+    value /= fmt_pow10(exp);
+  if (value != 0.0)
+    value += fmt_pow10(-precision) / 2.0;
+  if (value >= 10.0) {
+    value /= 10.0;
+    ++exp;
+  }
+
+  {
+    int mag = 0;
+
+    do {
+      double scale;
+      int digit;
+
+      if (mag == -1 && (precision > 0 || alt_form))
+        *out++ = '.';
+      scale = fmt_pow10(mag);
+      digit = scale == 0.0 ? 0 : (int)(value / scale);
+      if (digit < 0)
+        digit = 0;
+      if (digit > 9)
+        digit = 9;
+      value -= digit * scale;
+      if (value < 0.0)
+        value = 0.0;
+      *out++ = '0' + digit;
+    } while (--mag >= -precision);
+  }
+
+  if (precision == 0 && alt_form)
+    *out++ = '.';
+
+  *out++ = upper ? 'E' : 'e';
+  *out++ = exp < 0 ? '-' : '+';
+  abs_exp = (unsigned int)(exp < 0 ? -exp : exp);
+  out = fmt_append_uint_dec(out, abs_exp, 2);
+  *out = '\0';
+
+  return out;
+}
+
+static void fmt_trim_trailing_zeros(char *buf, int alt_form) {
+  const char *dot;
+  const char *exp;
+  const char *end;
+  char *trim_end;
+
+  if (alt_form)
+    return;
+
+  dot = strchr(buf, '.');
+  if (!dot)
+    return;
+
+  exp = strchr(buf, 'e');
+  if (!exp)
+    exp = strchr(buf, 'E');
+  end = exp ? exp - 1 : buf + strlen(buf) - 1;
+
+  while (end > dot && *end == '0')
+    --end;
+  if (end == dot)
+    --end;
+
+  trim_end = buf + (end - buf);
+
+  if (exp)
+    memmove(trim_end + 1, exp, strlen(exp) + 1);
+  else
+    trim_end[1] = '\0';
+}
+
+static int fmt_emit_float(FILE *fp, const char *buf, int wid, int flags,
+                          int zero_flag, char sign) {
+  int fill_zero = zero_flag && !(flags & FMT_LEFT);
+  int left = flags & FMT_LEFT;
+  int len = strlen(buf) + (sign ? 1 : 0);
+  int size = 0;
+
+  if (!fill_zero && !left)
+    while (len < wid) {
+      fputc(' ', fp);
+      ++size;
+      ++len;
+    }
+  if (sign) {
+    fputc(sign, fp);
+    ++size;
+  }
+  if (fill_zero && !left)
+    while (len < wid) {
+      fputc('0', fp);
+      ++size;
+      ++len;
+    }
+  size += ostr(fp, (char *)buf, 0, 0, INT_MAX, ' ');
+  if (left)
+    while (len < wid) {
+      fputc(' ', fp);
+      ++size;
+      ++len;
+    }
+
+  return size;
+}
+
+static int fmt_general_exponent(double value, int precision) {
+  int exp;
+
+  if (value == 0.0)
+    return 0;
+
+  exp = fmt_ilog10(value);
+  value /= fmt_pow10(exp);
+  value += fmt_pow10(1 - precision) / 2.0;
+  if (value >= 10.0)
+    ++exp;
+
+  return exp;
+}
+
+static int ofloat(FILE *fp, double value, int wid, int flags, int precision,
+                  int zero_flag, int upper, int general) {
+  char buf[384];
+  char sign = '\0';
+  fmt_double_bits bits = {.d = value};
+  unsigned long long frac_mask = (1ULL << 52) - 1;
+  unsigned long long exponent = (bits.u >> 52) & 0x7ff;
+
+  if (bits.u >> 63) {
+    sign = '-';
+    bits.u &= ~(1ULL << 63);
+    value = bits.d;
+  } else if (flags & FMT_PLUS) {
+    sign = '+';
+  } else if (flags & FMT_BLANK) {
+    sign = ' ';
+  }
+
+  if (precision == INT_MAX || precision < 0)
+    precision = 6;
+  if (general && precision == 0)
+    precision = 1;
+  if (precision > 120)
+    precision = 120;
+
+  if (exponent == 0x7ff) {
+    int is_nan = (bits.u & frac_mask) != 0;
+    const char *special =
+        is_nan ? (upper ? "NAN" : "nan") : (upper ? "INF" : "inf");
+
+    if (is_nan && !(flags & (FMT_PLUS | FMT_BLANK)))
+      sign = '\0';
+
+    return fmt_emit_float(fp, special, wid, flags, zero_flag, sign);
+  }
+
+  if (general) {
+    int exp = fmt_general_exponent(value, precision);
+
+    if (exp < -4 || exp >= precision)
+      fmt_build_scientific(buf, value, precision - 1, flags & FMT_ALT, upper);
+    else
+      fmt_build_fixed(buf, value, precision - (exp + 1), flags & FMT_ALT);
+    fmt_trim_trailing_zeros(buf, flags & FMT_ALT);
+  } else {
+    fmt_build_fixed(buf, value, precision, flags & FMT_ALT);
+  }
+
+  return fmt_emit_float(fp, buf, wid, flags, zero_flag, sign);
+}
 
 static int oint(FILE *fp, unsigned long long n, int base, int wid, int bytes,
                 int flags, int max_len) {
@@ -264,6 +534,8 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     int bytes = sizeof(int);
     int flags = 0;
     int left;
+    int zero_flag;
+    int float_long = 0;
     int max_len = INT_MAX;
     const char *f;
     if (c != '%') {
@@ -276,6 +548,7 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       s++;
     }
     left = flags & FMT_LEFT;
+    zero_flag = flags & FMT_ZERO;
     if (*s == '*') {
       wid = va_arg(ap, int);
       if (wid < 0) {
@@ -330,6 +603,10 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       bytes = bytes < sizeof(int) ? sizeof(char) : sizeof(short);
       s++;
     }
+    if (*s == 'L') {
+      float_long = 1;
+      s++;
+    }
     switch ((c = *s++)) {
     case 'd':
     case 'i':
@@ -342,13 +619,16 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
     case 'u':
       flags &= ~FMT_ALT;
       if (bytes >= (int)sizeof(long long))
-        n += oint(fp, va_arg(ap, unsigned long long), 10, wid, bytes, flags, max_len);
+        n += oint(fp, va_arg(ap, unsigned long long), 10, wid, bytes, flags,
+                  max_len);
       else
-        n += oint(fp, va_arg(ap, unsigned long), 10, wid, bytes, flags, max_len);
+        n +=
+            oint(fp, va_arg(ap, unsigned long), 10, wid, bytes, flags, max_len);
       break;
     case 'o':
       if (bytes >= (int)sizeof(long long))
-        n += oint(fp, va_arg(ap, unsigned long long), 8, wid, bytes, flags, max_len);
+        n += oint(fp, va_arg(ap, unsigned long long), 8, wid, bytes, flags,
+                  max_len);
       else
         n += oint(fp, va_arg(ap, unsigned long), 8, wid, bytes, flags, max_len);
       break;
@@ -356,16 +636,20 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       flags |= FMT_ALT;
     case 'x':
       if (bytes >= (int)sizeof(long long))
-        n += oint(fp, va_arg(ap, unsigned long long), 16, wid, bytes, flags, max_len);
+        n += oint(fp, va_arg(ap, unsigned long long), 16, wid, bytes, flags,
+                  max_len);
       else
-        n += oint(fp, va_arg(ap, unsigned long), 16, wid, bytes, flags, max_len);
+        n +=
+            oint(fp, va_arg(ap, unsigned long), 16, wid, bytes, flags, max_len);
       break;
     case 'X':
       flags |= FMT_UCASE;
       if (bytes >= (int)sizeof(long long))
-        n += oint(fp, va_arg(ap, unsigned long long), 16, wid, bytes, flags, max_len);
+        n += oint(fp, va_arg(ap, unsigned long long), 16, wid, bytes, flags,
+                  max_len);
       else
-        n += oint(fp, va_arg(ap, unsigned long), 16, wid, bytes, flags, max_len);
+        n +=
+            oint(fp, va_arg(ap, unsigned long), 16, wid, bytes, flags, max_len);
       break;
     case 'c':
       if (left) {
@@ -383,6 +667,24 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       break;
     case 's':
       n += ostr(fp, va_arg(ap, char *), wid, left, max_len, ' ');
+      break;
+    case 'f':
+    case 'F':
+      if (float_long)
+        n += ofloat(fp, (double)va_arg(ap, long double), wid, flags, max_len,
+                    zero_flag, c == 'F', 0);
+      else
+        n += ofloat(fp, va_arg(ap, double), wid, flags, max_len, zero_flag,
+                    c == 'F', 0);
+      break;
+    case 'g':
+    case 'G':
+      if (float_long)
+        n += ofloat(fp, (double)va_arg(ap, long double), wid, flags, max_len,
+                    zero_flag, c == 'G', 1);
+      else
+        n += ofloat(fp, va_arg(ap, double), wid, flags, max_len, zero_flag,
+                    c == 'G', 1);
       break;
     case 'n':
       *va_arg(ap, int *) = fp->ostat - beg;

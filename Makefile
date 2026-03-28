@@ -1,18 +1,20 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -gdwarf -Wl,-Ttext=0x0 -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
-LDFLAGS_STATIC = -nostdlib -Wl,-Ttext=0x0, -gdwarf -L../tinycc -g
+CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -gdwarf -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+LDFLAGS_STATIC = -nostdlib -gdwarf -L../tinycc -g
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic
 EXTERNAL_LIBS =
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
+LDFLAGS_STATIC += -Wl,-Ttext=0x0
 LDFLAGS += -larmv8m-libtcc1.a
-SRCS = arm/setjmp.S arm/vfork.S
-LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm, -Wl,-Ttext=0x0
+SRCS = arm/setjmp.S arm/vfork.S arm/call_with_got.S
+LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm -Wl,-Ttext=0x0
 ARM_BUILD = y
 EXTERNAL_LIBS += ../tinycc/armv8m-libtcc1.a
 else
 CFLAGS += -Wno-pointer-arith -Wno-builtin-declaration-mismatch
+LDFLAGS_STATIC += -Wl,--build-id=none -Wl,--no-eh-frame-hdr
 endif
 
 
@@ -36,7 +38,7 @@ prepare:
 	mkdir -p build/sys
 	mkdir -p build/arpa
 
-build/%.o: %.c prepare
+build/%.o: %.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
@@ -48,13 +50,13 @@ $(TARGET_SHARED).elf: $(OBJS)
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^ $(EXTERNAL_LIBS)
 
-build/arm/crt1.o: arm/crt1.c prepare
+build/arm/crt1.o: arm/crt1.c | prepare
 	${CC} $(CFLAGS) -c $< -o $@
 
-build/arm/crti.o: arm/crti.c prepare
+build/arm/crti.o: arm/crti.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
-build/arm/crtn.o: arm/crtn.c prepare
+build/arm/crtn.o: arm/crtn.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 

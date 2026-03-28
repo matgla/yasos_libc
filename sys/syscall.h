@@ -148,6 +148,14 @@ typedef struct munmap_context {
   int length;
 } munmap_context;
 
+typedef struct mremap_context {
+  void *addr;
+  int old_length;
+  int new_length;
+  int flags;
+  void **result;
+} mremap_context;
+
 typedef struct getcwd_context {
   char *buf;
   size_t size;
@@ -222,6 +230,13 @@ typedef struct sysconf_context {
   long *result;
 } sysconf_context;
 
+typedef struct prlimit_context {
+  pid_t pid;
+  int resource;
+  const struct rlimit *new_limit;
+  struct rlimit *old_limit;
+} prlimit_context;
+
 typedef struct unlink_context {
   int dirfd;
   const char *pathname;
@@ -284,6 +299,8 @@ typedef enum SystemCall {
   sys_sysinfo,
   sys_sysconf,
   sys_access,
+  sys_prlimit,
+  sys_mremap,
   SYSCALL_COUNT,
 } SystemCall;
 

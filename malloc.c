@@ -8,6 +8,72 @@
 #define MSETMAX 4096
 #define MSETLEN (1 << 15)
 
+/* malloc profiling - prints stats to stderr */
+static long prof_current;      /* bytes currently mapped via mmap */
+static long prof_peak;         /* high water mark */
+static long prof_total_mapped; /* cumulative bytes mmapped */
+static int prof_malloc_calls;
+static int prof_free_calls;
+static int prof_realloc_calls;
+static int prof_mmap_calls;
+static int prof_munmap_calls;
+static int prof_inplace; /* realloc served in-place */
+static int prof_pool_allocs;
+static int prof_large_allocs;
+
+/* Tracking table for large allocations - eliminates the 4KB header page
+   overhead per allocation. Each entry is 8 bytes vs 4096 bytes wasted. */
+#define MAX_LARGE_ALLOCS 256
+struct large_alloc {
+  void *addr;       /* mmap base address (NULL = free slot) */
+  long mapped_size; /* total mapped bytes (page-aligned) */
+  long user_size;   /* requested user-visible allocation size */
+};
+static struct large_alloc large_table[MAX_LARGE_ALLOCS];
+
+static struct large_alloc *find_large(void *ptr) {
+  for (int i = 0; i < MAX_LARGE_ALLOCS; i++)
+    if (large_table[i].addr == ptr)
+      return &large_table[i];
+  return NULL;
+}
+
+static void prof_map(long sz) {
+  prof_current += sz;
+  prof_total_mapped += sz;
+  prof_mmap_calls++;
+  if (prof_current > prof_peak)
+    prof_peak = prof_current;
+}
+
+static void prof_unmap(long sz) {
+  prof_current -= sz;
+  prof_munmap_calls++;
+}
+
+void malloc_dump_profile(void) {
+  fprintf(stderr, "[malloc] current=%ldK peak=%ldK total_mapped=%ldK\n",
+          prof_current / 1024, prof_peak / 1024, prof_total_mapped / 1024);
+  fprintf(stderr,
+          "[malloc] calls: malloc=%d(pool=%d,large=%d) free=%d "
+          "realloc=%d(inplace=%d)\n",
+          prof_malloc_calls, prof_pool_allocs, prof_large_allocs,
+          prof_free_calls, prof_realloc_calls, prof_inplace);
+  fprintf(stderr, "[malloc] mmap=%d munmap=%d\n", prof_mmap_calls,
+          prof_munmap_calls);
+  /* dump active large allocations */
+  int active = 0;
+  long active_bytes = 0;
+  for (int i = 0; i < MAX_LARGE_ALLOCS; i++) {
+    if (large_table[i].addr) {
+      active++;
+      active_bytes += large_table[i].mapped_size;
+    }
+  }
+  fprintf(stderr, "[malloc] large: active=%d active_bytes=%ldK\n", active,
+          active_bytes / 1024);
+}
+
 /* placed at the beginning of regions for small allocations */
 struct mset {
   int refs; /* number of allocations */
@@ -38,6 +104,7 @@ static int mk_pool(void) {
     pool = NULL;
     return 1;
   }
+  prof_map(MSETLEN);
   pool->size = sizeof(*pool);
   pool->refs = 0;
   return 0;
@@ -45,30 +112,60 @@ static int mk_pool(void) {
 
 void *malloc(size_t n) {
   void *m;
+  size_t alloc_size;
+  int offset;
+  prof_malloc_calls++;
   if (n >= MSETMAX) {
-    m = mmap(NULL, n + PGSIZE, PROT_READ | PROT_WRITE,
-             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (m == MAP_FAILED)
+    long total = (n + PGMASK) & ~PGMASK; /* page-align, no header page */
+    m = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
+             -1, 0);
+    if (m == MAP_FAILED) {
+      fprintf(stderr,
+              "[malloc] FAIL large n=%ld total=%ld cur=%ldK peak=%ldK\n",
+              (long)n, total, prof_current / 1024, prof_peak / 1024);
+      malloc_dump_profile();
       return NULL;
-    *(long *)m = n + PGSIZE; /* store length in the first page */
-    return m + PGSIZE;
+    }
+    prof_map(total);
+    prof_large_allocs++;
+    for (int i = 0; i < MAX_LARGE_ALLOCS; i++) {
+      if (!large_table[i].addr) {
+        large_table[i].addr = m;
+        large_table[i].mapped_size = total;
+        large_table[i].user_size = n;
+        return m;
+      }
+    }
+    prof_unmap(total);
+    munmap(m, total);
+    return NULL;
   }
-  if (!pool || pool->size + n + sizeof(struct mhdr) > MSETLEN)
+  prof_pool_allocs++;
+  alloc_size = (n + sizeof(struct mhdr) + 7) & ~7;
+  if (!pool)
     if (mk_pool())
       return NULL;
-  m = (void *)pool + pool->size;
-  ((struct mhdr *)m)->moff = pool->size;
+  offset = pool->size;
+  if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) & PGMASK))
+    offset += sizeof(long);
+  if (offset + alloc_size > MSETLEN) {
+    if (mk_pool())
+      return NULL;
+    offset = pool->size;
+    if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) &
+          PGMASK))
+      offset += sizeof(long);
+  }
+  m = (char *)pool + offset;
+  ((struct mhdr *)m)->moff = offset;
   ((struct mhdr *)m)->size = n;
   pool->refs++;
-  pool->size += (n + sizeof(struct mhdr) + 7) & ~7;
-  if (!((unsigned long)(pool + pool->size + sizeof(struct mhdr)) & PGMASK))
+  pool->size = offset + alloc_size;
+  if (!((unsigned long)((char *)pool + pool->size + sizeof(struct mhdr)) &
+        PGMASK))
     pool->size += sizeof(long);
   {
     void *ret = m + sizeof(struct mhdr);
-    void *end = ret + n;
-    /* Check if this small alloc overlaps with any page header boundary */
-    unsigned long ret_page = (unsigned long)ret & ~(unsigned long)PGMASK;
-    unsigned long end_page = (unsigned long)end & ~(unsigned long)PGMASK;
     return ret;
   }
 }
@@ -76,19 +173,26 @@ void *malloc(size_t n) {
 void free(void *v) {
   if (!v)
     return;
+  prof_free_calls++;
   if ((unsigned long)v & PGMASK) {
     struct mhdr *mhdr = v - sizeof(struct mhdr);
     struct mset *mset = (void *)mhdr - mhdr->moff;
     mset->refs--;
     if (mset->refs == 0 && mset != pool) {
-      if (pool1 != NULL)
+      if (pool1 != NULL) {
+        prof_unmap(MSETLEN);
         munmap(mset, MSETLEN);
-      else
+      } else {
         pool1 = mset;
+      }
     }
   } else {
-    long stored_len = *(long *)(v - PGSIZE);
-    munmap(v - PGSIZE, stored_len);
+    struct large_alloc *e = find_large(v);
+    if (e) {
+      prof_unmap(e->mapped_size);
+      munmap(e->addr, e->mapped_size);
+      e->addr = NULL;
+    }
   }
 }
 
@@ -102,15 +206,67 @@ void *calloc(size_t n, size_t sz) {
 static long msize(void *v) {
   if ((unsigned long)v & PGMASK)
     return ((struct mhdr *)(v - sizeof(struct mhdr)))->size;
-  return *(long *)(v - PGSIZE) - PGSIZE;
+  struct large_alloc *e = find_large(v);
+  return e ? e->user_size : 0;
 }
 
 void *realloc(void *v, size_t sz) {
-  void *r = malloc(sz);
-  if (r && v) {
-    long old_size = msize(v);
-    memcpy(r, v, old_size < (long)sz ? old_size : sz);
+  void *r;
+  long old_size;
+
+  prof_realloc_calls++;
+  if (!v)
+    return malloc(sz);
+  if (!sz) {
     free(v);
+    return NULL;
   }
+
+  old_size = msize(v);
+
+  /* If shrinking or same size, return as-is */
+  if ((long)sz <= old_size) {
+    if ((unsigned long)v & PGMASK) {
+      ((struct mhdr *)(v - sizeof(struct mhdr)))->size = sz;
+    } else {
+      struct large_alloc *e = find_large(v);
+      if (e)
+        e->user_size = sz;
+    }
+    return v;
+  }
+
+  /* For large allocations, try to grow in-place */
+  if (!((unsigned long)v & PGMASK)) {
+    struct large_alloc *e = find_large(v);
+    if (e) {
+      /* Check if new size fits in already-mapped pages */
+      if ((long)sz <= e->mapped_size) {
+        prof_inplace++;
+        e->user_size = sz;
+        return v;
+      }
+      /* Try kernel mremap to extend the mapping in-place */
+      long new_mapped = (sz + PGMASK) & ~PGMASK;
+      r = mremap(v, e->mapped_size, new_mapped, 0);
+      if (r != NULL && r != (void *)-1) {
+        prof_inplace++;
+        prof_map(new_mapped - e->mapped_size);
+        e->addr = r;
+        e->mapped_size = new_mapped;
+        e->user_size = sz;
+        return r;
+      }
+    }
+  }
+
+  r = malloc(sz);
+  if (!r) {
+    fprintf(stderr, "[malloc] realloc FAIL old=%ld new=%ld cur=%ldK\n",
+            old_size, (long)sz, prof_current / 1024);
+    return NULL;
+  }
+  memcpy(r, v, old_size < (long)sz ? old_size : sz);
+  free(v);
   return r;
 }

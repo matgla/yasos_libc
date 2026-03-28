@@ -25,5 +25,6 @@
 
 void *mmap(void *addr, int len, int prot, int flags, int fd, int offset);
 int munmap(void *addr, int len);
+void *mremap(void *addr, int old_len, int new_len, int flags);
 
 int mprotect(void *addr, size_t len, int prot);
