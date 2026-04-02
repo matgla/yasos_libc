@@ -22,6 +22,7 @@ $(LIBC_STATIC): $(LIBC_SRCS)
 	$(MAKE) -C .. CC=$(CC)
 
 $(LIBC_TEST_STATIC): $(LIBC_STATIC)
+	mkdir -p build
 	cp $(LIBC_STATIC) $(LIBC_TEST_STATIC)
 	./rename_symbols.sh $(LIBC_TEST_STATIC)
 $(TARGET): $(OBJS) $(LIBC_TEST_STATIC)

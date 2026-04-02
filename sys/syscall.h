@@ -301,8 +301,34 @@ typedef enum SystemCall {
   sys_access,
   sys_prlimit,
   sys_mremap,
+  sys_klog_ctl,
+  sys_ftruncate,
+  sys_perf_dump,
   SYSCALL_COUNT,
 } SystemCall;
+
+typedef struct klog_ctl_context {
+  int enable;
+} klog_ctl_context;
+
+typedef struct ftruncate_context {
+  int fd;
+  off_t length;
+} ftruncate_context;
+
+typedef struct perf_syscall_entry {
+  unsigned int syscall_id;
+  unsigned int call_count;
+  unsigned int total_cycles;
+  unsigned int max_cycles;
+} perf_syscall_entry;
+
+typedef struct perf_dump_context {
+  perf_syscall_entry *entries;
+  int max_entries;
+  int *num_entries;
+  int reset;
+} perf_dump_context;
 
 int trigger_syscall(int number, const void *args);
 

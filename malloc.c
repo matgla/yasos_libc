@@ -89,6 +89,28 @@ struct mhdr {
 static struct mset *pool;
 static struct mset *pool1; /* a freed pool */
 
+/* vfork save/restore — prevents child from corrupting parent's pool state */
+static struct mset *vfork_saved_pool;
+static struct mset *vfork_saved_pool1;
+static int vfork_saved_pool_size;
+static int vfork_saved_pool_refs;
+
+void __malloc_vfork_save(void) {
+  vfork_saved_pool = pool;
+  vfork_saved_pool1 = pool1;
+  vfork_saved_pool_size = pool ? pool->size : 0;
+  vfork_saved_pool_refs = pool ? pool->refs : 0;
+}
+
+void __malloc_vfork_restore(void) {
+  pool = vfork_saved_pool;
+  pool1 = vfork_saved_pool1;
+  if (pool) {
+    pool->size = vfork_saved_pool_size;
+    pool->refs = vfork_saved_pool_refs;
+  }
+}
+
 static int mk_pool(void) {
   if ((pool == NULL || pool->refs > 0) && pool1 != NULL) {
     pool = pool1;

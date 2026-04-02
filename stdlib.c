@@ -87,7 +87,15 @@ int system(char *cmd) {
   return ret;
 }
 
-static void *atexit_func[ATEXIT_MAX];
+/* ISO C forbids direct conversion between function pointers and void *.
+ * Use a union to store arbitrary handler types without violating pedantic. */
+typedef union {
+  void (*as_void)(void);
+  void (*as_exit)(int, void *);
+  void *as_ptr;
+} atexit_handler;
+
+static atexit_handler atexit_func[ATEXIT_MAX];
 static void *atexit_arg[ATEXIT_MAX];
 static int atexit_cnt;
 void *__yasos_fini_table;
@@ -98,7 +106,7 @@ extern void __call_with_got(void (*func)(void), void *got_base);
 int on_exit(void (*func)(int, void *), void *arg) {
   if (atexit_cnt >= ATEXIT_MAX)
     return -1;
-  atexit_func[atexit_cnt] = (void *)func;
+  atexit_func[atexit_cnt].as_exit = func;
   atexit_arg[atexit_cnt] = arg;
   atexit_cnt++;
   return 0;
@@ -107,7 +115,7 @@ int on_exit(void (*func)(int, void *), void *arg) {
 int atexit(void (*func)(void)) {
   if (atexit_cnt >= ATEXIT_MAX)
     return -1;
-  atexit_func[atexit_cnt] = (void *)func;
+  atexit_func[atexit_cnt].as_void = func;
   atexit_arg[atexit_cnt] = 0;
   atexit_cnt++;
   return 0;
@@ -134,8 +142,7 @@ void __libc_finalize_and_exit(int status) {
   /* Run atexit/on_exit handlers (LIFO) */
   while (atexit_cnt > 0) {
     --atexit_cnt;
-    ((void (*)(int, void *))atexit_func[atexit_cnt])(status,
-                                                     atexit_arg[atexit_cnt]);
+    (atexit_func[atexit_cnt].as_exit)(status, atexit_arg[atexit_cnt]);
   }
   fflush(stdout);
   fflush(stderr);

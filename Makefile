@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -gdwarf -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs -g -fPIC -pedantic -gdwarf -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
 LDFLAGS_STATIC = -nostdlib -gdwarf -L../tinycc -g
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic

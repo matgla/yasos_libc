@@ -20,11 +20,17 @@
 
 #include <time.h>
 
+#include <sys/time.h>
+
 #include <stdio.h>
 
 int clock_gettime(clockid_t clockid, struct timespec *res) {
-  time_t now = time(NULL); 
-  res->tv_sec = now;
-  res->tv_nsec = 0;
+  struct timeval tv;
+  (void)clockid;
+  if (gettimeofday(&tv, NULL) != 0) {
+    return -1;
+  }
+  res->tv_sec = tv.tv_sec;
+  res->tv_nsec = tv.tv_usec * 1000;
   return 0;
 }

@@ -39,6 +39,10 @@
 
 #include <limits.h>
 
+/* malloc vfork save/restore (defined in malloc.c) */
+extern void __malloc_vfork_save(void);
+extern void __malloc_vfork_restore(void);
+
 #ifdef YASLIBC_ARM_SVC_TRIGGER
 inline void __attribute__((naked))
 trigger_supervisor_call(int number, const void *args, syscall_result *result) {
@@ -90,8 +94,8 @@ int close(int fd) {
 }
 
 // suppress noreturn that returns
-extern void __libc_finalize_and_exit(int status);
-void exit(int status) {
+extern __attribute__((noreturn)) void __libc_finalize_and_exit(int status);
+void __attribute__((noreturn)) exit(int status) {
   __libc_finalize_and_exit(status);
 }
 
@@ -158,7 +162,13 @@ pid_t _vfork_process(void *lr, void *r9, void *sp, uint32_t is_fpu_used) {
       .sp = sp,
       .is_fpu_used = is_fpu_used,
   };
-  return trigger_syscall(sys_vfork, &context);
+  /* Save malloc pool state before child runs on shared address space.
+     The child may allocate/free, corrupting the bump-allocator position.
+     Restore after the syscall returns (always in the parent). */
+  __malloc_vfork_save();
+  pid_t result = trigger_syscall(sys_vfork, &context);
+  __malloc_vfork_restore();
+  return result;
 }
 
 int unlink(const char *pathname) {

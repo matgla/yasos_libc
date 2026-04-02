@@ -766,16 +766,24 @@ int snprintf(char *dst, size_t sz, const char *fmt, ...) {
 }
 
 int fputs(const char *s, FILE *fp) {
-  while (*s)
-    fputc((unsigned char)*s++, fp);
-  return 0;
+  if (!fp)
+    return EOF;
+  int n = 0;
+  while (*s) {
+    if (fputc((unsigned char)*s++, fp) == EOF)
+      return EOF;
+    n++;
+  }
+  return n;
 }
 
 int puts(const char *s) {
   int ret = fputs(s, stdout);
-  if (ret >= 0)
-    fputc('\n', stdout);
-  return ret;
+  if (ret == EOF)
+    return EOF;
+  if (fputc('\n', stdout) == EOF)
+    return EOF;
+  return ret + 1;
 }
 
 long fwrite(void *v, long sz, long n, FILE *fp) {

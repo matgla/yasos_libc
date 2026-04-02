@@ -15,6 +15,7 @@ sem_trywait sut_sem_trywait
 sem_unlink sut_sem_unlink
 sem_wait sut_sem_wait
 puts sut_puts
+fputs sut_fputs
 scanf sut_scanf
 printf sut_printf
 write sut_write
