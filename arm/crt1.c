@@ -61,5 +61,6 @@ void __crt1_main(int argc, char *argv[], void *r9_value) {
 
   fflush(stdout);
   fflush(stderr);
-  exit(main(argc, argv));
+  int ret = main(argc, argv);
+  exit(ret);
 }

@@ -8,19 +8,6 @@
 #define MSETMAX 4096
 #define MSETLEN (1 << 15)
 
-/* malloc profiling - prints stats to stderr */
-static long prof_current;      /* bytes currently mapped via mmap */
-static long prof_peak;         /* high water mark */
-static long prof_total_mapped; /* cumulative bytes mmapped */
-static int prof_malloc_calls;
-static int prof_free_calls;
-static int prof_realloc_calls;
-static int prof_mmap_calls;
-static int prof_munmap_calls;
-static int prof_inplace; /* realloc served in-place */
-static int prof_pool_allocs;
-static int prof_large_allocs;
-
 /* Tracking table for large allocations - eliminates the 4KB header page
    overhead per allocation. Each entry is 8 bytes vs 4096 bytes wasted. */
 #define MAX_LARGE_ALLOCS 256
@@ -38,46 +25,12 @@ static struct large_alloc *find_large(void *ptr) {
   return NULL;
 }
 
-static void prof_map(long sz) {
-  prof_current += sz;
-  prof_total_mapped += sz;
-  prof_mmap_calls++;
-  if (prof_current > prof_peak)
-    prof_peak = prof_current;
-}
-
-static void prof_unmap(long sz) {
-  prof_current -= sz;
-  prof_munmap_calls++;
-}
-
-void malloc_dump_profile(void) {
-  fprintf(stderr, "[malloc] current=%ldK peak=%ldK total_mapped=%ldK\n",
-          prof_current / 1024, prof_peak / 1024, prof_total_mapped / 1024);
-  fprintf(stderr,
-          "[malloc] calls: malloc=%d(pool=%d,large=%d) free=%d "
-          "realloc=%d(inplace=%d)\n",
-          prof_malloc_calls, prof_pool_allocs, prof_large_allocs,
-          prof_free_calls, prof_realloc_calls, prof_inplace);
-  fprintf(stderr, "[malloc] mmap=%d munmap=%d\n", prof_mmap_calls,
-          prof_munmap_calls);
-  /* dump active large allocations */
-  int active = 0;
-  long active_bytes = 0;
-  for (int i = 0; i < MAX_LARGE_ALLOCS; i++) {
-    if (large_table[i].addr) {
-      active++;
-      active_bytes += large_table[i].mapped_size;
-    }
-  }
-  fprintf(stderr, "[malloc] large: active=%d active_bytes=%ldK\n", active,
-          active_bytes / 1024);
-}
-
 /* placed at the beginning of regions for small allocations */
 struct mset {
-  int refs; /* number of allocations */
-  int size; /* remaining size */
+  int refs;     /* number of allocations */
+  int size;     /* bump pointer (next free offset) */
+  void *freelist; /* singly-linked list of freed blocks for reuse */
+  struct mset *next_pool; /* linked list of old pools with refs > 0 */
 };
 
 /* placed before each small allocation */
@@ -86,39 +39,103 @@ struct mhdr {
   int size; /* allocation size */
 };
 
+/* overlays mhdr in freed blocks (must be >= sizeof(mhdr)) */
+struct free_node {
+  struct free_node *next;
+  int block_size; /* total block size including mhdr, aligned */
+};
+
 static struct mset *pool;
 static struct mset *pool1; /* a freed pool */
+static struct mset *old_pools; /* linked list of full pools with refs > 0 */
 
 /* vfork save/restore — prevents child from corrupting parent's pool state */
 static struct mset *vfork_saved_pool;
 static struct mset *vfork_saved_pool1;
+static struct mset *vfork_saved_old_pools;
 static int vfork_saved_pool_size;
 static int vfork_saved_pool_refs;
+static void *vfork_saved_pool_freelist;
 
 void __malloc_vfork_save(void) {
   vfork_saved_pool = pool;
   vfork_saved_pool1 = pool1;
+  vfork_saved_old_pools = old_pools;
   vfork_saved_pool_size = pool ? pool->size : 0;
   vfork_saved_pool_refs = pool ? pool->refs : 0;
+  vfork_saved_pool_freelist = pool ? pool->freelist : 0;
 }
 
 void __malloc_vfork_restore(void) {
+  /* munmap any pools the vfork child allocated that differ from the saved
+     parent state — otherwise they become orphaned and leak. */
+  if (pool && pool != vfork_saved_pool && pool != vfork_saved_pool1)
+    munmap(pool, MSETLEN);
+  if (pool1 && pool1 != vfork_saved_pool && pool1 != vfork_saved_pool1)
+    munmap(pool1, MSETLEN);
   pool = vfork_saved_pool;
   pool1 = vfork_saved_pool1;
+  old_pools = vfork_saved_old_pools;
   if (pool) {
     pool->size = vfork_saved_pool_size;
     pool->refs = vfork_saved_pool_refs;
+    pool->freelist = vfork_saved_pool_freelist;
+  }
+}
+
+/* Insert a freed block into a pool's free list, sorted by address.
+   Coalesces with adjacent free blocks to combat fragmentation. */
+static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
+  struct free_node *fn = (struct free_node *)ptr;
+  fn->block_size = block_size;
+
+  struct free_node **prev = (struct free_node **)&mset->freelist;
+  struct free_node *prev_node = NULL;
+  struct free_node *cur;
+
+  /* Find sorted position by address */
+  while ((cur = *prev) && cur < fn) {
+    prev_node = cur;
+    prev = &cur->next;
+  }
+
+  /* Insert */
+  fn->next = cur;
+  *prev = fn;
+
+  /* Coalesce with next block if adjacent */
+  if (cur && (char *)fn + fn->block_size == (char *)cur) {
+    fn->block_size += cur->block_size;
+    fn->next = cur->next;
+  }
+
+  /* Coalesce with previous block if adjacent */
+  if (prev_node && (char *)prev_node + prev_node->block_size == (char *)fn) {
+    prev_node->block_size += fn->block_size;
+    prev_node->next = fn->next;
   }
 }
 
 static int mk_pool(void) {
+  struct mset *old_pool = pool;
   if ((pool == NULL || pool->refs > 0) && pool1 != NULL) {
     pool = pool1;
     pool1 = NULL;
   }
   if (pool != NULL && pool->refs == 0) {
+    /* Chain the old full pool before recycling pool1 */
+    if (old_pool && old_pool != pool && old_pool->refs > 0) {
+      old_pool->next_pool = old_pools;
+      old_pools = old_pool;
+    }
     pool->size = sizeof(*pool);
+    pool->freelist = 0;
     return 0;
+  }
+  /* Chain old pool with live refs onto old_pools list */
+  if (old_pool && old_pool->refs > 0) {
+    old_pool->next_pool = old_pools;
+    old_pools = old_pool;
   }
   pool = mmap(NULL, MSETLEN, PROT_READ | PROT_WRITE,
               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -126,9 +143,10 @@ static int mk_pool(void) {
     pool = NULL;
     return 1;
   }
-  prof_map(MSETLEN);
   pool->size = sizeof(*pool);
   pool->refs = 0;
+  pool->freelist = 0;
+  pool->next_pool = 0;
   return 0;
 }
 
@@ -136,20 +154,13 @@ void *malloc(size_t n) {
   void *m;
   size_t alloc_size;
   int offset;
-  prof_malloc_calls++;
   if (n >= MSETMAX) {
     long total = (n + PGMASK) & ~PGMASK; /* page-align, no header page */
     m = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
              -1, 0);
     if (m == MAP_FAILED) {
-      fprintf(stderr,
-              "[malloc] FAIL large n=%ld total=%ld cur=%ldK peak=%ldK\n",
-              (long)n, total, prof_current / 1024, prof_peak / 1024);
-      malloc_dump_profile();
       return NULL;
     }
-    prof_map(total);
-    prof_large_allocs++;
     for (int i = 0; i < MAX_LARGE_ALLOCS; i++) {
       if (!large_table[i].addr) {
         large_table[i].addr = m;
@@ -158,15 +169,42 @@ void *malloc(size_t n) {
         return m;
       }
     }
-    prof_unmap(total);
     munmap(m, total);
     return NULL;
   }
-  prof_pool_allocs++;
   alloc_size = (n + sizeof(struct mhdr) + 7) & ~7;
   if (!pool)
     if (mk_pool())
       return NULL;
+  /* Search current pool's free list for a reusable block */
+  {
+    struct free_node **prev = (struct free_node **)&pool->freelist, *fn;
+    while ((fn = *prev)) {
+      if (fn->block_size >= (int)alloc_size) {
+        int remainder = fn->block_size - (int)alloc_size;
+        *prev = fn->next;
+        /* Split if remainder can hold a minimum-sized allocation (16 bytes).
+           sizeof(struct free_node) is only 8, but min alloc_size is 16,
+           so 8-byte splits would create permanently unusable fragments. */
+        if (remainder >= 2 * (int)sizeof(struct mhdr)) {
+          struct free_node *split = (struct free_node *)((char *)fn + alloc_size);
+          split->block_size = remainder;
+          split->next = *prev;
+          *prev = split;
+          fn->block_size = alloc_size;
+        }
+        m = (void *)fn;
+        ((struct mhdr *)m)->moff = (char *)m - (char *)pool;
+        ((struct mhdr *)m)->size = n;
+        pool->refs++;
+        return m + sizeof(struct mhdr);
+      }
+      prev = &fn->next;
+    }
+  }
+  /* NOTE: We deliberately do NOT search old_pools' freelists here.
+     Allocating from old pools adds refs, preventing them from ever reaching
+     zero and being reclaimed.  Let old pools drain naturally via free(). */
   offset = pool->size;
   if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) & PGMASK))
     offset += sizeof(long);
@@ -186,32 +224,40 @@ void *malloc(size_t n) {
   if (!((unsigned long)((char *)pool + pool->size + sizeof(struct mhdr)) &
         PGMASK))
     pool->size += sizeof(long);
-  {
-    void *ret = m + sizeof(struct mhdr);
-    return ret;
-  }
+  return m + sizeof(struct mhdr);
 }
 
 void free(void *v) {
   if (!v)
     return;
-  prof_free_calls++;
   if ((unsigned long)v & PGMASK) {
     struct mhdr *mhdr = v - sizeof(struct mhdr);
     struct mset *mset = (void *)mhdr - mhdr->moff;
     mset->refs--;
     if (mset->refs == 0 && mset != pool) {
+      /* Remove from old_pools list if present */
+      struct mset **pp = &old_pools;
+      while (*pp) {
+        if (*pp == mset) { *pp = mset->next_pool; break; }
+        pp = &(*pp)->next_pool;
+      }
       if (pool1 != NULL) {
-        prof_unmap(MSETLEN);
         munmap(mset, MSETLEN);
       } else {
         pool1 = mset;
       }
+    } else if (mset != pool && mset->refs > 0) {
+      /* Block freed into non-current pool - these are unreachable by malloc */
+      int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+      freelist_insert(mset, mhdr, block_size);
+    } else {
+      /* Add freed block to current pool's free list for reuse */
+      int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+      freelist_insert(mset, mhdr, block_size);
     }
   } else {
     struct large_alloc *e = find_large(v);
     if (e) {
-      prof_unmap(e->mapped_size);
       munmap(e->addr, e->mapped_size);
       e->addr = NULL;
     }
@@ -236,7 +282,6 @@ void *realloc(void *v, size_t sz) {
   void *r;
   long old_size;
 
-  prof_realloc_calls++;
   if (!v)
     return malloc(sz);
   if (!sz) {
@@ -264,7 +309,6 @@ void *realloc(void *v, size_t sz) {
     if (e) {
       /* Check if new size fits in already-mapped pages */
       if ((long)sz <= e->mapped_size) {
-        prof_inplace++;
         e->user_size = sz;
         return v;
       }
@@ -272,8 +316,6 @@ void *realloc(void *v, size_t sz) {
       long new_mapped = (sz + PGMASK) & ~PGMASK;
       r = mremap(v, e->mapped_size, new_mapped, 0);
       if (r != NULL && r != (void *)-1) {
-        prof_inplace++;
-        prof_map(new_mapped - e->mapped_size);
         e->addr = r;
         e->mapped_size = new_mapped;
         e->user_size = sz;
@@ -284,8 +326,6 @@ void *realloc(void *v, size_t sz) {
 
   r = malloc(sz);
   if (!r) {
-    fprintf(stderr, "[malloc] realloc FAIL old=%ld new=%ld cur=%ldK\n",
-            old_size, (long)sz, prof_current / 1024);
     return NULL;
   }
   memcpy(r, v, old_size < (long)sz ? old_size : sz);
