@@ -28,6 +28,12 @@ void *__memchr_c(const void *src, int c, long n) {
   return n ? (void *)s : 0;
 }
 
+#undef memchr
+
+void *memchr(const void *src, int c, long n) {
+  return __memchr_c(src, c, n);
+}
+
 void *memset(void *ptr, int value, size_t num) {
   uint8_t *p = (uint8_t *)ptr;
   for (size_t i = 0; i < num; ++i)
@@ -41,6 +47,11 @@ void *memcpy(void *dst, const void *src, size_t n) {
   for (size_t i = 0; i < n; ++i)
     d[i] = s[i];
   return dst;
+}
+
+void *mempcpy(void *dst, const void *src, size_t n) {
+  memcpy(dst, src, n);
+  return (uint8_t *)dst + n;
 }
 
 void *memccpy(void *dst, const void *src, int c, size_t n) {

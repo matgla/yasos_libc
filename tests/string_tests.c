@@ -20,10 +20,31 @@
 
 #include "utest.h"
 
+void *sut_memchr(const void *s, int c, long n);
+void *sut_mempcpy(void *dst, const void *src, size_t n);
 char *sut_strchr(char *s, int c);
 size_t sut_strspn(const char *s, const char *accept);
 size_t sut_strcspn(const char *s, const char *reject);
 char *sut_strtok(char *s, const char *delimiters);
+
+UTEST(string_tests, memchr) {
+  const unsigned char bytes[] = {'A', 'B', 0, 'C', 'B'};
+
+  ASSERT_EQ(bytes + 1, sut_memchr(bytes, 'B', sizeof(bytes)));
+  ASSERT_EQ(bytes + 2, sut_memchr(bytes, 0, sizeof(bytes)));
+  ASSERT_EQ(NULL, sut_memchr(bytes, 'B', 1));
+  ASSERT_EQ(NULL, sut_memchr(bytes, 'Z', sizeof(bytes)));
+  ASSERT_EQ(NULL, sut_memchr(bytes, 'A', 0));
+}
+
+UTEST(string_tests, mempcpy) {
+  unsigned char dst[8] = {0};
+  const unsigned char src[] = {'a', 'b', 'c', 'd'};
+
+  ASSERT_EQ(dst + sizeof(src), sut_mempcpy(dst, src, sizeof(src)));
+  ASSERT_EQ(0, memcmp(dst, src, sizeof(src)));
+  ASSERT_EQ(dst, sut_mempcpy(dst, src, 0));
+}
 
 UTEST(string_tests, strchr) {
   char *str = "Wait is this a Hello, World?";

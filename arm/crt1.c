@@ -34,13 +34,14 @@ int main(int argc, char *argv[]);
 
 /* Pure-assembly _start: capture R9 (GOT base) into R2 before any
  * GOT-relative C code runs, then tail-call __crt1_main. */
-__asm__(".syntax unified\n"
-        ".thumb\n"
-        ".global _start\n"
-        ".thumb_func\n"
-        "_start:\n"
-        "  mov r2, r9\n"
-        "  b __crt1_main\n");
+__attribute__((naked, used))
+void _start(void) {
+  __asm__ volatile(
+    ".syntax unified\n"
+    "mov r2, r9\n"
+    "b __crt1_main\n"
+  );
+}
 
 void __crt1_main(int argc, char *argv[], void *r9_value) {
   environ = (char **)malloc(sizeof(char *));
@@ -50,17 +51,17 @@ void __crt1_main(int argc, char *argv[], void *r9_value) {
 
   if (__yaff_initfini) {
     unsigned int init_count = __yaff_initfini[0];
+    unsigned int fini_count = __yaff_initfini[1];
     void (**init_funcs)(void) = (void (**)(void))&__yaff_initfini[2];
 
     /* Run constructors (forward order) */
-    for (unsigned int i = 0; i < init_count; i++)
+    for (unsigned int i = 0; i < init_count; i++) {
       init_funcs[i]();
+    }
   }
 
   __yasos_fini_table = __yaff_initfini;
 
-  fflush(stdout);
-  fflush(stderr);
   int ret = main(argc, argv);
   exit(ret);
 }

@@ -3,6 +3,22 @@
 #include <string.h>
 #include <sys/mman.h>
 
+#define MALLOC_DEBUG 0
+
+
+
+#if MALLOC_DEBUG
+/* GDB: break malloc_debug_trap */
+static volatile int malloc_debug_trap_hit;
+void __attribute__((noinline)) malloc_debug_trap(void *block, int size, int alloc_size) {
+  malloc_debug_trap_hit++;
+#if defined(__arm__) || defined(__thumb__)
+  asm volatile("bkpt #1");
+#endif
+  (void)block; (void)size; (void)alloc_size;
+}
+#endif
+
 #define PGSIZE 4096
 #define PGMASK (PGSIZE - 1)
 #define MSETMAX 4096
@@ -89,6 +105,14 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
   struct free_node *fn = (struct free_node *)ptr;
   fn->block_size = block_size;
 
+#if MALLOC_DEBUG
+  /* Validate block is within the pool */
+  if ((char *)ptr < (char *)mset || (char *)ptr + block_size > (char *)mset + MSETLEN) {
+    fprintf(stderr, "[malloc] BAD FREE: ptr=%p blk=%d pool=%p..%p\n",
+            ptr, block_size, mset, (char *)mset + MSETLEN);
+  }
+#endif
+
   struct free_node **prev = (struct free_node **)&mset->freelist;
   struct free_node *prev_node = NULL;
   struct free_node *cur;
@@ -107,12 +131,21 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
   if (cur && (char *)fn + fn->block_size == (char *)cur) {
     fn->block_size += cur->block_size;
     fn->next = cur->next;
+#if MALLOC_DEBUG
+    /* Re-poison merged area so stale free_node headers don't cause false positives */
+    memset((char *)fn + sizeof(struct free_node), 0xDE,
+           fn->block_size - sizeof(struct free_node));
+#endif
   }
 
   /* Coalesce with previous block if adjacent */
   if (prev_node && (char *)prev_node + prev_node->block_size == (char *)fn) {
     prev_node->block_size += fn->block_size;
     prev_node->next = fn->next;
+#if MALLOC_DEBUG
+    memset((char *)prev_node + sizeof(struct free_node), 0xDE,
+           prev_node->block_size - sizeof(struct free_node));
+#endif
   }
 }
 
@@ -181,6 +214,13 @@ void *malloc(size_t n) {
     struct free_node **prev = (struct free_node **)&pool->freelist, *fn;
     while ((fn = *prev)) {
       if (fn->block_size >= (int)alloc_size) {
+        /* Skip blocks where user pointer would be page-aligned —
+           page-aligned pointers are mistaken for large allocations
+           by msize()/free()/realloc(). */
+        if (!((unsigned long)((char *)fn + sizeof(struct mhdr)) & PGMASK)) {
+          prev = &fn->next;
+          continue;
+        }
         int remainder = fn->block_size - (int)alloc_size;
         *prev = fn->next;
         /* Split if remainder can hold a minimum-sized allocation (16 bytes).
@@ -192,12 +232,40 @@ void *malloc(size_t n) {
           split->next = *prev;
           *prev = split;
           fn->block_size = alloc_size;
+#if MALLOC_DEBUG
+          /* Poison the split remainder's data area */
+          memset((char *)split + sizeof(struct free_node), 0xDE,
+                 remainder - sizeof(struct free_node));
+#endif
         }
         m = (void *)fn;
+#if MALLOC_DEBUG
+        /* Check poison pattern to detect use-after-free */
+        {
+          unsigned char *data = (unsigned char *)fn + sizeof(struct mhdr);
+          int data_len = fn->block_size - sizeof(struct mhdr);
+          int corrupted = 0;
+          for (int j = 0; j < data_len && j < 64; j++) {
+            if (data[j] != 0xDE) { corrupted = 1; break; }
+          }
+          if (corrupted) {
+            fprintf(stderr, "[malloc] POISON VIOLATED: reuse %p blk=%d for n=%d\n",
+                    fn, fn->block_size, (int)n);
+            fprintf(stderr, "[malloc] data: ");
+            for (int j = 0; j < 32 && j < data_len; j++)
+              fprintf(stderr, "%02x ", data[j]);
+            fprintf(stderr, "\n");
+            malloc_debug_trap(fn, fn->block_size, (int)n);
+          }
+        }
+#endif
         ((struct mhdr *)m)->moff = (char *)m - (char *)pool;
         ((struct mhdr *)m)->size = n;
         pool->refs++;
-        return m + sizeof(struct mhdr);
+        /* Zero the returned block so callers see the same clean state
+           as from fresh bump allocation (pages come pre-zeroed). */
+        memset((char *)m + sizeof(struct mhdr), 0, n);
+        return (char *)m + sizeof(struct mhdr);
       }
       prev = &fn->next;
     }
@@ -249,10 +317,16 @@ void free(void *v) {
     } else if (mset != pool && mset->refs > 0) {
       /* Block freed into non-current pool - these are unreachable by malloc */
       int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+#if MALLOC_DEBUG
+      memset((char *)mhdr + sizeof(struct mhdr), 0xDE, block_size - sizeof(struct mhdr));
+#endif
       freelist_insert(mset, mhdr, block_size);
     } else {
       /* Add freed block to current pool's free list for reuse */
       int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+#if MALLOC_DEBUG
+      memset((char *)mhdr + sizeof(struct mhdr), 0xDE, block_size - sizeof(struct mhdr));
+#endif
       freelist_insert(mset, mhdr, block_size);
     }
   } else {
@@ -328,7 +402,10 @@ void *realloc(void *v, size_t sz) {
   if (!r) {
     return NULL;
   }
-  memcpy(r, v, old_size < (long)sz ? old_size : sz);
+  {
+    int copy_len = old_size < (long)sz ? old_size : sz;
+    memcpy(r, v, copy_len);
+  }
   free(v);
   return r;
 }

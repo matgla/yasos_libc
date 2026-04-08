@@ -18,6 +18,71 @@ FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
 
+static int stdio_parse_mode(const char *mode) {
+  int flags;
+
+  if (mode == NULL || *mode == '\0') {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (strchr(mode, '+'))
+    flags = O_RDWR;
+  else if (*mode == 'r')
+    flags = O_RDONLY;
+  else if (*mode == 'w' || *mode == 'a')
+    flags = O_WRONLY;
+  else {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (*mode != 'r')
+    flags |= O_CREAT;
+  if (*mode == 'w')
+    flags |= O_TRUNC;
+  if (*mode == 'a')
+    flags |= O_APPEND;
+
+  return flags;
+}
+
+static void stdio_reset_stream(FILE *fp) {
+  fp->back = EOF;
+  fp->ilen = 0;
+  fp->olen = 0;
+  fp->icur = 0;
+  fp->ostat = 0;
+  fp->istat = 0;
+}
+
+static int stdio_ensure_buffers(FILE *fp) {
+  if (fp->ibuf == NULL) {
+    fp->ibuf = malloc(BUFSIZ);
+    if (fp->ibuf == NULL)
+      return -1;
+    fp->isize = BUFSIZ;
+    fp->iown = 1;
+  }
+
+  if (fp->obuf == NULL) {
+    fp->obuf = malloc(BUFSIZ);
+    if (fp->obuf == NULL) {
+      if (fp->iown && fp->ibuf != NULL) {
+        free(fp->ibuf);
+        fp->ibuf = NULL;
+        fp->iown = 0;
+        fp->isize = 0;
+      }
+      return -1;
+    }
+    fp->osize = BUFSIZ;
+    fp->oown = 1;
+  }
+
+  return 0;
+}
+
 FILE *tmpfile(void) {
   printf("TODO: implement tmpfile()\n");
   return NULL;
@@ -25,65 +90,91 @@ FILE *tmpfile(void) {
 
 FILE *fopen(const char *path, const char *mode) {
   FILE *fp;
-  int flags;
+  int flags = stdio_parse_mode(mode);
 
-  if (strchr(mode, '+'))
-    flags = O_RDWR;
-  else
-    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
-  if (*mode != 'r')
-    flags |= O_CREAT;
-  if (*mode == 'w')
-    flags |= O_TRUNC;
-  if (*mode == 'a')
-    flags |= O_APPEND;
+  if (flags < 0)
+    return NULL;
 
   fp = malloc(sizeof(*fp));
+  if (fp == NULL)
+    return NULL;
   memset(fp, 0, sizeof(*fp));
   fp->fd = open(path, flags, 0600);
   if (fp->fd < 0) {
     free(fp);
     return NULL;
   }
-  fp->back = EOF;
-  fp->ibuf = malloc(BUFSIZ);
-  fp->obuf = malloc(BUFSIZ);
-  fp->isize = BUFSIZ;
-  fp->osize = BUFSIZ;
-  fp->iown = 1;
-  fp->oown = 1;
+  if (stdio_ensure_buffers(fp) < 0) {
+    close(fp->fd);
+    free(fp);
+    return NULL;
+  }
+  stdio_reset_stream(fp);
   return fp;
 }
 
 FILE *fdopen(int fd, const char *mode) {
   FILE *fp;
-  int flags;
+  int flags = stdio_parse_mode(mode);
 
-  if (strchr(mode, '+'))
-    flags = O_RDWR;
-  else
-    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
-  if (*mode != 'r')
-    flags |= O_CREAT;
-  if (*mode == 'w')
-    flags |= O_TRUNC;
-  if (*mode == 'a')
-    flags |= O_APPEND;
+  if (flags < 0)
+    return NULL;
 
   fp = malloc(sizeof(*fp));
+  if (fp == NULL)
+    return NULL;
   memset(fp, 0, sizeof(*fp));
   if (fcntl(fd, F_GETFL) < 0) {
     free(fp);
     return NULL;
   }
   fp->fd = fd;
-  fp->back = EOF;
-  fp->ibuf = malloc(BUFSIZ);
-  fp->obuf = malloc(BUFSIZ);
-  fp->isize = BUFSIZ;
-  fp->osize = BUFSIZ;
-  fp->iown = 1;
-  fp->oown = 1;
+  if (stdio_ensure_buffers(fp) < 0) {
+    free(fp);
+    return NULL;
+  }
+  stdio_reset_stream(fp);
+  return fp;
+}
+
+FILE *freopen(const char *path, const char *mode, FILE *fp) {
+  int flags;
+  int fd;
+
+  if (fp == NULL || path == NULL) {
+    errno = EINVAL;
+    return NULL;
+  }
+
+  flags = stdio_parse_mode(mode);
+  if (flags < 0)
+    return NULL;
+
+  if (fflush(fp) == EOF)
+    return NULL;
+
+  if (fp->fd >= 0 && close(fp->fd) < 0) {
+    fp->fd = -1;
+    stdio_reset_stream(fp);
+    return NULL;
+  }
+
+  fd = open(path, flags, 0600);
+  if (fd < 0) {
+    fp->fd = -1;
+    stdio_reset_stream(fp);
+    return NULL;
+  }
+
+  if (stdio_ensure_buffers(fp) < 0) {
+    close(fd);
+    fp->fd = -1;
+    stdio_reset_stream(fp);
+    return NULL;
+  }
+
+  fp->fd = fd;
+  stdio_reset_stream(fp);
   return fp;
 }
 
@@ -836,20 +927,14 @@ int rename(const char *oldpath, const char *newpath) {
 
 FILE *fmemopen(void *buf, size_t size, const char *mode) {
   FILE *fp;
-  int flags;
+  int flags = stdio_parse_mode(mode);
 
-  if (strchr(mode, '+'))
-    flags = O_RDWR;
-  else
-    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
-  if (*mode != 'r')
-    flags |= O_CREAT;
-  if (*mode == 'w')
-    flags |= O_TRUNC;
-  if (*mode == 'a')
-    flags |= O_APPEND;
+  if (flags < 0)
+    return NULL;
 
   fp = malloc(sizeof(*fp));
+  if (fp == NULL)
+    return NULL;
   memset(fp, 0, sizeof(*fp));
   fp->fd = -1;
   if (buf == NULL) {

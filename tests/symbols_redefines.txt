@@ -21,6 +21,7 @@ printf sut_printf
 write sut_write
 strlen sut_strlen
 isatty sut_isatty
+memchr sut_memchr
 memset sut_memset
 isspace sut_isspace
 prlimit sut_prlimit

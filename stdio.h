@@ -20,6 +20,10 @@
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
 
+#define P_tmpdir "/tmp"
+#define L_tmpnam 32
+#define TMP_MAX 16384
+
 #define putc(c, fp) (fputc(c, fp))
 #define getc(fp) (fgetc(fp))
 
@@ -43,11 +47,13 @@ extern FILE *stdout;
 extern FILE *stderr;
 
 FILE *fopen(const char *path, const char *mode);
+FILE *freopen(const char *path, const char *mode, FILE *fp);
 int fclose(FILE *fp);
 int fflush(FILE *fp);
 void setbuf(FILE *fp, char *buf);
 
 FILE *tmpfile(void);
+char *tmpnam(char *buffer);
 int fputc(int c, FILE *fp);
 int putchar(int c);
 int printf(const char *fmt, ...);
