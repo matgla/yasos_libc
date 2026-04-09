@@ -43,3 +43,5 @@ char *stpcpy(char *dst, const char *src);
 char *stpncpy(char *dst, const char *src, size_t n);
 
 char *strpbrk(const char *s, const char *accept);
+int strcasecmp(const char *s1, const char *s2);
+int strncasecmp(const char *s1, const char *s2, size_t n);
