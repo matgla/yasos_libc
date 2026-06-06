@@ -105,11 +105,66 @@ int ilogbf(float value) {
   return ilogbl((long double)value);
 }
 
+typedef union {
+  float _Complex value;
+  struct {
+    float real;
+    float imag;
+  } parts;
+} float_complex_parts;
+
+static float fabsf_local(float value) {
+  return value < 0.0f ? -value : value;
+}
+
+float _Complex __divsc3(float a_real, float a_imag, float b_real,
+                        float b_imag) {
+  float ratio;
+  float denom;
+  float_complex_parts result;
+
+  if (b_imag == 0.0f) {
+    result.parts.real = a_real / b_real;
+    result.parts.imag = a_imag / b_real;
+    return result.value;
+  }
+  if (b_real == 0.0f) {
+    result.parts.real = a_imag / b_imag;
+    result.parts.imag = -(a_real / b_imag);
+    return result.value;
+  }
+
+  if (fabsf_local(b_real) < fabsf_local(b_imag)) {
+    ratio = b_real / b_imag;
+    denom = b_real * ratio + b_imag;
+    result.parts.real = (a_real * ratio + a_imag) / denom;
+    result.parts.imag = (a_imag * ratio - a_real) / denom;
+  } else {
+    ratio = b_imag / b_real;
+    denom = b_imag * ratio + b_real;
+    result.parts.real = (a_imag * ratio + a_real) / denom;
+    result.parts.imag = (a_imag - a_real * ratio) / denom;
+  }
+
+  return result.value;
+}
+
 double _Complex __divdc3(double a_real, double a_imag, double b_real,
                         double b_imag) {
   double ratio;
   double denom;
   double_complex_parts result;
+
+  if (b_imag == 0.0) {
+    result.parts.real = a_real / b_real;
+    result.parts.imag = a_imag / b_real;
+    return result.value;
+  }
+  if (b_real == 0.0) {
+    result.parts.real = a_imag / b_imag;
+    result.parts.imag = -(a_real / b_imag);
+    return result.value;
+  }
 
   if (fabs_local(b_real) < fabs_local(b_imag)) {
     ratio = b_real / b_imag;

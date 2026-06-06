@@ -18,6 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Enable FP instruction encodings (vpush/vpop) regardless of the -mfpu the
+// library is built with; whether the FP register file is actually saved is
+// decided at runtime below via CONTROL.FPCA.
+.fpu fpv5-sp-d16
+
 .global vfork
 .thumb_func
 vfork:
