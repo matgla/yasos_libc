@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <endian.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stddef.h>
