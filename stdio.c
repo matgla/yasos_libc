@@ -192,7 +192,23 @@ int fclose(FILE *fp) {
     free(fp->ibuf);
   if (fp->oown)
     free(fp->obuf);
-  free(fp);
+  /* fclose(stdout) is legal (and used by gcc-torture printf tests after
+   * freopen): the standard streams are statics in this file, not heap
+   * chunks — free(&_stdout) inserted .data into the allocator's free list
+   * and corrupted it (HardFault on the next malloc/free walk).  Mark the
+   * static stream closed instead of freeing it. */
+  if (fp == stdin || fp == stdout || fp == stderr) {
+    fp->fd = -1;
+    fp->ibuf = NULL;
+    fp->obuf = NULL;
+    fp->iown = 0;
+    fp->oown = 0;
+    fp->isize = 0;
+    fp->osize = 0;
+    stdio_reset_stream(fp);
+  } else {
+    free(fp);
+  }
   return ret;
 }
 
