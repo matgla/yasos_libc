@@ -213,6 +213,21 @@ int fclose(FILE *fp) {
 }
 
 int fflush(FILE *fp) {
+  /* POSIX: fflush(NULL) flushes all open output streams.  Without this
+   * check fp==NULL dereferenced address 0 — on this MMU-less target that
+   * is the SSRAM alias of the kernel image, so fp->fd/obuf/olen read
+   * kernel vector-table words and the "flush" became a wild multi-MB
+   * write of the kernel image to the console (toybox xexit calls
+   * fflush(0) after every builtin). Match exit()'s semantics and flush
+   * the buffered standard streams. */
+  if (fp == NULL) {
+    int r = 0;
+    if (fflush(stdout))
+      r = EOF;
+    if (fflush(stderr))
+      r = EOF;
+    return r;
+  }
   if (fp->fd < 0)
     return 0;
   if (write(fp->fd, fp->obuf, fp->olen) != fp->olen)

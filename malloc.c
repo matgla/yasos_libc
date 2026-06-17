@@ -301,6 +301,15 @@ void free(void *v) {
   if ((unsigned long)v & PGMASK) {
     struct mhdr *mhdr = v - sizeof(struct mhdr);
     struct mset *mset = (void *)mhdr - mhdr->moff;
+#if MALLOC_DEBUG
+    if ((unsigned long)v < 0x10000000UL || ((unsigned long)mset & PGMASK) ||
+        mhdr->moff < (int)sizeof(struct mset) || mhdr->moff >= MSETLEN) {
+      fprintf(stderr, "[malloc] WILD FREE v=%p moff=%d size=%d mset=%p ra=%p\n",
+              v, mhdr->moff, mhdr->size, (void *)mset,
+              __builtin_return_address(0));
+      return;
+    }
+#endif
     mset->refs--;
     if (mset->refs == 0 && mset != pool) {
       /* Remove from old_pools list if present */
