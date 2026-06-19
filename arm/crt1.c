@@ -45,8 +45,12 @@ void _start(void) {
 }
 
 void __crt1_main(int argc, char *argv[], void *r9_value) {
-  environ = (char **)malloc(sizeof(char *));
-  environ[0] = 0;
+  /* The kernel lays out argv and envp contiguously (SysV convention):
+   *   [ argv0 .. argv(argc-1), NULL, env0 .. env(envc-1), NULL ]
+   * so the environment array starts right after argv's NULL terminator.
+   * A trailing NULL is always present (empty env => environ points at it),
+   * making this valid regardless of environment size. */
+  environ = (char **)&argv[argc + 1];
 
   __yasos_fini_got = r9_value;
 

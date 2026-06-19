@@ -66,9 +66,7 @@ int fcntl(int fd, int cmd, ...);
 
 int openat(int dirfd, const char *pathname, int flags, ...);
 
-typedef int32_t pid_t;
-typedef signed long off_t;
-
+/* pid_t / off_t now live in <sys/types.h> (included above). */
 struct flock {
   short l_type;   /* Type of lock: F_RDLCK, F_WRLCK, or F_UNLCK */
   short l_whence; /* How to interpret l_start: SEEK_SET, SEEK_CUR, SEEK_END */

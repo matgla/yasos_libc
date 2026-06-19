@@ -21,25 +21,38 @@ void __attribute__((noinline)) malloc_debug_trap(void *block, int size, int allo
 
 #define PGSIZE 4096
 #define PGMASK (PGSIZE - 1)
-#define MSETMAX 4096
-#define MSETLEN (1 << 15)
+/* Largest object served from the bump pool; >= this goes to a direct mmap.
+ * Must stay below MSETLEN minus pool overhead (sizeof(struct mset) + per-alloc
+ * header + page-skip slack, ~48 B): malloc does NOT recheck fit after mk_pool()
+ * (see ~line 286), so a pooled object bigger than the pool would overflow the
+ * mmap. With a 4 KiB pool that caps the threshold at ~4048; 2048 leaves margin
+ * and keeps medium objects (which are rare) on the direct-mmap path. */
+#define MSETMAX 2048
+/* Bump-pool chunk size. The kernel process pool is page-granular (4 KiB), so
+ * the first malloc maps this many pages up front. 32 KiB (the inherited 2010
+ * "neat" default) wasted ~24 KiB on light applets whose live small-object set
+ * is only 2-6 KiB. 4 KiB = one page: the minimum that still holds the largest
+ * pooled object (MSETMAX-1 + overhead). Allocations >= MSETMAX bypass the pool
+ * via direct mmap, so this never bounds large objects (e.g. tcc's). */
+#define MSETLEN (1 << 12)
 
-/* Tracking table for large allocations - eliminates the 4KB header page
-   overhead per allocation. Each entry is 8 bytes vs 4096 bytes wasted. */
-#define MAX_LARGE_ALLOCS 256
-struct large_alloc {
-  void *addr;       /* mmap base address (NULL = free slot) */
-  long mapped_size; /* total mapped bytes (page-aligned) */
-  long user_size;   /* requested user-visible allocation size */
-};
-static struct large_alloc large_table[MAX_LARGE_ALLOCS];
+/* Large allocations (>= MSETMAX) are mmap'd with a small self-describing header
+   in the mapping itself, so they are UNBOUNDED — no fixed-size tracking table
+   (which capped concurrent large allocs and returned NULL / "memory full" once
+   full) and zero per-process .bss. A central table was historically used to
+   dodge a 4 KiB header page per alloc, but the kernel page grain is now 256 B,
+   so an in-mapping header rounds the mapping up by at most one grain.
 
-static struct large_alloc *find_large(void *ptr) {
-  for (int i = 0; i < MAX_LARGE_ALLOCS; i++)
-    if (large_table[i].addr == ptr)
-      return &large_table[i];
-  return NULL;
-}
+   Header (16 B; the user pointer is 16 B past the mmap base):
+     +0  long mapped     total mmap'd bytes (for munmap / mremap)
+     +8  int  moff = -1   LARGE_MOFF sentinel. A pool block's moff is its offset
+                          into the pool, always in [0, MSETLEN), so -1 can't
+                          collide; free()/realloc() read it (at user-8, the
+                          mhdr.moff slot) to tell large from small.
+     +12 int  size        user-visible size (at user-4, the mhdr.size slot, so
+                          msize() is uniform for both small and large). */
+#define LARGE_MOFF (-1)
+#define LARGE_HDR 16
 
 /* placed at the beginning of regions for small allocations */
 struct mset {
@@ -188,22 +201,17 @@ void *malloc(size_t n) {
   size_t alloc_size;
   int offset;
   if (n >= MSETMAX) {
-    long total = (n + PGMASK) & ~PGMASK; /* page-align, no header page */
-    m = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
-             -1, 0);
-    if (m == MAP_FAILED) {
+    /* Self-tracking large alloc: header in the mapping, no table, unbounded. */
+    long total = (n + LARGE_HDR + PGMASK) & ~PGMASK;
+    char *lm = mmap(NULL, total, PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (lm == MAP_FAILED) {
       return NULL;
     }
-    for (int i = 0; i < MAX_LARGE_ALLOCS; i++) {
-      if (!large_table[i].addr) {
-        large_table[i].addr = m;
-        large_table[i].mapped_size = total;
-        large_table[i].user_size = n;
-        return m;
-      }
-    }
-    munmap(m, total);
-    return NULL;
+    *(long *)lm = total;
+    ((struct mhdr *)(lm + 8))->moff = LARGE_MOFF;
+    ((struct mhdr *)(lm + 8))->size = (int)n;
+    return lm + LARGE_HDR;
   }
   alloc_size = (n + sizeof(struct mhdr) + 7) & ~7;
   if (!pool)
@@ -298,8 +306,15 @@ void *malloc(size_t n) {
 void free(void *v) {
   if (!v)
     return;
-  if ((unsigned long)v & PGMASK) {
-    struct mhdr *mhdr = v - sizeof(struct mhdr);
+  struct mhdr *mhdr = (struct mhdr *)((char *)v - sizeof(struct mhdr));
+  /* Large allocs carry the LARGE_MOFF sentinel in the mhdr.moff slot (a pool
+     block's moff is its in-pool offset, always < MSETLEN). */
+  if (mhdr->moff == LARGE_MOFF) {
+    char *base = (char *)v - LARGE_HDR;
+    munmap(base, *(long *)base);
+    return;
+  }
+  {
     struct mset *mset = (void *)mhdr - mhdr->moff;
 #if MALLOC_DEBUG
     if ((unsigned long)v < 0x10000000UL || ((unsigned long)mset & PGMASK) ||
@@ -338,12 +353,6 @@ void free(void *v) {
 #endif
       freelist_insert(mset, mhdr, block_size);
     }
-  } else {
-    struct large_alloc *e = find_large(v);
-    if (e) {
-      munmap(e->addr, e->mapped_size);
-      e->addr = NULL;
-    }
   }
 }
 
@@ -355,10 +364,8 @@ void *calloc(size_t n, size_t sz) {
 }
 
 static long msize(void *v) {
-  if ((unsigned long)v & PGMASK)
-    return ((struct mhdr *)(v - sizeof(struct mhdr)))->size;
-  struct large_alloc *e = find_large(v);
-  return e ? e->user_size : 0;
+  /* Both small and large store the user size in the mhdr.size slot (user-4). */
+  return ((struct mhdr *)((char *)v - sizeof(struct mhdr)))->size;
 }
 
 void *realloc(void *v, size_t sz) {
@@ -374,35 +381,32 @@ void *realloc(void *v, size_t sz) {
 
   old_size = msize(v);
 
-  /* If shrinking or same size, return as-is */
+  /* If shrinking or same size, return as-is (user size is in mhdr.size for
+     both small and large). */
   if ((long)sz <= old_size) {
-    if ((unsigned long)v & PGMASK) {
-      ((struct mhdr *)(v - sizeof(struct mhdr)))->size = sz;
-    } else {
-      struct large_alloc *e = find_large(v);
-      if (e)
-        e->user_size = sz;
-    }
+    ((struct mhdr *)((char *)v - sizeof(struct mhdr)))->size = sz;
     return v;
   }
 
   /* For large allocations, try to grow in-place */
-  if (!((unsigned long)v & PGMASK)) {
-    struct large_alloc *e = find_large(v);
-    if (e) {
-      /* Check if new size fits in already-mapped pages */
-      if ((long)sz <= e->mapped_size) {
-        e->user_size = sz;
+  {
+    struct mhdr *mhdr = (struct mhdr *)((char *)v - sizeof(struct mhdr));
+    if (mhdr->moff == LARGE_MOFF) {
+      char *base = (char *)v - LARGE_HDR;
+      long mapped = *(long *)base;
+      /* New size still fits in the existing mapping (minus the header)? */
+      if ((long)sz + LARGE_HDR <= mapped) {
+        mhdr->size = sz;
         return v;
       }
-      /* Try kernel mremap to extend the mapping in-place */
-      long new_mapped = (sz + PGMASK) & ~PGMASK;
-      r = mremap(v, e->mapped_size, new_mapped, 0);
+      /* Try kernel mremap to extend the mapping in-place. */
+      long new_mapped = (sz + LARGE_HDR + PGMASK) & ~PGMASK;
+      r = mremap(base, mapped, new_mapped, 0);
       if (r != NULL && r != (void *)-1) {
-        e->addr = r;
-        e->mapped_size = new_mapped;
-        e->user_size = sz;
-        return r;
+        *(long *)r = new_mapped;
+        ((struct mhdr *)((char *)r + 8))->moff = LARGE_MOFF;
+        ((struct mhdr *)((char *)r + 8))->size = sz;
+        return (char *)r + LARGE_HDR;
       }
     }
   }

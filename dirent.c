@@ -11,7 +11,10 @@ struct __dirent_dir {
   int fd;
   int buf_pos;
   int buf_end;
-  char buf[2048];
+  /* getdents scratch. 1 KiB still batches several entries per syscall and keeps
+   * the whole DIR under MSETMAX so it stays in the malloc pool (no dedicated
+   * page) instead of a direct mmap. */
+  char buf[1024];
 };
 
 DIR *opendir(const char *path) {

@@ -20,6 +20,7 @@
 
 #include <sys/types.h>
 
+#include <fcntl.h> /* AT_FDCWD */
 #include <errno.h>
 #include <regex.h>
 #include <stdarg.h>

@@ -40,7 +40,10 @@ typedef struct {
 } FILE;
 
 
-#define BUFSIZ 1024
+/* Embedded target: 256 B is plenty for line/block buffering and keeps the
+ * three static stream buffers (stdin/stdout/stderr) + every fopen buffer small.
+ * Trade: slightly more read/write syscalls on bulk I/O. */
+#define BUFSIZ 256
 
 extern FILE *stdin;
 extern FILE *stdout;

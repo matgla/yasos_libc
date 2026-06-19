@@ -6,7 +6,9 @@
 
 #include <stdio.h>
 
-#define ATEXIT_MAX 32
+/* 16 atexit handlers is plenty for the programs we run; each unused slot is
+ * a function pointer + an arg pointer in per-process .bss. */
+#define ATEXIT_MAX 16
 
 char **environ;
 

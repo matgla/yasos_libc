@@ -10,7 +10,10 @@
 
 #include <fcntl.h>
 
-static char _ibuf[BUFSIZ], _obuf[BUFSIZ], _ebuf[BUFSIZ];
+static char _ibuf[BUFSIZ], _obuf[BUFSIZ];
+/* stderr's line buffer can be smaller — error lines are short, and it stays
+ * block-buffered (see below), just with a lower line-length ceiling. */
+static char _ebuf[128];
 static FILE _stdin = {0, EOF, _ibuf, NULL, BUFSIZ, 0};
 static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
 /* stderr is LINE-buffered (osize = BUFSIZ), not unbuffered (osize = 1).
@@ -20,7 +23,7 @@ static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
  * its bytes on this target (rapid single-byte writes outrun the console/FS
  * write path), which was scrambling every error message to every-other-char
  * (e.g. tcc's compile errors became unreadable). Block writes are reliable. */
-static FILE _stderr = {2, EOF, NULL, _ebuf, 0, BUFSIZ};
+static FILE _stderr = {2, EOF, NULL, _ebuf, 0, 128};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
@@ -238,6 +241,11 @@ int fflush(FILE *fp) {
 
 int fputc(int c, FILE *fp) {
   if (fp->osize == 0) {
+    // String sinks (fd < 0) with no room — e.g. the vsnprintf(NULL, 0, ...)
+    // length-measuring idiom — must only count (via vfprintf's return), never
+    // touch a real fd.
+    if (fp->fd < 0)
+      return c;
     if (write(fp->fd, (char *)&c, 1) != 1)
       return EOF;
     return c;
@@ -258,6 +266,11 @@ int putchar(int c) {
 
 static int ostr(FILE *fp, char *s, int wid, int left, int max_len,
                 char fill_character) {
+  // Match glibc behaviour for printf("%s", NULL) instead of dereferencing a
+  // null pointer (which faults once the MPU is active rather than silently
+  // reading whatever 0x0 aliases on the target).
+  if (s == NULL)
+    s = "(null)";
   int str_len = strlen(s);
   str_len = str_len < max_len ? str_len : max_len;
   int fill = wid - str_len;
@@ -844,9 +857,13 @@ int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) {
   FILE f = {-1, EOF};
   int ret;
   f.obuf = dst;
-  f.osize = sz - 1;
+  // sz == 0 (and dst may be NULL) is the standard "measure length" idiom: count
+  // only, write nothing. Guard against the sz - 1 underflow and the terminator
+  // store into a NULL/zero-size buffer (which faults once the MPU is active).
+  f.osize = (sz > 0) ? (sz - 1) : 0;
   ret = vfprintf(&f, fmt, ap);
-  dst[f.olen] = '\0';
+  if (dst != NULL && sz > 0)
+    dst[f.olen] = '\0';
   return ret;
 }
 

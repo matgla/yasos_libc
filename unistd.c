@@ -5,6 +5,7 @@
 
 #include <unistd.h>
 
+#include <fcntl.h> /* AT_FDCWD */
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
