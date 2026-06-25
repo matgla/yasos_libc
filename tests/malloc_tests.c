@@ -33,45 +33,74 @@
  * Headers above already satisfied the include-guards, so the
  * #includes inside malloc.c are harmless no-ops.
  */
+/*
+ * mmap/munmap counting shims.
+ *
+ * The production allocator carries no profiling counters (they were removed
+ * to keep per-process .bss at zero on the embedded target). Several tests
+ * still need the "no new mmap happened" signal — i.e. that a request was
+ * served from the pool free list rather than by mapping a fresh pool. We get
+ * that without touching malloc.c by counting the real mmap/munmap calls it
+ * makes. The wrappers are defined *before* the macros so their own bodies
+ * still reach the genuine libc mmap/munmap.
+ */
+static int prof_mmap_calls;
+static int prof_munmap_calls;
+static void *counting_mmap(void *addr, size_t len, int prot, int flags, int fd,
+                           off_t off) {
+  prof_mmap_calls++;
+  return mmap(addr, len, prot, flags, fd, off);
+}
+static int counting_munmap(void *addr, size_t len) {
+  prof_munmap_calls++;
+  return munmap(addr, len);
+}
+
 #define fprintf(...) (0)
 #define malloc test_malloc
 #define free test_free
 #define calloc test_calloc
 #define realloc test_realloc
+#define mmap(a, l, p, f, fd, o) counting_mmap((a), (l), (p), (f), (fd), (o))
+#define munmap(a, l) counting_munmap((a), (l))
 #include "../malloc.c"
 #undef fprintf
 #undef malloc
 #undef free
 #undef calloc
 #undef realloc
+#undef mmap
+#undef munmap
+
+/* Count entries in a pool's free list. The allocator no longer exposes a
+   helper for this, so walk the singly-linked list of free_node directly. */
+static int freelist_count(struct mset *m) {
+  int count = 0;
+  if (!m)
+    return 0;
+  for (struct free_node *fn = (struct free_node *)m->freelist; fn;
+       fn = fn->next)
+    count++;
+  return count;
+}
 
 static void reset_allocator_state(void) {
   struct mset *op;
   while (old_pools) {
     op = old_pools;
     old_pools = op->next_pool;
-    munmap(op, MSETLEN);
+    counting_munmap(op, MSETLEN);
   }
   if (pool1 != NULL) {
-    munmap(pool1, MSETLEN);
+    counting_munmap(pool1, MSETLEN);
     pool1 = NULL;
   }
   if (pool != NULL) {
-    munmap(pool, MSETLEN);
+    counting_munmap(pool, MSETLEN);
     pool = NULL;
   }
-  memset(large_table, 0, sizeof(large_table));
-  prof_current = 0;
-  prof_peak = 0;
-  prof_total_mapped = 0;
-  prof_malloc_calls = 0;
-  prof_free_calls = 0;
-  prof_realloc_calls = 0;
   prof_mmap_calls = 0;
   prof_munmap_calls = 0;
-  prof_inplace = 0;
-  prof_pool_allocs = 0;
-  prof_large_allocs = 0;
 }
 
 /* ---- msize correctness ---- */

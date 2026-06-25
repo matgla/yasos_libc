@@ -75,6 +75,7 @@ UTEST(bitops_tests, popcount_and_parity_helpers) {
   ASSERT_EQ(0, sut___popcountdi2(0));
   ASSERT_EQ(32, sut___popcountdi2(0xF0F0F0F0F0F0F0F0ULL));
   ASSERT_EQ(0, sut___paritydi2(0));
-  ASSERT_EQ(1, sut___paritydi2(0x1111111111111111ULL));
+  /* 15 set bits -> odd parity. (0x1111...1111 has 16 set bits, i.e. even.) */
+  ASSERT_EQ(1, sut___paritydi2(0x1111111111111110ULL));
   ASSERT_EQ(0, sut___paritydi2(0x3333333333333333ULL));
 }

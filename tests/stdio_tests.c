@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 
 #include "syscalls_stub.h"
@@ -83,6 +84,27 @@ static void record_syscall(int number) {
 
 static void freopen_syscalls(int number, const void *args,
                              syscall_result *result) {
+  /* freopen() reopens a stream and (re)allocates its buffers, so the libc
+     allocator's internal mmap/munmap may fire here. Service them with the real
+     host mmap so malloc() returns usable, page-aligned memory — but do NOT
+     record them: the test asserts only the observable I/O sequence
+     (write, close, open). */
+  if (number == sys_mmap) {
+    const mmap_context *ctx = (const mmap_context *)args;
+    *ctx->result = mmap(NULL, (size_t)ctx->length, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    result->result = 0;
+    result->err = -1;
+    return;
+  }
+  if (number == sys_munmap) {
+    const munmap_context *ctx = (const munmap_context *)args;
+    munmap(ctx->addr, (size_t)ctx->length);
+    result->result = 0;
+    result->err = -1;
+    return;
+  }
+
   record_syscall(number);
 
   switch (number) {
@@ -155,10 +177,25 @@ UTEST(stdio_tests, fputs_returns_eof_on_null_file) {
   ASSERT_EQ(ret, -1);
 }
 
+/* tmpnam probes each candidate with access(F_OK) and keeps the first one that
+   does NOT already exist. Report "not found" (rc != 0) for every probe so the
+   first candidate is accepted; without this the stub leaves access() returning
+   0 ("exists") and tmpnam exhausts TMP_MAX and returns NULL. */
+static void tmpnam_access_not_found(int number, const void *args,
+                                    syscall_result *result) {
+  (void)number;
+  (void)args;
+  result->result = -1;
+  result->err = -1;
+}
+
 UTEST(stdio_tests, tmpnam_generates_unique_paths) {
   char first[L_tmpnam];
   char second[L_tmpnam];
   char *internal;
+
+  RESET_FAKE(trigger_supervisor_call);
+  trigger_supervisor_call_fake.custom_fake = tmpnam_access_not_found;
 
   ASSERT_EQ(first, sut_tmpnam(first));
   ASSERT_EQ(second, sut_tmpnam(second));
