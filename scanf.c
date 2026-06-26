@@ -340,11 +340,16 @@ char *fgets(char *s, int sz, FILE *fp) {
 
 long fread(void *v, long sz, long n, FILE *fp) {
   char *s = v;
-  int i = n * sz;
-  while (i-- > 0)
-    if ((*s++ = ic(fp)) == EOF)
-      return n * sz - i - 1;
-  return n * sz;
+  long total = n * sz;
+  long rd = 0;
+  while (rd < total) {
+    int c = ic(fp);
+    if (c == EOF)
+      return rd / sz;
+    *s++ = c;
+    rd++;
+  }
+  return n;
 }
 
 int feof(FILE *fp) {

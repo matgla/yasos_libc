@@ -5,6 +5,7 @@
 
 #include <unistd.h>
 
+#include <fcntl.h> /* AT_FDCWD */
 #include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -271,13 +272,11 @@ int symlinkat(const char *target, int newdirfd, const char *linkpath) {
 }
 
 int ftruncate(int fd, off_t length) {
-  printf("TODO: Implement ftruncate\n");
-  return -1;
-  // truncate_context context = {
-  //     .fd = fd,
-  //     .length = length,
-  // };
-  // return trigger_syscall(sys_ftruncate, &context);
+  ftruncate_context context = {
+      .fd = fd,
+      .length = length,
+  };
+  return trigger_syscall(sys_ftruncate, &context);
 }
 
 char login_[8] = {'r', 'o', 'o', 't', '\0'};

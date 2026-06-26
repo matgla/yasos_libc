@@ -38,6 +38,8 @@ void srand(unsigned int seed);
 int rand(void);
 
 double strtod(const char *nptr, char **endptr);
+float strtof(const char *nptr, char **endptr);
+long double strtold(const char *nptr, char **endptr);
 long long strtoll(const char *str, char **endptr, int base);
 unsigned long long int strtoull(const char *nptr, char **endptr, int base);
 

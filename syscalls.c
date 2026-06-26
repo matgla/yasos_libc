@@ -20,6 +20,7 @@
 
 #include <sys/types.h>
 
+#include <fcntl.h> /* AT_FDCWD */
 #include <errno.h>
 #include <regex.h>
 #include <stdarg.h>
@@ -33,11 +34,16 @@
 
 #include <sys/time.h>
 #include <sys/times.h>
+#include <sys/stat.h>
 
 #include "sys/syscall.h"
 #include <stdio.h>
 
 #include <limits.h>
+
+/* malloc vfork save/restore (defined in malloc.c) */
+extern void __malloc_vfork_save(void);
+extern void __malloc_vfork_restore(void);
 
 #ifdef YASLIBC_ARM_SVC_TRIGGER
 inline void __attribute__((naked))
@@ -90,8 +96,8 @@ int close(int fd) {
 }
 
 // suppress noreturn that returns
-extern void __libc_finalize_and_exit(int status);
-void exit(int status) {
+extern __attribute__((noreturn)) void __libc_finalize_and_exit(int status);
+void __attribute__((noreturn)) exit(int status) {
   __libc_finalize_and_exit(status);
 }
 
@@ -158,7 +164,13 @@ pid_t _vfork_process(void *lr, void *r9, void *sp, uint32_t is_fpu_used) {
       .sp = sp,
       .is_fpu_used = is_fpu_used,
   };
-  return trigger_syscall(sys_vfork, &context);
+  /* Save malloc pool state before child runs on shared address space.
+     The child may allocate/free, corrupting the bump-allocator position.
+     Restore after the syscall returns (always in the parent). */
+  __malloc_vfork_save();
+  pid_t result = trigger_syscall(sys_vfork, &context);
+  __malloc_vfork_restore();
+  return result;
 }
 
 int unlink(const char *pathname) {
@@ -452,11 +464,82 @@ int fcntl(int fd, int op, ...) {
 }
 
 char *realpath(const char *path, char *resolved_path) {
-  const realpath_context context = {
-      .path = path,
-      .resolved_path = resolved_path,
-  };
-  trigger_syscall(sys_realpath, &context);
+  char buf[PATH_MAX];
+  const char *p;
+  char *q;
+  struct stat st;
+
+  if (!path || !*path) {
+    errno = EINVAL;
+    return NULL;
+  }
+
+  /* Build absolute path */
+  if (path[0] != '/') {
+    if (!getcwd(buf, sizeof(buf)))
+      return NULL;
+    q = buf + strlen(buf);
+    if (q > buf && q[-1] != '/')
+      *q++ = '/';
+  } else {
+    buf[0] = '/';
+    q = buf + 1;
+  }
+
+  /* Canonicalize: collapse //, /., /.. */
+  p = path;
+  while (*p) {
+    if (*p == '/') {
+      /* skip redundant slashes */
+      while (*p == '/') p++;
+      /* ensure single slash separator (unless at start of buf) */
+      if (q > buf && q[-1] != '/')
+        *q++ = '/';
+      continue;
+    }
+    if (p[0] == '.' && (p[1] == '/' || p[1] == '\0')) {
+      /* skip "." component */
+      p += 1;
+      continue;
+    }
+    if (p[0] == '.' && p[1] == '.' && (p[2] == '/' || p[2] == '\0')) {
+      /* ".." - go up one level */
+      p += 2;
+      if (q > buf + 1) {
+        q--;
+        while (q > buf && q[-1] != '/') q--;
+      }
+      continue;
+    }
+    /* copy path component */
+    while (*p && *p != '/')
+      *q++ = *p++;
+    if ((size_t)(q - buf) >= sizeof(buf) - 1) {
+      errno = ENAMETOOLONG;
+      return NULL;
+    }
+  }
+
+  /* ensure at least "/" */
+  if (q == buf)
+    *q++ = '/';
+  /* remove trailing slash (except root) */
+  if (q > buf + 1 && q[-1] == '/')
+    q--;
+  *q = '\0';
+
+  /* verify path exists */
+  if (stat(buf, &st) < 0)
+    return NULL;
+
+  if (!resolved_path) {
+    resolved_path = (char *)malloc(strlen(buf) + 1);
+    if (!resolved_path) {
+      errno = ENOMEM;
+      return NULL;
+    }
+  }
+  strcpy(resolved_path, buf);
   return resolved_path;
 }
 

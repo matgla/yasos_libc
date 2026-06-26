@@ -20,6 +20,10 @@
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
 
+#define P_tmpdir "/tmp"
+#define L_tmpnam 32
+#define TMP_MAX 16384
+
 #define putc(c, fp) (fputc(c, fp))
 #define getc(fp) (fgetc(fp))
 
@@ -36,18 +40,23 @@ typedef struct {
 } FILE;
 
 
-#define BUFSIZ 1024
+/* Embedded target: 256 B is plenty for line/block buffering and keeps the
+ * three static stream buffers (stdin/stdout/stderr) + every fopen buffer small.
+ * Trade: slightly more read/write syscalls on bulk I/O. */
+#define BUFSIZ 256
 
 extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 
 FILE *fopen(const char *path, const char *mode);
+FILE *freopen(const char *path, const char *mode, FILE *fp);
 int fclose(FILE *fp);
 int fflush(FILE *fp);
 void setbuf(FILE *fp, char *buf);
 
 FILE *tmpfile(void);
+char *tmpnam(char *buffer);
 int fputc(int c, FILE *fp);
 int putchar(int c);
 int printf(const char *fmt, ...);

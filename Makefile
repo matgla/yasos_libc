@@ -1,11 +1,15 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Ilibs -g -fPIC -pedantic -gdwarf -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs -g -fPIC -pedantic -gdwarf -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+CFLAGS += $(ROOTFS_OPT_CFLAGS)
 LDFLAGS_STATIC = -nostdlib -gdwarf -L../tinycc -g
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic
 EXTERNAL_LIBS =
 ifeq ($(CC), armv8m-tcc)
 CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
+# RELRO: keep .rodata pure-const (pointer-bearing const objects go to the
+# writable data segment) so it can be shared XIP across processes.
+CFLAGS += -share-rodata
 LDFLAGS_STATIC += -Wl,-Ttext=0x0
 LDFLAGS += -larmv8m-libtcc1.a
 SRCS = arm/setjmp.S arm/vfork.S arm/call_with_got.S

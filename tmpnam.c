@@ -18,18 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <fcntl.h>
 #include <stdio.h>
+#include <unistd.h>
 
-#include "sys/syscall.h"
+static unsigned int tmpnam_counter;
 
-int openat(int dirfd, const char *pathname, int flags, ...) {
-  const open_context context = {
-      .path = pathname,
-      .flags = flags,
-      .mode = 0,
-      .fd = dirfd,
-  };
+static void append_hex(char *out, unsigned int value) {
+  static const char hex_digits[] = "0123456789abcdef";
+  int index;
 
-  return trigger_syscall(sys_open, &context);
+  for (index = 0; index < 8; ++index) {
+    out[7 - index] = hex_digits[value & 0x0f];
+    value >>= 4;
+  }
+}
+
+char *tmpnam(char *buffer) {
+  static char internal_buffer[L_tmpnam];
+  char *result = buffer != NULL ? buffer : internal_buffer;
+  unsigned int sequence = tmpnam_counter;
+  int attempt;
+
+  for (attempt = 0; attempt < TMP_MAX; ++attempt) {
+    unsigned int token = (unsigned int)getpid() ^ (sequence + (unsigned int)attempt);
+
+    result[0] = '/';
+    result[1] = 't';
+    result[2] = 'm';
+    result[3] = 'p';
+    result[4] = '/';
+    result[5] = 't';
+    result[6] = 'm';
+    result[7] = 'p';
+    result[8] = '_';
+    append_hex(result + 9, token);
+    result[17] = '\0';
+
+    if (access(result, F_OK) != 0) {
+      tmpnam_counter = sequence + (unsigned int)attempt + 1;
+      return result;
+    }
+  }
+
+  return NULL;
 }

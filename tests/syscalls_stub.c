@@ -24,3 +24,9 @@ DEFINE_FFF_GLOBALS
 
 DEFINE_FAKE_VOID_FUNC(trigger_supervisor_call, int, const void *,
                       syscall_result *);
+
+/* Host stub for ARM-only __call_with_got (calls func, ignores got_base) */
+void __call_with_got(void (*func)(void), void *got_base) {
+  (void)got_base;
+  func();
+}

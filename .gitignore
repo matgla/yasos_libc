@@ -2,3 +2,4 @@ build
 tests/build/
 .gdb_history
 .vscode
+*.o

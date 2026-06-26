@@ -23,6 +23,9 @@
 #include <locale.h>
 #include <stddef.h>
 
+int ffs(int value);
+int ffsl(long value);
+int ffsll(long long value);
 int strncasecmp(const char *s1, const char *s2, size_t n);
 int strncasecmp_l(const char *s1, const char *s2, size_t n, locale_t locale);
 int strcasecmp(const char *s1, const char *s2);

@@ -10,13 +10,88 @@
 
 #include <fcntl.h>
 
-static char _ibuf[BUFSIZ], _obuf[BUFSIZ], _ebuf[BUFSIZ];
+static char _ibuf[BUFSIZ], _obuf[BUFSIZ];
+/* stderr's line buffer can be smaller — error lines are short, and it stays
+ * block-buffered (see below), just with a lower line-length ceiling. */
+static char _ebuf[128];
 static FILE _stdin = {0, EOF, _ibuf, NULL, BUFSIZ, 0};
 static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
-static FILE _stderr = {2, EOF, NULL, _ebuf, 0, 1};
+/* stderr is LINE-buffered (osize = BUFSIZ), not unbuffered (osize = 1).
+ * fputc() already flushes on '\n' or when the buffer fills, so diagnostics
+ * still appear promptly, but a whole line is emitted in ONE block write()
+ * instead of one write(fd,&c,1) syscall per character. The latter loses ~half
+ * its bytes on this target (rapid single-byte writes outrun the console/FS
+ * write path), which was scrambling every error message to every-other-char
+ * (e.g. tcc's compile errors became unreadable). Block writes are reliable. */
+static FILE _stderr = {2, EOF, NULL, _ebuf, 0, 128};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
+
+static int stdio_parse_mode(const char *mode) {
+  int flags;
+
+  if (mode == NULL || *mode == '\0') {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (strchr(mode, '+'))
+    flags = O_RDWR;
+  else if (*mode == 'r')
+    flags = O_RDONLY;
+  else if (*mode == 'w' || *mode == 'a')
+    flags = O_WRONLY;
+  else {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (*mode != 'r')
+    flags |= O_CREAT;
+  if (*mode == 'w')
+    flags |= O_TRUNC;
+  if (*mode == 'a')
+    flags |= O_APPEND;
+
+  return flags;
+}
+
+static void stdio_reset_stream(FILE *fp) {
+  fp->back = EOF;
+  fp->ilen = 0;
+  fp->olen = 0;
+  fp->icur = 0;
+  fp->ostat = 0;
+  fp->istat = 0;
+}
+
+static int stdio_ensure_buffers(FILE *fp) {
+  if (fp->ibuf == NULL) {
+    fp->ibuf = malloc(BUFSIZ);
+    if (fp->ibuf == NULL)
+      return -1;
+    fp->isize = BUFSIZ;
+    fp->iown = 1;
+  }
+
+  if (fp->obuf == NULL) {
+    fp->obuf = malloc(BUFSIZ);
+    if (fp->obuf == NULL) {
+      if (fp->iown && fp->ibuf != NULL) {
+        free(fp->ibuf);
+        fp->ibuf = NULL;
+        fp->iown = 0;
+        fp->isize = 0;
+      }
+      return -1;
+    }
+    fp->osize = BUFSIZ;
+    fp->oown = 1;
+  }
+
+  return 0;
+}
 
 FILE *tmpfile(void) {
   printf("TODO: implement tmpfile()\n");
@@ -25,65 +100,91 @@ FILE *tmpfile(void) {
 
 FILE *fopen(const char *path, const char *mode) {
   FILE *fp;
-  int flags;
+  int flags = stdio_parse_mode(mode);
 
-  if (strchr(mode, '+'))
-    flags = O_RDWR;
-  else
-    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
-  if (*mode != 'r')
-    flags |= O_CREAT;
-  if (*mode == 'w')
-    flags |= O_TRUNC;
-  if (*mode == 'a')
-    flags |= O_APPEND;
+  if (flags < 0)
+    return NULL;
 
   fp = malloc(sizeof(*fp));
+  if (fp == NULL)
+    return NULL;
   memset(fp, 0, sizeof(*fp));
   fp->fd = open(path, flags, 0600);
   if (fp->fd < 0) {
     free(fp);
     return NULL;
   }
-  fp->back = EOF;
-  fp->ibuf = malloc(BUFSIZ);
-  fp->obuf = malloc(BUFSIZ);
-  fp->isize = BUFSIZ;
-  fp->osize = BUFSIZ;
-  fp->iown = 1;
-  fp->oown = 1;
+  if (stdio_ensure_buffers(fp) < 0) {
+    close(fp->fd);
+    free(fp);
+    return NULL;
+  }
+  stdio_reset_stream(fp);
   return fp;
 }
 
 FILE *fdopen(int fd, const char *mode) {
   FILE *fp;
-  int flags;
+  int flags = stdio_parse_mode(mode);
 
-  if (strchr(mode, '+'))
-    flags = O_RDWR;
-  else
-    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
-  if (*mode != 'r')
-    flags |= O_CREAT;
-  if (*mode == 'w')
-    flags |= O_TRUNC;
-  if (*mode == 'a')
-    flags |= O_APPEND;
+  if (flags < 0)
+    return NULL;
 
   fp = malloc(sizeof(*fp));
+  if (fp == NULL)
+    return NULL;
   memset(fp, 0, sizeof(*fp));
   if (fcntl(fd, F_GETFL) < 0) {
     free(fp);
     return NULL;
   }
   fp->fd = fd;
-  fp->back = EOF;
-  fp->ibuf = malloc(BUFSIZ);
-  fp->obuf = malloc(BUFSIZ);
-  fp->isize = BUFSIZ;
-  fp->osize = BUFSIZ;
-  fp->iown = 1;
-  fp->oown = 1;
+  if (stdio_ensure_buffers(fp) < 0) {
+    free(fp);
+    return NULL;
+  }
+  stdio_reset_stream(fp);
+  return fp;
+}
+
+FILE *freopen(const char *path, const char *mode, FILE *fp) {
+  int flags;
+  int fd;
+
+  if (fp == NULL || path == NULL) {
+    errno = EINVAL;
+    return NULL;
+  }
+
+  flags = stdio_parse_mode(mode);
+  if (flags < 0)
+    return NULL;
+
+  if (fflush(fp) == EOF)
+    return NULL;
+
+  if (fp->fd >= 0 && close(fp->fd) < 0) {
+    fp->fd = -1;
+    stdio_reset_stream(fp);
+    return NULL;
+  }
+
+  fd = open(path, flags, 0600);
+  if (fd < 0) {
+    fp->fd = -1;
+    stdio_reset_stream(fp);
+    return NULL;
+  }
+
+  if (stdio_ensure_buffers(fp) < 0) {
+    close(fd);
+    fp->fd = -1;
+    stdio_reset_stream(fp);
+    return NULL;
+  }
+
+  fp->fd = fd;
+  stdio_reset_stream(fp);
   return fp;
 }
 
@@ -94,11 +195,42 @@ int fclose(FILE *fp) {
     free(fp->ibuf);
   if (fp->oown)
     free(fp->obuf);
-  free(fp);
+  /* fclose(stdout) is legal (and used by gcc-torture printf tests after
+   * freopen): the standard streams are statics in this file, not heap
+   * chunks — free(&_stdout) inserted .data into the allocator's free list
+   * and corrupted it (HardFault on the next malloc/free walk).  Mark the
+   * static stream closed instead of freeing it. */
+  if (fp == stdin || fp == stdout || fp == stderr) {
+    fp->fd = -1;
+    fp->ibuf = NULL;
+    fp->obuf = NULL;
+    fp->iown = 0;
+    fp->oown = 0;
+    fp->isize = 0;
+    fp->osize = 0;
+    stdio_reset_stream(fp);
+  } else {
+    free(fp);
+  }
   return ret;
 }
 
 int fflush(FILE *fp) {
+  /* POSIX: fflush(NULL) flushes all open output streams.  Without this
+   * check fp==NULL dereferenced address 0 — on this MMU-less target that
+   * is the SSRAM alias of the kernel image, so fp->fd/obuf/olen read
+   * kernel vector-table words and the "flush" became a wild multi-MB
+   * write of the kernel image to the console (toybox xexit calls
+   * fflush(0) after every builtin). Match exit()'s semantics and flush
+   * the buffered standard streams. */
+  if (fp == NULL) {
+    int r = 0;
+    if (fflush(stdout))
+      r = EOF;
+    if (fflush(stderr))
+      r = EOF;
+    return r;
+  }
   if (fp->fd < 0)
     return 0;
   if (write(fp->fd, fp->obuf, fp->olen) != fp->olen)
@@ -109,6 +241,11 @@ int fflush(FILE *fp) {
 
 int fputc(int c, FILE *fp) {
   if (fp->osize == 0) {
+    // String sinks (fd < 0) with no room — e.g. the vsnprintf(NULL, 0, ...)
+    // length-measuring idiom — must only count (via vfprintf's return), never
+    // touch a real fd.
+    if (fp->fd < 0)
+      return c;
     if (write(fp->fd, (char *)&c, 1) != 1)
       return EOF;
     return c;
@@ -129,6 +266,11 @@ int putchar(int c) {
 
 static int ostr(FILE *fp, char *s, int wid, int left, int max_len,
                 char fill_character) {
+  // Match glibc behaviour for printf("%s", NULL) instead of dereferencing a
+  // null pointer (which faults once the MPU is active rather than silently
+  // reading whatever 0x0 aliases on the target).
+  if (s == NULL)
+    s = "(null)";
   int str_len = strlen(s);
   str_len = str_len < max_len ? str_len : max_len;
   int fill = wid - str_len;
@@ -715,9 +857,13 @@ int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) {
   FILE f = {-1, EOF};
   int ret;
   f.obuf = dst;
-  f.osize = sz - 1;
+  // sz == 0 (and dst may be NULL) is the standard "measure length" idiom: count
+  // only, write nothing. Guard against the sz - 1 underflow and the terminator
+  // store into a NULL/zero-size buffer (which faults once the MPU is active).
+  f.osize = (sz > 0) ? (sz - 1) : 0;
   ret = vfprintf(&f, fmt, ap);
-  dst[f.olen] = '\0';
+  if (dst != NULL && sz > 0)
+    dst[f.olen] = '\0';
   return ret;
 }
 
@@ -766,16 +912,24 @@ int snprintf(char *dst, size_t sz, const char *fmt, ...) {
 }
 
 int fputs(const char *s, FILE *fp) {
-  while (*s)
-    fputc((unsigned char)*s++, fp);
-  return 0;
+  if (!fp)
+    return EOF;
+  int n = 0;
+  while (*s) {
+    if (fputc((unsigned char)*s++, fp) == EOF)
+      return EOF;
+    n++;
+  }
+  return n;
 }
 
 int puts(const char *s) {
   int ret = fputs(s, stdout);
-  if (ret >= 0)
-    fputc('\n', stdout);
-  return ret;
+  if (ret == EOF)
+    return EOF;
+  if (fputc('\n', stdout) == EOF)
+    return EOF;
+  return ret + 1;
 }
 
 long fwrite(void *v, long sz, long n, FILE *fp) {
@@ -828,20 +982,14 @@ int rename(const char *oldpath, const char *newpath) {
 
 FILE *fmemopen(void *buf, size_t size, const char *mode) {
   FILE *fp;
-  int flags;
+  int flags = stdio_parse_mode(mode);
 
-  if (strchr(mode, '+'))
-    flags = O_RDWR;
-  else
-    flags = *mode == 'r' ? O_RDONLY : O_WRONLY;
-  if (*mode != 'r')
-    flags |= O_CREAT;
-  if (*mode == 'w')
-    flags |= O_TRUNC;
-  if (*mode == 'a')
-    flags |= O_APPEND;
+  if (flags < 0)
+    return NULL;
 
   fp = malloc(sizeof(*fp));
+  if (fp == NULL)
+    return NULL;
   memset(fp, 0, sizeof(*fp));
   fp->fd = -1;
   if (buf == NULL) {
