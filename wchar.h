@@ -22,15 +22,28 @@
 
 #include <stddef.h>
 
-typedef char wint_t;
+// wint_t normally arrives from <stddef.h>, which supplies the toolchain's
+// __WINT_TYPE__ (unsigned int here) under the canonical _WINT_T guard. Define
+// it only as a fallback, and with the same underlying type -- spelling it
+// `char` would be an incompatible redefinition, and a 1-byte wint_t cannot
+// hold every wchar_t value plus WEOF as the standard requires.
+#ifndef _WINT_T
+#define _WINT_T
+typedef __WINT_TYPE__ wint_t;
+#endif
+
 typedef struct mbstate_t {
   int __count;
   unsigned char __value[4];
 } mbstate_t;
 
-#define WINT_WIDTH 8
-#define WINT_MAX 255
-#define WINT_MIN 0
+#ifndef WEOF
+#define WEOF ((wint_t)-1)
+#endif
+
+#define WINT_WIDTH 32
+#define WINT_MAX 0xffffffffU
+#define WINT_MIN 0U
 
 size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps);
 int wcwidth(wchar_t wc);
