@@ -21,10 +21,10 @@ struct tm {
 
 time_t time(time_t *timep);
 long strftime(char *s, size_t len, const char *fmt, struct tm *tm);
-struct tm *localtime(time_t *timep);
+struct tm *localtime(const time_t *timep);
 struct tm *localtime_r(const time_t *timer, struct tm *result);
 
-struct tm *gmtime(time_t *timep);
+struct tm *gmtime(const time_t *timep);
 
 extern long timezone;
 void tzset(void);

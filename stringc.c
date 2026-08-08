@@ -15,6 +15,14 @@ char *strcat(char *d, const char *s) {
   return d;
 }
 
+char *strncat(char *d, const char *s, size_t n) {
+  char *end = d + strlen(d);
+  size_t len = strnlen(s, n);
+  memcpy(end, s, len);
+  end[len] = '\0';
+  return d;
+}
+
 char *strstr(const char *s, const char *r) {
   int len = strlen(r);
   if (!len)

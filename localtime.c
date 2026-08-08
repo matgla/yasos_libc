@@ -44,14 +44,14 @@ static void tp2tm(struct tm *tm, time_t t) {
   tm->tm_mday += days;
 }
 
-struct tm *localtime(time_t *t) {
+struct tm *localtime(const time_t *t) {
   static struct tm tm;
   tzset();
   tp2tm(&tm, *t - timezone);
   return &tm;
 }
 
-struct tm *gmtime(time_t *t) {
+struct tm *gmtime(const time_t *t) {
   static struct tm tm;
   tp2tm(&tm, *t);
   return &tm;
