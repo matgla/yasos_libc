@@ -32,5 +32,16 @@
  * Returns 0 on success. */
 int perf_dump(perf_syscall_entry *entries, int max_entries, int *num_entries, int reset);
 
+/* As perf_dump, but also hands back the summary fields the kernel fills in
+ * (cycles_per_us, load_us, dropped). Fill in the `in` fields of *context. */
+int perf_dump_ctx(perf_dump_context *context);
+
 /* Pretty-print the syscall profile to stderr and optionally reset counters. */
 void perf_dump_print(int reset);
+
+/* Print the same data as three fixed `# perf: ...` lines instead of a table.
+ *
+ * Meant for automated runs (the smoke harness parses these): a full table is
+ * ~64 serial lines per invocation, which on a 460800-baud console costs more
+ * time than the syscalls being measured. */
+void perf_dump_print_compact(int reset);

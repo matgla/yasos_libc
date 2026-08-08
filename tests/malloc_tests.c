@@ -89,16 +89,27 @@ static void reset_allocator_state(void) {
   while (old_pools) {
     op = old_pools;
     old_pools = op->next_pool;
-    counting_munmap(op, MSETLEN);
+    counting_munmap(op, op->len);
   }
   if (pool1 != NULL) {
-    counting_munmap(pool1, MSETLEN);
+    counting_munmap(pool1, pool1->len);
     pool1 = NULL;
   }
   if (pool != NULL) {
-    counting_munmap(pool, MSETLEN);
+    counting_munmap(pool, pool->len);
     pool = NULL;
   }
+  /* Pools cascade, so the class the previous test left behind would otherwise
+     leak into the next one and change which path an allocation takes. */
+  for (int i = 0; i < LARGE_CACHE_SLOTS; i++) {
+    if (large_cache[i].base) {
+      counting_munmap(large_cache[i].base, large_cache[i].mapped);
+      large_cache[i].base = NULL;
+    }
+  }
+  large_cache_bytes = 0;
+  pool_len_next = MSETLEN_MIN;
+  large_allocs = 0;
   prof_mmap_calls = 0;
   prof_munmap_calls = 0;
 }
@@ -444,11 +455,11 @@ UTEST(malloc_tests, old_pool_removed_from_list_when_refs_zero) {
   /* Free ALL allocations that belong to the old pool.
      We can identify them by the pool pointer: old pool was the first mmap,
      current pool is the second. Pointers within old pool satisfy:
-     ptr >= (char*)old && ptr < (char*)old + MSETLEN */
+     ptr >= (char*)old && ptr < (char*)old + old->len */
   for (int i = 0; i < count; i++) {
     if (ptrs[i] &&
         (char *)ptrs[i] >= (char *)old &&
-        (char *)ptrs[i] < (char *)old + MSETLEN) {
+        (char *)ptrs[i] < (char *)old + old->len) {
       test_free(ptrs[i]);
       ptrs[i] = NULL;
     }
@@ -469,4 +480,169 @@ UTEST(malloc_tests, old_pool_removed_from_list_when_refs_zero) {
   reset_allocator_state();
   #undef FILL_SIZE2
   #undef MAX_PTRS2
+}
+
+/* ---- pool cascade ---- */
+
+/* A block must never overrun the mapping it was carved from. With one fixed
+   pool size that was a constant check; with a cascade it is the invariant most
+   at risk, because every reuse path has to prove the candidate pool fits. */
+static int block_inside_its_pool(void *p) {
+  struct mhdr *h = (struct mhdr *)((char *)p - sizeof(struct mhdr));
+  struct mset *m;
+  if (h->moff == LARGE_MOFF)
+    return 1; /* mapped, not pooled */
+  m = (struct mset *)((char *)h - h->moff);
+  return (char *)p >= (char *)m + (int)sizeof(struct mset) &&
+         (char *)p + h->size <= (char *)m + m->len;
+}
+
+UTEST(malloc_tests, first_class_matches_the_old_fixed_behaviour) {
+  reset_allocator_state();
+  /* A light process sees exactly what it saw before the cascade: one page of
+     pool, and 2048 as the pooled/mapped boundary. */
+  ASSERT_EQ(cur_msetmax(), MSETMAX_MIN);
+  void *small = test_malloc(MSETMAX_MIN - 64);
+  ASSERT_TRUE(small != NULL);
+  ASSERT_NE(((struct mhdr *)((char *)small - sizeof(struct mhdr)))->moff,
+            LARGE_MOFF);
+  ASSERT_EQ(pool->len, MSETLEN_MIN);
+  test_free(small);
+
+  void *big = test_malloc(MSETMAX_MIN);
+  ASSERT_TRUE(big != NULL);
+  ASSERT_EQ(((struct mhdr *)((char *)big - sizeof(struct mhdr)))->moff,
+            LARGE_MOFF);
+  test_free(big);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, light_process_maps_exactly_one_pool) {
+  reset_allocator_state();
+  void *p[16];
+  for (int i = 0; i < 16; i++) {
+    p[i] = test_malloc(64);
+    ASSERT_TRUE(p[i] != NULL);
+  }
+  ASSERT_EQ(prof_mmap_calls, 1);
+  ASSERT_EQ(pool->len, MSETLEN_MIN);
+  for (int i = 0; i < 16; i++)
+    test_free(p[i]);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, mapping_path_widens_the_class_until_capped) {
+  reset_allocator_state();
+  void *p[64];
+  int n = 0;
+  /* Each of these takes the mapping path at the starting threshold. Enough of
+     them and the class should widen to its cap. */
+  for (int i = 0; i < 40; i++) {
+    p[n] = test_malloc(MSETMAX_MIN + 16);
+    ASSERT_TRUE(p[n] != NULL);
+    n++;
+  }
+  ASSERT_EQ(cur_msetmax(), MSETMAX_CAP);
+  for (int i = 0; i < n; i++)
+    test_free(p[i]);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, widened_class_pools_what_used_to_be_mapped) {
+  reset_allocator_state();
+  void *warm[40];
+  for (int i = 0; i < 40; i++)
+    warm[i] = test_malloc(MSETMAX_MIN + 16);
+  for (int i = 0; i < 40; i++)
+    test_free(warm[i]);
+  ASSERT_EQ(cur_msetmax(), MSETMAX_CAP);
+
+  /* 8 KiB is the size tcc allocates most; at the widened class it must come
+     from a pool, and repeated requests must not each cost a mapping. */
+  prof_mmap_calls = 0;
+  void *p[6];
+  for (int i = 0; i < 6; i++) {
+    p[i] = test_malloc(8 * 1024);
+    ASSERT_TRUE(p[i] != NULL);
+    ASSERT_NE(((struct mhdr *)((char *)p[i] - sizeof(struct mhdr)))->moff,
+              LARGE_MOFF);
+    ASSERT_TRUE(block_inside_its_pool(p[i]));
+    memset(p[i], 0xA5 + i, 8 * 1024);
+  }
+  ASSERT_TRUE(prof_mmap_calls < 6);
+  for (int i = 0; i < 6; i++) {
+    unsigned char *b = p[i];
+    ASSERT_EQ(b[0], (unsigned char)(0xA5 + i));
+    ASSERT_EQ(b[8 * 1024 - 1], (unsigned char)(0xA5 + i));
+    ASSERT_EQ(msize(p[i]), 8 * 1024);
+    test_free(p[i]);
+  }
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, cascade_never_hands_back_a_block_past_its_mapping) {
+  reset_allocator_state();
+  /* Drive the class up, then hammer sizes straddling every threshold the
+     cascade passes through, checking containment on each block. */
+  void *warm[40];
+  for (int i = 0; i < 40; i++)
+    warm[i] = test_malloc(MSETMAX_MIN + 16);
+  for (int i = 0; i < 40; i++)
+    test_free(warm[i]);
+
+  static const int sizes[] = {16,   1024,  2047,  2048,  4095,  4096,
+                              8191, 8192,  16383, 16384, 32767};
+  void *live[64];
+  int n = 0;
+  for (unsigned s = 0; s < sizeof(sizes) / sizeof(sizes[0]); s++) {
+    for (int rep = 0; rep < 5; rep++) {
+      void *q = test_malloc(sizes[s]);
+      ASSERT_TRUE(q != NULL);
+      ASSERT_TRUE(block_inside_its_pool(q));
+      memset(q, 0x5A, sizes[s]);
+      ASSERT_EQ(msize(q), sizes[s]);
+      if (n < 64)
+        live[n++] = q;
+      else
+        test_free(q);
+    }
+  }
+  for (int i = 0; i < n; i++) {
+    unsigned char *b = live[i];
+    ASSERT_EQ(b[0], 0x5A);
+    test_free(live[i]);
+  }
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, realloc_across_the_moving_threshold_preserves_bytes) {
+  reset_allocator_state();
+  void *warm[40];
+  for (int i = 0; i < 40; i++)
+    warm[i] = test_malloc(MSETMAX_MIN + 16);
+  for (int i = 0; i < 40; i++)
+    test_free(warm[i]);
+
+  /* Grow a buffer through the doubling sizes tcc's reallocs use; the block
+     crosses from pooled to mapped and back as the class moves. */
+  size_t sz = 32;
+  unsigned char *b = test_malloc(sz);
+  ASSERT_TRUE(b != NULL);
+  memset(b, 0x3C, sz);
+  while (sz < 96 * 1024) {
+    size_t nsz = sz * 2;
+    unsigned char *nb = test_realloc(b, nsz);
+    ASSERT_TRUE(nb != NULL);
+    for (size_t i = 0; i < sz; i++) {
+      if (nb[i] != 0x3C) {
+        ASSERT_EQ(nb[i], 0x3C); /* reports the first mismatch */
+        break;
+      }
+    }
+    memset(nb + sz, 0x3C, nsz - sz);
+    b = nb;
+    sz = nsz;
+  }
+  test_free(b);
+  reset_allocator_state();
 }

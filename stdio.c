@@ -932,13 +932,50 @@ int puts(const char *s) {
   return ret + 1;
 }
 
+/* Chunked, and deliberately without fputc's newline flush: fwrite is the
+   bulk/binary path (a compiler writing an object file emits a 0x0A byte
+   every ~256 bytes, and flushing on each one made every write a syscall).
+   Line-timed console output still goes through fputc/fputs. String sinks
+   and unbuffered streams keep the fputc path for its counting semantics. */
 long fwrite(void *v, long sz, long n, FILE *fp) {
-  unsigned char *s = v;
-  int i = n * sz;
-  while (i-- > 0)
-    if (fputc(*s++, fp) == EOF)
-      return n * sz - i - 1;
-  return n * sz;
+  const unsigned char *s = v;
+  long total = n * sz;
+  long left = total;
+  if (total <= 0)
+    return 0;
+  if (fp->fd < 0 || fp->osize == 0 || fp->obuf == NULL) {
+    while (left > 0) {
+      if (fputc(*s++, fp) == EOF)
+        return (total - left) / sz;
+      left--;
+    }
+    return n;
+  }
+  while (left > 0) {
+    long room;
+    if (fp->olen == 0 && left >= (long)fp->osize) {
+      /* buffer is empty and the remainder would fill it anyway: write the
+         whole chunk straight through */
+      long w = write(fp->fd, (char *)s, left);
+      if (w <= 0)
+        break;
+      fp->ostat += w;
+      s += w;
+      left -= w;
+      continue;
+    }
+    room = fp->osize - fp->olen;
+    if (room > left)
+      room = left;
+    memcpy(fp->obuf + fp->olen, s, room);
+    fp->olen += room;
+    fp->ostat += room;
+    s += room;
+    left -= room;
+    if (fp->olen == fp->osize && fflush(fp))
+      break;
+  }
+  return (total - left) / sz;
 }
 
 int fseek(FILE *fp, long offset, int whence) {

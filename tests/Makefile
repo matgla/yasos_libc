@@ -15,7 +15,11 @@ OBJS = $(patsubst %.c, build/%.o, $(SRCS))
 
 
 TARGET = build/libc_tests
-LIBC_STATIC = ../build/libc.a
+# The SUT library is built for the HOST (CC=gcc). It must not share the device
+# build tree: a mixed ARM/x86 `../build` produces a libc that links but is
+# subtly wrong, which cost a day chasing a phantom nestfunc-2 HardFault.
+LIBC_BUILD = ../build-host
+LIBC_STATIC = $(LIBC_BUILD)/libc.a
 LIBC_TEST_STATIC = build/libc_sut.a
 SYMBOLS_REDEFINES = symbols_redefines.txt
 LIBC_SRCS = $(wildcard ../*.c) $(wildcard ../*.h)
@@ -28,7 +32,7 @@ build/%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(LIBC_STATIC): $(LIBC_SRCS)
-	$(MAKE) -C .. CC=$(CC)
+	$(MAKE) -C .. CC=$(CC) BUILD=$(notdir $(LIBC_BUILD))
 
 $(LIBC_TEST_STATIC): $(LIBC_STATIC)
 	mkdir -p build

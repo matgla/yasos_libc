@@ -316,18 +316,40 @@ typedef struct ftruncate_context {
   off_t length;
 } ftruncate_context;
 
+/* Per-syscall accounting produced by the kernel's perf profiler.
+ *
+ * `total_cycles` covers the whole kernel-side syscall: the SVC entry stamp
+ * taken in the exception handler through the end of the handler, so it
+ * includes exception entry and (for non-fast syscalls) the trampoline into
+ * thread mode. `handler_cycles` covers only the handler body, so
+ * total - handler is the fixed dispatch overhead. Neither includes the return
+ * trampoline back to user mode.
+ *
+ * `bytes` is the payload actually transferred (read/write return value), so
+ * IO throughput can be derived without instrumenting every filesystem. */
 typedef struct perf_syscall_entry {
   unsigned int syscall_id;
   unsigned int call_count;
-  unsigned int total_cycles;
+  unsigned long long total_cycles;
+  unsigned long long handler_cycles;
   unsigned int max_cycles;
+  unsigned int bytes;
 } perf_syscall_entry;
 
 typedef struct perf_dump_context {
+  /* in */
   perf_syscall_entry *entries;
   int max_entries;
   int *num_entries;
   int reset;
+  /* out, filled by the kernel */
+  unsigned int cycles_per_us;
+  /* Calls whose measured window was implausibly long (the 32-bit cycle counter
+   * wraps every few seconds) and were therefore left out of the totals. */
+  unsigned int dropped;
+  /* Time this process spent being loaded and relocated by the dynamic loader,
+   * i.e. before main() ran. 0 when the process was never exec'd. */
+  unsigned long long load_us;
 } perf_dump_context;
 
 int trigger_syscall(int number, const void *args);

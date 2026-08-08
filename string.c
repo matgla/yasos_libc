@@ -34,18 +34,60 @@ void *memchr(const void *src, int c, long n) {
   return __memchr_c(src, c, n);
 }
 
+/* memset/memcpy/memmove run word-wise: every userspace byte moved goes
+   through these, and the byte loops they replace cost ~5 instructions per
+   byte fetched over XIP -- measured as the dominant term of tcc's predefine
+   parsing (45k executed instructions per declaration). Only the co-aligned
+   case takes the word path; ARMv8-M tolerates unaligned LDR/STR but tcc's
+   codegen is not audited for it, so mismatched alignment stays bytewise. */
 void *memset(void *ptr, int value, size_t num) {
   uint8_t *p = (uint8_t *)ptr;
-  for (size_t i = 0; i < num; ++i)
-    p[i] = (uint8_t)value;
+  uint8_t b = (uint8_t)value;
+  if (num >= 8) {
+    while ((uintptr_t)p & 3) {
+      *p++ = b;
+      --num;
+    }
+    uint32_t w = 0x01010101u * b;
+    uint32_t *pw = (uint32_t *)p;
+    for (; num >= 16; num -= 16, pw += 4) {
+      pw[0] = w;
+      pw[1] = w;
+      pw[2] = w;
+      pw[3] = w;
+    }
+    for (; num >= 4; num -= 4)
+      *pw++ = w;
+    p = (uint8_t *)pw;
+  }
+  for (; num; --num)
+    *p++ = b;
   return ptr;
 }
 
 void *memcpy(void *dst, const void *src, size_t n) {
   uint8_t *d = (uint8_t *)dst;
   const uint8_t *s = (const uint8_t *)src;
-  for (size_t i = 0; i < n; ++i)
-    d[i] = s[i];
+  if (n >= 8 && 0 == (((uintptr_t)d ^ (uintptr_t)s) & 3)) {
+    while ((uintptr_t)d & 3) {
+      *d++ = *s++;
+      --n;
+    }
+    uint32_t *dw = (uint32_t *)d;
+    const uint32_t *sw = (const uint32_t *)s;
+    for (; n >= 16; n -= 16, dw += 4, sw += 4) {
+      dw[0] = sw[0];
+      dw[1] = sw[1];
+      dw[2] = sw[2];
+      dw[3] = sw[3];
+    }
+    for (; n >= 4; n -= 4)
+      *dw++ = *sw++;
+    d = (uint8_t *)dw;
+    s = (const uint8_t *)sw;
+  }
+  for (; n; --n)
+    *d++ = *s++;
   return dst;
 }
 
@@ -69,13 +111,36 @@ void *memccpy(void *dst, const void *src, int c, size_t n) {
 void *memmove(void *dst, const void *src, size_t n) {
   uint8_t *d = (uint8_t *)dst;
   const uint8_t *s = (const uint8_t *)src;
-  if (d < s) {
-    for (size_t i = 0; i < n; ++i)
-      d[i] = s[i];
-  } else {
-    for (size_t i = n; i > 0; --i)
-      d[i - 1] = s[i - 1];
+  if (d == s || n == 0)
+    return dst;
+  if (d < s)
+    return memcpy(dst, src, n); /* ascending copy is overlap-safe when d < s */
+  d += n;
+  s += n;
+  if (n >= 8 && 0 == (((uintptr_t)d ^ (uintptr_t)s) & 3)) {
+    while ((uintptr_t)d & 3) {
+      *--d = *--s;
+      --n;
+    }
+    uint32_t *dw = (uint32_t *)d;
+    const uint32_t *sw = (const uint32_t *)s;
+    for (; n >= 16; n -= 16) {
+      dw -= 4;
+      sw -= 4;
+      /* store order must stay descending: for overlaps narrower than one
+         block, dw[0..2] alias sw words not yet read */
+      dw[3] = sw[3];
+      dw[2] = sw[2];
+      dw[1] = sw[1];
+      dw[0] = sw[0];
+    }
+    for (; n >= 4; n -= 4)
+      *--dw = *--sw;
+    d = (uint8_t *)dw;
+    s = (const uint8_t *)sw;
   }
+  while (n--)
+    *--d = *--s;
   return dst;
 }
 

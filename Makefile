@@ -1,7 +1,7 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs -g -fPIC -pedantic -gdwarf -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs $(ROOTFS_DEBUG_CFLAGS) -fPIC -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
 CFLAGS += $(ROOTFS_OPT_CFLAGS)
-LDFLAGS_STATIC = -nostdlib -gdwarf -L../tinycc -g
+LDFLAGS_STATIC = -nostdlib $(ROOTFS_DEBUG_CFLAGS) -L../tinycc
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic
 EXTERNAL_LIBS =
@@ -24,10 +24,19 @@ endif
 
 SRCS += $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c)
 
-OBJS = $(patsubst %.c, build/%.o, $(SRCS))
+# Output directory. Overridable so a build for a *different* architecture does
+# not land on top of this one: the host unit tests (tests/) invoke this Makefile
+# with CC=gcc, and while that shared a single `build/` with the device rootfs
+# build it silently mixed x86 objects into the ARM tree. The symptom is not a
+# clean failure -- it is a rootfs that mostly works, which is far worse to
+# debug than a link error.
+BUILD ?= build
 
-TARGET_SHARED = build/libc.so
-TARGET_STATIC = build/libc.a
+
+OBJS = $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
+
+TARGET_SHARED = $(BUILD)/libc.so
+TARGET_STATIC = $(BUILD)/libc.a
 
 PREFIX ?= /usr/local
 LIBDIR ?= $(PREFIX)/lib
@@ -37,12 +46,12 @@ INCLUDEDIR ?= $(PREFIX)/include
 all: $(TARGET_SHARED) $(TARGET_STATIC) $(TARGET_SHARED).elf
 
 prepare:
-	mkdir -p build
-	mkdir -p build/arm
-	mkdir -p build/sys
-	mkdir -p build/arpa
+	mkdir -p $(BUILD)
+	mkdir -p $(BUILD)/arm
+	mkdir -p $(BUILD)/sys
+	mkdir -p $(BUILD)/arpa
 
-build/%.o: %.c | prepare
+$(BUILD)/%.o: %.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
@@ -54,24 +63,24 @@ $(TARGET_SHARED).elf: $(OBJS)
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^ $(EXTERNAL_LIBS)
 
-build/arm/crt1.o: arm/crt1.c | prepare
+$(BUILD)/arm/crt1.o: arm/crt1.c | prepare
 	${CC} $(CFLAGS) -c $< -o $@
 
-build/arm/crti.o: arm/crti.c | prepare
+$(BUILD)/arm/crti.o: arm/crti.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
-build/arm/crtn.o: arm/crtn.c | prepare
+$(BUILD)/arm/crtn.o: arm/crtn.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
 
 
-install: $(TARGET_SHARED) $(TARGET_STATIC) build/arm/crt1.o build/arm/crti.o build/arm/crtn.o
+install: $(TARGET_SHARED) $(TARGET_STATIC) $(BUILD)/arm/crt1.o $(BUILD)/arm/crti.o $(BUILD)/arm/crtn.o
 	mkdir -p $(LIBDIR)
 	mkdir -p $(INCLUDEDIR)
 	cp $(TARGET_SHARED) $(LIBDIR)
 	cp $(TARGET_STATIC) $(LIBDIR)
-	cp build/arm/crt1.o $(LIBDIR)
-	cp build/arm/crti.o $(LIBDIR)
-	cp build/arm/crtn.o $(LIBDIR)
+	cp $(BUILD)/arm/crt1.o $(LIBDIR)
+	cp $(BUILD)/arm/crti.o $(LIBDIR)
+	cp $(BUILD)/arm/crtn.o $(LIBDIR)
 	cp *.h $(INCLUDEDIR)
 	cp ../tinycc/include/*.h $(INCLUDEDIR)
 	cp -r sys $(INCLUDEDIR)

@@ -80,4 +80,12 @@ typedef __SIZE_TYPE__ uintptr_t;
 #define UINT64_MAX 0xffffffffffffffffULL
 #endif
 
+#ifndef SIZE_MAX
+#ifdef __SIZE_MAX__
+#define SIZE_MAX __SIZE_MAX__
+#else
+#define SIZE_MAX 0xffffffffUL
+#endif
+#endif
+
 #endif

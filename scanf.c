@@ -338,18 +338,46 @@ char *fgets(char *s, int sz, FILE *fp) {
   return i ? s : NULL;
 }
 
+/* Chunked: drain the pushback byte and any buffered bytes, then read()
+   straight into the caller's buffer when the remainder is at least one
+   buffer's worth. String sources (sscanf's ibuf==obuf FILEs) and anything
+   else unusual keep the ic() path. */
 long fread(void *v, long sz, long n, FILE *fp) {
   char *s = v;
   long total = n * sz;
-  long rd = 0;
-  while (rd < total) {
-    int c = ic(fp);
-    if (c == EOF)
-      return rd / sz;
-    *s++ = c;
-    rd++;
+  long got = 0;
+  if (total <= 0)
+    return 0;
+  while (got < total) {
+    if (fp->back != EOF || fp->fd < 0 || fp->ibuf == NULL) {
+      int c = ic(fp);
+      if (c == EOF)
+        break;
+      s[got++] = c;
+      continue;
+    }
+    if (fp->icur < fp->ilen) {
+      long avail = fp->ilen - fp->icur;
+      if (avail > total - got)
+        avail = total - got;
+      memcpy(s + got, fp->ibuf + fp->icur, avail);
+      fp->icur += avail;
+      got += avail;
+      continue;
+    }
+    if (total - got >= (long)fp->isize) {
+      long r = read(fp->fd, s + got, total - got);
+      if (r <= 0)
+        break;
+      got += r;
+    } else {
+      int c = ic(fp);
+      if (c == EOF)
+        break;
+      s[got++] = c;
+    }
   }
-  return n;
+  return got / sz;
 }
 
 int feof(FILE *fp) {

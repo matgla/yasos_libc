@@ -141,9 +141,10 @@ static unsigned rng(void) {
 int main(void) {
   setvbuf(stdout, NULL, _IONBF, 0);
   printf("malloc overlap reproducer  (sizeof void*=%zu mhdr=%zu free_node=%zu "
-         "MSETMAX=%d MSETLEN=%d)\n",
+         "mset=%zu threshold=%d..%d pool=%d..%d)\n",
          sizeof(void *), sizeof(struct mhdr), sizeof(struct free_node),
-         MSETMAX, MSETLEN);
+         sizeof(struct mset), MSETMAX_MIN, MSETMAX_CAP, MSETLEN_MIN,
+         MSETLEN_MAX);
 
   /* --- Phase 1: random mixed stress, several seeds --- */
   for (int seed = 1; seed <= 8; seed++) {
