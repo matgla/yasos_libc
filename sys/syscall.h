@@ -307,6 +307,16 @@ typedef enum SystemCall {
   SYSCALL_COUNT,
 } SystemCall;
 
+/* The ARMv8-M SVCall stub bounds-checks the syscall number against
+ * YASOS_SYSCALL_COUNT (sys/syscall_ids.h), which the assembler can read and
+ * this enum is not. Adding a syscall without updating that macro would leave
+ * the new call permanently on the slow path at best, and index past
+ * syscall_fast_table at worst, so tie the two together here: a mismatch is a
+ * negative array size, which every C compiler rejects. A typedef rather than
+ * _Static_assert because this header is compiled by tcc as well as gcc. */
+typedef char yasos_syscall_count_is_in_sync
+    [(SYSCALL_COUNT == YASOS_SYSCALL_COUNT) ? 1 : -1];
+
 typedef struct klog_ctl_context {
   int enable;
 } klog_ctl_context;
