@@ -20,15 +20,9 @@
 
 #pragma once
 
-/* Number of system calls, i.e. the value of the SystemCall enum's trailing
- * SYSCALL_COUNT member in sys/syscall.h.
- *
- * It is spelled out here, in the one header the ARMv8-M SVCall stub includes,
- * because that stub bounds-checks the incoming syscall number itself
- * (process_syscall_fast_check in source/arch/armv8-m/context_switch.S) and the
- * assembler cannot see a C enum. sys/syscall.h checks the two against each
- * other at compile time, so adding a syscall without updating this fails the
- * build rather than silently leaving the new call unreachable by the fast
- * path -- or, worse, letting the stub index past the table. */
-#define YASOS_SYSCALL_COUNT 58
+/* Number of system calls -- the SystemCall enum's trailing SYSCALL_COUNT in
+ * sys/syscall.h, spelled out here because the ARMv8-M SVCall stub bounds-checks
+ * against it and the assembler cannot see a C enum. sys/syscall.h checks the two
+ * against each other at compile time. */
+#define YASOS_SYSCALL_COUNT 59
 

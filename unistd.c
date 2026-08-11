@@ -210,8 +210,19 @@ int access(char *name, int mode) {
 // }
 
 int pipe(int fds[2]) {
-  printf("TODO: Implement pipe\n");
-  return -1; // Not implemented
+  const pipe_context context = {
+      .fds = fds,
+      .flags = 0,
+  };
+  return trigger_syscall(sys_pipe, &context);
+}
+
+int pipe2(int fds[2], int flags) {
+  const pipe_context context = {
+      .fds = fds,
+      .flags = flags,
+  };
+  return trigger_syscall(sys_pipe, &context);
 }
 
 int dup(int fd) {

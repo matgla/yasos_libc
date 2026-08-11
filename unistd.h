@@ -56,6 +56,7 @@ int fsync(int fd);
 long lseek(int fd, long offset, int whence);
 
 int pipe(int fds[2]);
+int pipe2(int fds[2], int flags);
 int dup(int fd);
 int dup2(int fd, int fd2);
 

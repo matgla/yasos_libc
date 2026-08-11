@@ -598,8 +598,14 @@ static int oint(FILE *fp, unsigned long long n, int base, int wid, int bytes,
   int size = 0;
 
   if (flags & FMT_SIGNED) {
+    /* `signed char`, not `char`: plain char is UNSIGNED on ARM, so the cast
+       zero-extended and the test was dead -- %hhd printed 128 where it owed
+       -128, and reported a width one short with it. gcc.c-torture/execute/
+       pr78622 is exactly this ("%hhd" of 4224). The other three widths are
+       signed types under every ABI we build for. */
     if ((bytes == 4 && ((int)n < 0)) || (bytes == 8 && ((long long)n < 0)) ||
-        (bytes == 2 && ((short)n < 0)) || (bytes == 1 && ((char)n < 0))) {
+        (bytes == 2 && ((short)n < 0)) ||
+        (bytes == 1 && ((signed char)n < 0))) {
       sign = '-';
       n = -n;
     } else {
