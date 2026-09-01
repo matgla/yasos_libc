@@ -1058,9 +1058,68 @@ FILE *fmemopen(void *buf, size_t size, const char *mode) {
   return fp;
 }
 
+/*
+ * Read up to and including `delimiter`, growing the caller's buffer to fit.
+ *
+ * This was a stub that printed "TODO: Implement getdelim" and returned -1,
+ * which is how `grep` first behaved on this device: it opened its input, asked
+ * for a line, was told there wasn't one, and printed the TODO instead of the
+ * match. A stub that announces itself is kinder than one that returns garbage,
+ * but it is still a function that exists in the header and not in the library.
+ *
+ * `*n` is the size of the BUFFER, not the length of the line -- that is the
+ * part of the contract worth stating, because the `getline` that used to live
+ * in scanf.c got it wrong in both directions: it reported the character count
+ * back in `*n`, and it assumed any buffer it was handed was at least 128 bytes
+ * and wrote into it on that assumption. A caller passing a 16-byte buffer with
+ * `*n = 16` -- which is exactly what the interface invites -- had its heap
+ * overwritten. Everything routes through here now, so there is one place that
+ * knows how big the buffer is.
+ */
 ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) {
-  printf("TODO: Implement getdelim\n");
-  return -1; // Not implemented
+  size_t used = 0;
+  int c;
+
+  if (lineptr == NULL || n == NULL || stream == NULL) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  if (*lineptr == NULL || *n < 2) {
+    char *fresh = realloc(*lineptr, 128);
+    if (fresh == NULL) {
+      errno = ENOMEM;
+      return -1;
+    }
+    *lineptr = fresh;
+    *n = 128;
+  }
+
+  while ((c = fgetc(stream)) != EOF) {
+    /* Room for this character and the terminator, always. */
+    if (used + 2 > *n) {
+      size_t want = *n * 2;
+      char *fresh = realloc(*lineptr, want);
+      if (fresh == NULL) {
+        errno = ENOMEM;
+        return -1;
+      }
+      *lineptr = fresh;
+      *n = want;
+    }
+    (*lineptr)[used++] = (char)c;
+    if (c == delimiter) {
+      break;
+    }
+  }
+
+  /* End of input with nothing read is the only -1 that is not an error, and
+   * the caller tells the two apart with ferror() rather than by the return. */
+  if (used == 0) {
+    return -1;
+  }
+  (*lineptr)[used] = '\0';
+  return (ssize_t)used;
 }
 
 void clearerr(FILE *fp) {

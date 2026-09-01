@@ -25,6 +25,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#include <poll.h>
+
 #include <stdint.h>
 
 #include "syscall_ids.h"
@@ -110,6 +112,14 @@ typedef struct ioctl_context {
   int op;
   ssize_t arg; // int or void* //
 } ioctl_context;
+
+/* `fds` stays in user memory: the kernel validates it and writes `revents`
+ * back through it in place, the same shape `sys_read` uses for its buffer. */
+typedef struct poll_context {
+  struct pollfd *fds;
+  nfds_t nfds;
+  int timeout;
+} poll_context;
 
 typedef struct gettimeofday_context {
   struct timeval *tv;
@@ -311,6 +321,7 @@ typedef enum SystemCall {
   sys_ftruncate,
   sys_perf_dump,
   sys_pipe,
+  sys_poll,
   SYSCALL_COUNT,
 } SystemCall;
 

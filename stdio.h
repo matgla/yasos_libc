@@ -90,7 +90,7 @@ int feof(FILE *fp);
 
 void perror(const char *s);
 
-int getline(char **lineptr, size_t *n, FILE *fp);
+ssize_t getline(char **lineptr, size_t *n, FILE *fp);
 int setvbuf(FILE *fp, char *buf, int mode, size_t size);
 int dprintf(int fildes, const char *format, ...);
 int vdprintf(int fildes, const char *format, va_list ap);

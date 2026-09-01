@@ -140,24 +140,7 @@ void __libc_finalize_and_exit(int status) {
   _exit(status);
 }
 
-// TODO: Verify that
-unsigned long long int strtoull(const char *nptr, char **endptr, int base) {
-  unsigned long long int result = 0;
-  while (*nptr && *nptr != ' ' && *nptr != '\t') {
-    if (*nptr >= '0' && *nptr <= '9')
-      result = result * base + (*nptr - '0');
-    else if (*nptr >= 'a' && *nptr <= 'z')
-      result = result * base + (*nptr - 'a' + 10);
-    else if (*nptr >= 'A' && *nptr <= 'Z')
-      result = result * base + (*nptr - 'A' + 10);
-    else
-      break;
-    nptr++;
-  }
-  if (endptr)
-    *endptr = (char *)nptr;
-  return result;
-}
+/* strtoull lives in atoi.c, beside strtoul. */
 
 double strtod(const char *nptr, char **endptr) {
   const char *s = nptr;
@@ -271,23 +254,7 @@ long double strtold(const char *nptr, char **endptr) {
   return (long double)strtod(nptr, endptr);
 }
 
-long long int strtoll(const char *nptr, char **endptr, int base) {
-  long long int result = 0;
-  while (*nptr && *nptr != ' ' && *nptr != '\t') {
-    if (*nptr >= '0' && *nptr <= '9')
-      result = result * base + (*nptr - '0');
-    else if (*nptr >= 'a' && *nptr <= 'z')
-      result = result * base + (*nptr - 'a' + 10);
-    else if (*nptr >= 'A' && *nptr <= 'Z')
-      result = result * base + (*nptr - 'A' + 10);
-    else
-      break;
-    nptr++;
-  }
-  if (endptr)
-    *endptr = (char *)nptr;
-  return result;
-}
+/* strtoll lives in atoi.c, beside strtol. */
 
 long long atoll(const char *nptr) {
   return strtoll(nptr, NULL, 10);

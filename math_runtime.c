@@ -47,10 +47,6 @@ typedef union {
   } parts;
 } double_complex_parts;
 
-static long double fabs_local(long double value) {
-  return value < 0.0L ? -value : value;
-}
-
 static int isnan_local(long double value) {
   return value != value;
 }

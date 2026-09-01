@@ -20,9 +20,16 @@
 
 #include <poll.h>
 
-#include <stdio.h>
+#include <sys/syscall.h>
 
-extern int poll(struct pollfd *ufds, nfds_t nfds, int timeout) {
-  printf("TODO: Implement poll\n");
-  return -1;
+/* The kernel does the waiting (`sys_poll`): it owns the per-file readiness the
+ * answer depends on, and one sleeping process there covers the whole descriptor
+ * set. `revents` is written back through `ufds` in place. */
+int poll(struct pollfd *ufds, nfds_t nfds, int timeout) {
+  const poll_context context = {
+      .fds = ufds,
+      .nfds = nfds,
+      .timeout = timeout,
+  };
+  return trigger_syscall(sys_poll, &context);
 }

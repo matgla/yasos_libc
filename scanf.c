@@ -389,39 +389,10 @@ int feof(FILE *fp) {
   return EOF;
 }
 
-int getline(char **lineptr, size_t *n, FILE *fp) {
-  int alloc_size = 128;
-  if (n == NULL) {
-    return -1;
-  }
-  if (*lineptr == NULL) {
-    *lineptr = malloc(alloc_size);
-    if (*lineptr == NULL) {
-      *n = 0;
-      return -1;
-    }
-  }
-  *n = 0;
-  int c = 0;
-  int i = 0;
-  while (c != '\n' && c != EOF) {
-    c = fgetc(fp);
-    if (c == EOF) {
-      *n = i;
-      return i > 0 ? i : -1;
-    }
-
-    if (i >= alloc_size - 2) {
-      alloc_size <<= 1;
-      *lineptr = realloc(*lineptr, alloc_size);
-      if (*lineptr == NULL) {
-        *n = 0;
-        return -1;
-      }
-    }
-    (*lineptr)[i++] = (char)c;
-  }
-  (*lineptr)[i] = '\0';
-  *n = i;
-  return i > 0 ? i : -1;
+/* `getline` is `getdelim` with the delimiter spelled out -- and it lives here
+ * only because it always has. The implementation that used to be here had its
+ * own buffer growth, its own idea of what `*n` meant, and a heap overflow to
+ * go with it; see the note on getdelim in stdio.c. */
+ssize_t getline(char **lineptr, size_t *n, FILE *fp) {
+  return getdelim(lineptr, n, '\n', fp);
 }
