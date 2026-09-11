@@ -67,6 +67,13 @@ time_t mktime(struct tm *tm) {
   tm->tm_yday = tm->tm_mday - 1;
   for (i = 0; i < tm->tm_mon; i++)
     tm->tm_yday += dpm[i];
+  /* dpm[] gives February 28 days always, so a date in March or later of a leap
+     year is a day short without this. tp2tm() above handles the same asymmetry
+     from the other side (it decrements `days` past Feb 29 before walking the
+     table), and the two have to agree or localtime()/mktime() stop being
+     inverses -- which is exactly what strftime's %s asks them to be. */
+  if (isleap(1900 + tm->tm_year) && tm->tm_mon > 1)
+    tm->tm_yday++;
   d += tm->tm_yday;
   tzset();
   return d * 24 * 3600 + s + timezone;

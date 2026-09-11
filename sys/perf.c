@@ -73,6 +73,9 @@ static const char *syscall_name(unsigned int id) {
     case sys_isatty: return "isatty";
     case sys_getdents: return "getdents";
     case sys_gettimeofday: return "gettimeofday";
+    case sys_settimeofday: return "settimeofday";
+    case sys_utimensat: return "utimensat";
+    case sys_readlink: return "readlink";
     case sys_nanosleep: return "nanosleep";
     case sys_chdir: return "chdir";
     case sys_time: return "time";

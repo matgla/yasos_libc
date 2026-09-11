@@ -34,6 +34,22 @@ static char *puti(char *s, unsigned long n, int wid, int zpad) {
   return s + wid;
 }
 
+/* Variable-width unsigned decimal, unlike `puti` which pads or truncates to a
+   fixed width. %s needs it: an epoch second is ten digits today and eleven in
+   2286, and truncating it to a fixed width would silently produce a plausible
+   wrong number. */
+static char *putul(char *s, unsigned long n) {
+  char digits[24];
+  int i = 0;
+  do {
+    digits[i++] = '0' + (char)(n % 10);
+    n /= 10;
+  } while (n);
+  while (i > 0)
+    *s++ = digits[--i];
+  return s;
+}
+
 static char *puttz(char *s) {
   int d = timezone / 60;
   if (d < 0) {
@@ -91,7 +107,10 @@ long strftime(char *s, size_t n, const char *f, struct tm *tm) {
       s = puti(s, tm->tm_mday, 2, 0);
       break;
     case 'F':
-      s += strftime(s, e - s, "%Y/%m/%d", tm);
+      /* ISO 8601, which is what %F means -- dashes, not slashes. `ls -l` uses
+         it for every timestamp it prints, so the slashes were visible on every
+         long listing the system has ever produced. */
+      s += strftime(s, e - s, "%Y-%m-%d", tm);
       break;
     case 'H':
       s = puti(s, tm->tm_hour, 2, 1);
@@ -127,6 +146,13 @@ long strftime(char *s, size_t n, const char *f, struct tm *tm) {
     case 'R':
       s += strftime(s, e - s, "%H:%M", tm);
       break;
+    case 's':
+      /* Seconds since the epoch. mktime() is the inverse of the localtime()
+         that produced `tm`, timezone included. toybox's `date` asks for this
+         with a bare "%s" and treats a zero-length result as a bad format, so
+         its absence made `date +%s` an error rather than a missing field. */
+      s = putul(s, (unsigned long)mktime(tm));
+      break;
     case 'S':
       s = puti(s, tm->tm_sec, 2, 1);
       break;
@@ -156,6 +182,12 @@ long strftime(char *s, size_t n, const char *f, struct tm *tm) {
       break;
     case 'z':
       s = puttz(s);
+      break;
+    case 'Z':
+      /* There is no timezone database here and gettimeofday reports
+         tz_minuteswest 0, so the zone genuinely is UTC and saying so beats the
+         empty field this used to leave in the middle of `date`'s output. */
+      s = putstr(s, "UTC");
       break;
     default:
       break;

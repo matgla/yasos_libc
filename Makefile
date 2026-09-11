@@ -35,6 +35,20 @@ BUILD ?= build
 
 OBJS = $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
 
+# Rebuild everything when any header changes.
+#
+# Bluntly, rather than with -MMD: this Makefile is driven by two different
+# compilers (gcc for the host unit tests, armv8m-tcc for the rootfs) and a
+# whole-libc rebuild costs seconds, so precision buys nothing and portability
+# costs nothing. Without it, a change to a *type* -- `time_t` narrowing to
+# `long`, say -- leaves objects behind that still use the old layout, and the
+# result is not a link error but a libc whose `localtime` reads eight bytes out
+# of a four-byte field. That failure surfaces as wrong dates in `ls -l`, half a
+# system away from the header that caused it.
+HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(wildcard arpa/*.h) \
+           $(wildcard arm/*.h) $(wildcard libs/*.h)
+$(filter %.o, $(OBJS)): $(HEADERS)
+
 TARGET_SHARED = $(BUILD)/libc.so
 TARGET_STATIC = $(BUILD)/libc.a
 
@@ -62,6 +76,8 @@ $(TARGET_SHARED).elf: $(OBJS)
 
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^ $(EXTERNAL_LIBS)
+
+$(BUILD)/arm/crt1.o $(BUILD)/arm/crti.o $(BUILD)/arm/crtn.o: $(HEADERS)
 
 $(BUILD)/arm/crt1.o: arm/crt1.c | prepare
 	${CC} $(CFLAGS) -c $< -o $@

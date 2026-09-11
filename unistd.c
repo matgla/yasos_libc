@@ -102,14 +102,27 @@ void abort(void) {
 }
 
 ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
-  const char *path = "/usr/bin/sh";
-  memcpy(buf, path, strlen(path));
-  return strlen(path);
+  /* This used to memcpy the literal "/usr/bin/sh" into the caller's buffer and
+     report success, so every symbolic link on the system read back as that one
+     path -- `ls -l /` claimed both /bin and /lib pointed at the shell. The
+     kernel has had a real readlink all along (the VFS resolves links with it);
+     it just had no syscall in front of it. */
+  if (pathname == NULL || buf == NULL) {
+    return -1;
+  }
+
+  readlink_context context = {
+      .pathname = pathname,
+      .buf = buf,
+      .bufsiz = bufsiz,
+      .fd = dirfd,
+  };
+
+  return trigger_syscall(sys_readlink, &context);
 }
 
 ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
-  printf("TODO: Implement readlink\n");
-  return -1; // Not implemented
+  return readlinkat(AT_FDCWD, pathname, buf, bufsiz);
 }
 
 uid_t geteuid(void) {

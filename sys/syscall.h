@@ -126,6 +126,33 @@ typedef struct gettimeofday_context {
   struct timezone *tz;
 } gettimeofday_context;
 
+/* readlink(2)/readlinkat(2). `buf` is not NUL-terminated on return, and a
+ * target longer than `bufsiz` is silently truncated -- both as POSIX has it. */
+typedef struct readlink_context {
+  const char *pathname;
+  char *buf;
+  size_t bufsiz;
+  int fd;
+} readlink_context;
+
+typedef struct settimeofday_context {
+  const struct timeval *tv;
+  const struct timezone *tz;
+} settimeofday_context;
+
+/* `times` is NULL for "now", otherwise two timespecs: [0] access, [1]
+ * modification, either of which may carry UTIME_NOW or UTIME_OMIT in tv_nsec.
+ *
+ * Shaped like stat_context: `pathname` NULL means "the file `fd` is open on"
+ * (futimens), and otherwise `fd` is the directory a relative path resolves
+ * against. */
+typedef struct utimensat_context {
+  const char *pathname;
+  const struct timespec *times;
+  int fd;
+  int flags;
+} utimensat_context;
+
 typedef struct waitpid_context {
   pid_t pid;
   int *status;
@@ -322,6 +349,9 @@ typedef enum SystemCall {
   sys_perf_dump,
   sys_pipe,
   sys_poll,
+  sys_settimeofday,
+  sys_utimensat,
+  sys_readlink,
   SYSCALL_COUNT,
 } SystemCall;
 

@@ -27,6 +27,9 @@
 
 #include <stdio.h>
 
+#include <sys/time.h>
+#include <utime.h>
+
 int stat(const char *file, struct stat *buf) {
   if (file == NULL || buf == NULL) {
     return -1;
@@ -143,11 +146,61 @@ int mkdirat(int dirfd, const char *pathname, mode_t mode) {
 
 int utimensat(int dirfd, const char *pathname, const struct timespec times[2],
               int flags) {
-  printf("TODO: implement sys/stat utimensat\n");
-  return 0;
+  if (pathname == NULL) {
+    return -1;
+  }
+
+  utimensat_context context = {
+      .pathname = pathname,
+      .times = times,
+      .fd = dirfd,
+      .flags = flags,
+  };
+
+  return trigger_syscall(sys_utimensat, &context);
 }
 
 int futimens(int fd, const struct timespec times[2]) {
-  printf("TODO: implement sys/stat futimens\n");
-  return 0;
+  /* No path: the kernel takes the open file straight off the descriptor, the
+     same shape fstat() uses. */
+  utimensat_context context = {
+      .pathname = NULL,
+      .times = times,
+      .fd = fd,
+      .flags = 0,
+  };
+
+  return trigger_syscall(sys_utimensat, &context);
+}
+
+/* The two pre-utimensat spellings, both of which reduce to it.  Declared in
+   <utime.h> and <sys/time.h> since before this libc had an implementation to
+   go with them, so anything that reached for one got a link error; a program
+   compiled on the device is as likely to use these as the modern call. */
+int utime(char *path, struct utimbuf *times) {
+  struct timespec spec[2];
+
+  if (times == NULL) {
+    return utimensat(AT_FDCWD, path, NULL, 0);
+  }
+
+  spec[0].tv_sec = times->actime;
+  spec[0].tv_nsec = 0;
+  spec[1].tv_sec = times->modtime;
+  spec[1].tv_nsec = 0;
+  return utimensat(AT_FDCWD, path, spec, 0);
+}
+
+int utimes(const char *path, const struct timeval times[2]) {
+  struct timespec spec[2];
+
+  if (times == NULL) {
+    return utimensat(AT_FDCWD, path, NULL, 0);
+  }
+
+  spec[0].tv_sec = times[0].tv_sec;
+  spec[0].tv_nsec = times[0].tv_usec * 1000;
+  spec[1].tv_sec = times[1].tv_sec;
+  spec[1].tv_nsec = times[1].tv_usec * 1000;
+  return utimensat(AT_FDCWD, path, spec, 0);
 }

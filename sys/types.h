@@ -27,7 +27,18 @@ typedef uint16_t nlink_t;
 typedef uint16_t uid_t;
 
 typedef intptr_t ssize_t;
-typedef long long time_t;
+/* 32 bits, and it has to be: `struct timespec` and `struct timeval` hold their
+   seconds in a `long`, and POSIX says that field *is* a time_t. While this was
+   `long long` the two disagreed, so `localtime(&st->st_mtime)` -- which is how
+   toybox's `ls -l` reads a file's date -- consumed tv_sec plus four bytes of
+   tv_nsec as one 64-bit number and rendered whatever that came to. It looked
+   right only as long as every timestamp on the system was zero.
+
+   The cost of the narrow choice is the 2038 rollover. The alternative, widening
+   the two structs, changes the layout of `struct stat` and of every syscall
+   context carrying a time, and makes a liar of every "%ld" that prints one. */
+typedef long time_t;
+typedef long suseconds_t;
 typedef long useconds_t;
 
 /* POSIX types: these live here (not in <fcntl.h>) so any TU that includes

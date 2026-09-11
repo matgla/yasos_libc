@@ -43,6 +43,12 @@
 #define S_ISFIFO(m) (((m) & S_IFMT) == S_IFIFO)
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
+/* utimensat()/futimens() tv_nsec sentinels: "use the current time" and "leave
+ * this timestamp alone". Same values Linux uses, because toybox and make both
+ * hard-code the behaviour these imply. */
+#define UTIME_NOW ((1l << 30) - 1l)
+#define UTIME_OMIT ((1l << 30) - 2l)
+
 struct stat {
   uint32_t st_dev;
   unsigned long st_ino;

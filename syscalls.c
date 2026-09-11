@@ -367,6 +367,14 @@ int gettimeofday(struct timeval *tv, struct timezone *tz) {
   return trigger_syscall(sys_gettimeofday, &context);
 }
 
+int settimeofday(const struct timeval *tv, const struct timezone *tz) {
+  const settimeofday_context context = {
+      .tv = tv,
+      .tz = tz,
+  };
+  return trigger_syscall(sys_settimeofday, &context);
+}
+
 time_t time(time_t *timep) {
   time_t result;
   time_context context = {
