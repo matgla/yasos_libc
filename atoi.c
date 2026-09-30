@@ -27,96 +27,63 @@ long atol(const char *s) {
   return neg ? -num : num;
 }
 
+/* The value of `c` as a digit in `base`, or -1. The ranges have to be checked
+ * both ways: testing only `c <= '9'` / `c <= 'Z'` read the punctuation between
+ * them (`:;<=>?@`) as digits 3..9, so strtol(";") was 4 and sed took the ';'
+ * ending "s/^/X/; s/x/Y/" as "replace only the 4th match" -- which never
+ * came, so config.status went wrong. */
 static int digit(char c, int base) {
   int d;
-  if (c <= '9') {
+  if (c >= '0' && c <= '9')
     d = c - '0';
-  } else if (c <= 'Z') {
+  else if (c >= 'A' && c <= 'Z')
     d = 10 + c - 'A';
-  } else {
+  else if (c >= 'a' && c <= 'z')
     d = 10 + c - 'a';
-  }
+  else
+    return -1;
   return d < base ? d : -1;
 }
 
+/* The `long` pair narrows the `long long` one below (same on a 64-bit host),
+ * which already hands back the caller's own pointer when nothing converted --
+ * this one used to leave it past the blanks and the sign. */
 long strtol(const char *s, char **endptr, int base) {
-  int sgn = 1;
-  int overflow = 0;
-  long num;
-  int dig;
-  while (isspace(*s))
-    s++;
-  if (*s == '-' || *s == '+')
-    sgn = ',' - *s++;
-  if (base == 0) {
-    if (*s == '0') {
-      if (s[1] == 'x' || s[1] == 'X')
-        base = 16;
-      else
-        base = 8;
-    } else {
-      base = 10;
-    }
-  }
-  if (base == 16 && *s == '0' && (s[1] == 'x' || s[1] == 'X'))
-    s += 2;
-  for (num = 0; (dig = digit(*s, base)) >= 0; s++) {
-    if (num > LONG_MAX / base)
-      overflow = 1;
-    num *= base;
-    if (num > LONG_MAX - dig)
-      overflow = 1;
-    num += dig;
-  }
-  if (endptr)
-    *endptr = (char *)s;
-  if (overflow) {
-    num = sgn > 0 ? LONG_MAX : LONG_MIN;
+  long long v = strtoll(s, endptr, base);
+
+  if (v > LONG_MAX) {
     errno = ERANGE;
-  } else {
-    num *= sgn;
+    return LONG_MAX;
   }
-  return num;
+  if (v < LONG_MIN) {
+    errno = ERANGE;
+    return LONG_MIN;
+  }
+  return (long)v;
 }
 
+/* C's strtoul negates a "-" number in unsigned long, so the range check is on
+ * the magnitude. */
 unsigned long strtoul(const char *s, char **endptr, int base) {
-  int sgn = 1;
-  int overflow = 0;
-  unsigned long num;
-  int dig;
-  while (isspace(*s))
-    s++;
-  if (*s == '-' || *s == '+')
-    sgn = ',' - *s++;
-  if (base == 0) {
-    if (*s == '0') {
-      if (s[1] == 'x' || s[1] == 'X')
-        base = 16;
-      else
-        base = 8;
-    } else {
-      base = 10;
-    }
-  }
-  if (base == 16 && *s == '0' && (s[1] == 'x' || s[1] == 'X'))
-    s += 2;
-  for (num = 0; (dig = digit(*s, base)) >= 0; s++) {
-    if (num > (unsigned long)ULONG_MAX / base)
-      overflow = 1;
-    num *= base;
-    if (num > (unsigned long)ULONG_MAX - dig)
-      overflow = 1;
-    num += dig;
-  }
-  if (endptr)
-    *endptr = (char *)s;
-  if (overflow) {
-    num = ULONG_MAX;
+  const char *p = s;
+  int saved = errno, neg;
+  unsigned long long v;
+
+  while (isspace(*p))
+    p++;
+  neg = *p == '-';
+  errno = 0;
+  v = strtoull(s, endptr, base);
+  if (errno == ERANGE)
+    return ULONG_MAX;
+  errno = saved;
+  if (neg)
+    v = -v;
+  if (v > ULONG_MAX) {
     errno = ERANGE;
-  } else {
-    num *= sgn;
+    return ULONG_MAX;
   }
-  return num;
+  return neg ? -(unsigned long)v : (unsigned long)v;
 }
 
 /*

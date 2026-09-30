@@ -41,15 +41,18 @@ void cfmakeraw(struct termios *t) {
 
 int tcflush(int fildes, int queue_selector) {
   printf("TODO: Implement tcflush\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int tcdrain(int fd) {
   printf("TODO: Implement tcdrain\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 int tcflow(int fd, int action) {
   printf("TODO: Implement tcflow\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 

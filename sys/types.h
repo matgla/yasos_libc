@@ -45,6 +45,8 @@ typedef long useconds_t;
    <sys/types.h> gets them without dragging in the open()/fcntl() surface. */
 typedef int32_t pid_t;
 typedef signed long off_t;
+/* For lseek64: block devices are bigger than a 32-bit off_t reaches. */
+typedef long long off64_t;
 
 typedef signed long ino_t;
 typedef uint32_t uid32_t;

@@ -1,3 +1,4 @@
+#include <errno.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23,6 +24,7 @@
 #include <stddef.h>
 
 #include <stdio.h>
+#include <string.h>
 
 struct group default_group = {
     .gr_name = "root",
@@ -51,13 +53,22 @@ struct group *getgrnam(const char *name) {
   return NULL; // Not implemented
 }
 
+/* The only group is root; see getpwnam_r. */
 int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
                struct group **result) {
-  printf("TODO: Implement getgrnam_r\n");
-  return -1; // Not implemented
+  (void)buf;
+  (void)size;
+  if (name == NULL || strcmp(name, default_group.gr_name) != 0) {
+    *result = NULL;
+    return 0;
+  }
+  *grp = default_group;
+  *result = grp;
+  return 0;
 }
 
 int initgroups(const char *user, gid_t group) {
   printf("TODO: Implement initgroups\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }

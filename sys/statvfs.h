@@ -24,7 +24,7 @@
 
 struct statvfs;
 
-int statvfs(char *path, struct statvfs *buf);
+int statvfs(const char *path, struct statvfs *buf);
 int fstatvfs(int fd, struct statvfs *buf);
 
 struct statvfs {
@@ -42,3 +42,7 @@ struct statvfs {
   unsigned long f_flag;    /* Mount flags */
   unsigned long f_namemax; /* Maximum filename length */
 };
+
+/* f_flag bits */
+#define ST_RDONLY 1
+#define ST_NOSUID 2

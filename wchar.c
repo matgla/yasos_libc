@@ -19,9 +19,21 @@
 // SOFTWARE.
 
 #include <wchar.h>
+#include <stdlib.h>
 
 #include <ctype.h>
 #include <stdio.h>
+#include <string.h>
+
+int mbtowc(wchar_t *pwc, const char *s, size_t n) {
+  if (s == NULL)
+    return 0; /* no shift states */
+  if (n == 0)
+    return -1;
+  if (pwc)
+    *pwc = (unsigned char)*s;
+  return *s != '\0';
+}
 
 size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps) {
   printf("TODO: Implement wcrtomb\n");
@@ -30,4 +42,24 @@ size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps) {
 
 int wcwidth(wchar_t wc) {
   return isprint(wc) ? 1 : 0;
+}
+wchar_t *wmemcpy(wchar_t *dst, const wchar_t *src, size_t n) {
+  return (wchar_t *)memcpy(dst, src, n * sizeof(wchar_t));
+}
+
+wchar_t *wmemmove(wchar_t *dst, const wchar_t *src, size_t n) {
+  return (wchar_t *)memmove(dst, src, n * sizeof(wchar_t));
+}
+
+wchar_t *wmemset(wchar_t *dst, wchar_t c, size_t n) {
+  for (size_t i = 0; i < n; i++)
+    dst[i] = c;
+  return dst;
+}
+
+int wmemcmp(const wchar_t *a, const wchar_t *b, size_t n) {
+  for (size_t i = 0; i < n; i++)
+    if (a[i] != b[i])
+      return a[i] < b[i] ? -1 : 1;
+  return 0;
 }

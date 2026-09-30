@@ -63,6 +63,21 @@ typedef struct link_context {
   int flags;
 } link_context;
 
+/* renameat2(2) flags. Same values as Linux; stdio.h repeats the definitions for
+   programs that only include it. Only NOREPLACE changes what the kernel does. */
+#define RENAME_NOREPLACE (1 << 0)
+#define RENAME_EXCHANGE (1 << 1)
+#define RENAME_WHITEOUT (1 << 2)
+
+/* renameat2(2) arguments. */
+typedef struct rename_context {
+  int olddirfd;
+  const char *oldpath;
+  int newdirfd;
+  const char *newpath;
+  unsigned int flags;
+} rename_context;
+
 typedef struct mkdir_context {
   const char *path;
   mode_t mode;
@@ -262,6 +277,68 @@ typedef struct sysinfo_context {
   struct sysinfo *info;
 } sysinfo_context;
 
+/* uname(2). The kernel writes the whole struct through `buf`. */
+typedef struct uname_context {
+  struct utsname *buf;
+} uname_context;
+
+typedef struct fchdir_context {
+  int fd;
+} fchdir_context;
+
+typedef struct mount_context {
+  const char *source;
+  const char *target;
+  const char *filesystemtype;
+  unsigned long mountflags;
+  /* The option string ("nofail,spill=/var/tmp"), or NULL. */
+  const void *data;
+} mount_context;
+
+typedef struct umount_context {
+  const char *target;
+  int flags;
+} umount_context;
+
+typedef struct symlink_context {
+  const char *target;
+  int dirfd;
+  const char *linkpath;
+} symlink_context;
+
+/* fchmodat(2); fchmod(2) is path NULL with fd the open file. */
+typedef struct chmod_context {
+  const char *path;
+  int fd;
+  mode_t mode;
+  int flags; /* AT_SYMLINK_NOFOLLOW */
+} chmod_context;
+
+/* fchownat(2); fchown(2) is path NULL with fd the open file. -1 leaves an id
+ * unchanged. */
+typedef struct chown_context {
+  const char *path;
+  int fd;
+  uid_t uid;
+  gid_t gid;
+  int flags; /* AT_SYMLINK_NOFOLLOW */
+} chown_context;
+
+typedef struct lseek64_context {
+  int fd;
+  long long offset;
+  int whence;
+  long long *result;
+} lseek64_context;
+
+struct statvfs;
+typedef struct statvfs_context {
+  /* Path to describe, or NULL to describe the file `fd` is open on. */
+  const char *path;
+  int fd;
+  struct statvfs *buf;
+} statvfs_context;
+
 typedef struct sysconf_context {
   int name;
   long *result;
@@ -352,6 +429,15 @@ typedef enum SystemCall {
   sys_settimeofday,
   sys_utimensat,
   sys_readlink,
+  sys_uname,
+  sys_fchdir,
+  sys_mount,
+  sys_umount,
+  sys_statvfs,
+  sys_lseek64,
+  sys_symlink,
+  sys_chmod,
+  sys_chown,
   SYSCALL_COUNT,
 } SystemCall;
 

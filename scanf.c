@@ -17,17 +17,24 @@ static int ic(FILE *fp) {
     if (fp->icur < fp->olen) {
       return (unsigned char)fp->ibuf[fp->icur++];
     }
+    fp->istat |= _FILE_EOF;
     return EOF;
   }
 
   while (fp->fd >= 0 && fp->icur == fp->ilen) {
     int nr = read(fp->fd, fp->ibuf, fp->isize);
-    if (nr <= 0)
+    if (nr <= 0) {
+      fp->istat |= nr ? _FILE_ERR : _FILE_EOF;
       break;
+    }
     fp->ilen = nr;
     fp->icur = 0;
   }
-  return fp->icur < fp->ilen ? (unsigned char)fp->ibuf[fp->icur++] : EOF;
+  if (fp->icur < fp->ilen)
+    return (unsigned char)fp->ibuf[fp->icur++];
+  if (fp->fd < 0)
+    fp->istat |= _FILE_EOF;
+  return EOF;
 }
 
 void setbuf(FILE *fp, char *buf) {
@@ -42,8 +49,11 @@ int getchar(void) {
 }
 
 int ungetc(int c, FILE *fp) {
-  if (fp->back == EOF)
-    fp->back = c;
+  if (c == EOF || fp->back != EOF)
+    return EOF;
+  fp->back = (unsigned char)c;
+  /* a byte to read again means the stream is no longer at its end */
+  fp->istat &= ~_FILE_EOF;
   return fp->back;
 }
 
@@ -53,240 +63,246 @@ static int idig(int c, int base) {
   return r == NULL ? -1 : r - digs;
 }
 
-/* t is 1 for char, 2 for short, 4 for int, and 8 for long */
-static int iint(FILE *fp, void *dst, int t, int base, int wid, int skip) {
-  long n = 0;
-  int c;
-  int neg = 0;
-  if (base < 0) {
-    neg = -1;
-    base = -base;
-  }
+/* Scanner state for one vfscanf call: the stream plus how many characters
+   the call has consumed, which is what %n reports (the stream's own buffer
+   offsets reset whenever it refills). */
+struct scan {
+  FILE *fp;
+  int count;
+};
 
-  c = ic(fp);
-  if (c == '-')
-    neg = 1;
-  if ((c == '-' || c == '+') && wid-- > 0)
-    c = ic(fp);
-  if (c == EOF || idig(c, base) < 0 || wid <= 0) {
-    ungetc(c, fp);
-    if (base == 8) {
-      if (!skip) {
-        *(long *)dst = 0;
+static int sget(struct scan *s) {
+  int c = ic(s->fp);
+  if (c != EOF)
+    s->count++;
+  return c;
+}
+
+static void sunget(struct scan *s, int c) {
+  if (c != EOF) {
+    ungetc(c, s->fp);
+    s->count--;
+  }
+}
+
+static void skip_space(struct scan *s) {
+  int c;
+  while (isspace(c = sget(s)))
+    ;
+  sunget(s, c);
+}
+
+/* Store v into an integer object of `size` bytes. */
+static void store_int(void *dst, int size, unsigned long long v) {
+  switch (size) {
+  case 1: *(unsigned char *)dst = (unsigned char)v; break;
+  case 2: *(unsigned short *)dst = (unsigned short)v; break;
+  case 8: *(unsigned long long *)dst = v; break;
+  default: *(unsigned int *)dst = (unsigned int)v; break;
+  }
+}
+
+/* An integer in `base` (0: C prefixes decide, 16: an optional 0x prefix), at
+   most `wid` characters. 0 when no digits could be read. */
+static int scan_int(struct scan *s, int base, int wid, unsigned long long *out) {
+  unsigned long long n = 0;
+  int neg = 0, digits = 0;
+  int c = sget(s);
+  if ((c == '-' || c == '+') && wid > 0) {
+    neg = c == '-';
+    wid--;
+    c = sget(s);
+  }
+  if (wid > 0 && c == '0' && (base == 0 || base == 16)) {
+    wid--;
+    c = sget(s);
+    if (wid > 0 && (c == 'x' || c == 'X')) {
+      int c2 = sget(s);
+      if (idig(c2, 16) < 0) { /* "0x" with no hex digit is not a number */
+        sunget(s, c2);
         return 0;
       }
-      return 0;
-    }
-    return 1;
-  }
-  do {
-    n = n * base + idig(c, base);
-  } while ((c = ic(fp)) != EOF && idig(c, base) >= 0 && --wid > 0);
-  ungetc(c, fp);
-  if (!skip) {
-    if (t == 8)
-      *(long *)dst = neg ? -n : n;
-    else if (t == 4)
-      *(int *)dst = neg ? -n : n;
-    else if (t == 2)
-      *(short *)dst = neg ? -n : n;
-    else
-      *(char *)dst = neg ? -n : n;
-  }
-  return 0;
-}
-
-static int istr(FILE *fp, char *dst, int wid, int skip) {
-  char *d = dst;
-  int c;
-  while ((c = ic(fp)) != EOF && wid-- > 0 && !isspace(c)) {
-    if (skip)
-      continue;
-
-    *d++ = c;
-  }
-  if (!skip) {
-    *d = '\0';
-  }
-  ungetc(c, fp);
-  return skip ? 0 : d == dst;
-}
-
-static int parse_base_from_input(FILE *fp) {
-  char c = ic(fp);
-  int sign = 1;
-  if (c == '-') {
-    sign = -1;
-    c = ic(fp);
-  } else if (c == '+') {
-    c = ic(fp);
-    sign = 1;
-  }
-
-  if (c == '0') {
-    char c2 = ic(fp);
-    if (c2 == 'x' || c2 == 'X') {
-      return 16 * sign;
+      base = 16;
+      wid--;
+      c = c2;
     } else {
-      ungetc(c2, fp);
-      return 8 * sign;
+      digits = 1; /* the 0 itself */
+      if (base == 0)
+        base = 8;
     }
   }
-  ungetc(c, fp);
-  return 10 * sign;
+  if (base == 0)
+    base = 10;
+  while (wid > 0 && c != EOF && idig(c, base) >= 0) {
+    n = n * base + idig(c, base);
+    digits++;
+    wid--;
+    c = sget(s);
+  }
+  sunget(s, c);
+  if (!digits)
+    return 0;
+  *out = neg ? -n : n;
+  return 1;
 }
 
 int vfscanf(FILE *fp, const char *fmt, va_list ap) {
+  struct scan sc = {fp, 0};
+  struct scan *s = &sc;
   int ret = 0;
-  int t, c;
-  int wid = 1 << 20;
-  int start_position = fp->icur;
-  int skip = 0;
+  int converted_any = 0; /* a conversion was attempted with input available */
+  int c;
+
   while (*fmt) {
-    while (isspace((unsigned char)*fmt)) {
-      fmt++;
-      if (!isspace(c = ic(fp))) {
-        ungetc(c, fp);
-      }
-    }
-    while (*fmt && *fmt != '%' && !isspace((unsigned char)*fmt))
-      if (*fmt++ != ic(fp))
-        return ret;
-    if (*fmt != '%')
+    /* whitespace in the format matches any amount of input whitespace */
+    if (isspace((unsigned char)*fmt)) {
+      while (isspace((unsigned char)*fmt))
+        fmt++;
+      skip_space(s);
       continue;
+    }
+    /* ordinary characters and %% match themselves */
+    if (*fmt != '%' || fmt[1] == '%') {
+      int want = (unsigned char)*fmt;
+      if (*fmt == '%') {
+        fmt++;
+        skip_space(s);
+      }
+      fmt++;
+      c = sget(s);
+      if (c != want) {
+        sunget(s, c);
+        return (c == EOF && !converted_any) ? EOF : ret;
+      }
+      continue;
+    }
     fmt++;
-    if (isdigit((unsigned char)*fmt)) {
-      wid = 0;
-      while (isdigit((unsigned char)*fmt))
-        wid = wid * 10 + *fmt++ - '0';
-    }
 
-    if (*fmt == 'n') {
-      const int readed = fp->icur - start_position - (fp->back != EOF ? 1 : 0);
-      *(va_arg(ap, int *)) = readed;
-      fmt++;
-      continue;
-    }
-
-    if (*fmt == '[') {
-      while (isspace(c = ic(fp)))
-        ;
-      ungetc(c, fp);
-      char scanset[256] = {0};
-      int negate = 0;
-      fmt++;
-
-      if (*fmt == '^') {
-        negate = 1;
-        fmt++;
-      }
-
-      if (*fmt == ']') {
-        fmt++;
-      }
-      while (*fmt && *fmt != ']') {
-        if (fmt[1] == '-') {
-          for (int i = fmt[0]; i <= fmt[2]; i++)
-            scanset[(unsigned char)i] = 1;
-          fmt += 3;
-        } else {
-          scanset[(unsigned char)*fmt++] = 1;
-        }
-      }
-      if (*fmt != ']') {
-        return ret;
-      }
-      fmt++;
-
-      char *d = va_arg(ap, char *);
-      int count = 0;
-      while ((c = ic(fp)) != EOF && wid-- > 0 &&
-             ((negate && !scanset[(unsigned char)c]) ||
-              (!negate && scanset[(unsigned char)c]))) {
-        *d++ = c;
-        count++;
-      }
-      ungetc(c, fp);
-      *d = '\0';
-      if (count == 0) {
-        return ret;
-      }
-      ret++;
-      continue;
-    }
-
-    skip = 0;
+    int skip = 0, wid = 0, size = sizeof(int);
     if (*fmt == '*') {
       skip = 1;
       fmt++;
     }
-
-    t = sizeof(int);
-    while (*fmt == 'l') {
-      t = sizeof(long);
+    while (isdigit((unsigned char)*fmt))
+      wid = wid * 10 + *fmt++ - '0';
+    if (*fmt == 'h') {
+      size = fmt[1] == 'h' ? 1 : 2;
+      fmt += fmt[1] == 'h' ? 2 : 1;
+    } else if (*fmt == 'l') {
+      size = fmt[1] == 'l' ? (int)sizeof(long long) : (int)sizeof(long);
+      fmt += fmt[1] == 'l' ? 2 : 1;
+    } else if (*fmt == 'j' || *fmt == 'q' || *fmt == 'L') {
+      size = sizeof(long long);
+      fmt++;
+    } else if (*fmt == 'z' || *fmt == 't') {
+      size = sizeof(size_t);
       fmt++;
     }
-    while (*fmt == 'h') {
-      t = t < sizeof(int) ? sizeof(char) : sizeof(short);
-      fmt++;
+    int conv = (unsigned char)*fmt++;
+    if (conv == '\0')
+      break;
+
+    if (conv == 'n') {
+      if (!skip)
+        store_int(va_arg(ap, void *), size, (unsigned long long)s->count);
+      continue;
     }
 
-    if (*fmt != 'c') {
-      while (isspace(c = ic(fp)))
-        ;
-      ungetc(c, fp);
-    }
+    /* every conversion but %c, %[ and %n skips leading whitespace */
+    if (conv != 'c' && conv != '[')
+      skip_space(s);
+    c = sget(s);
+    if (c == EOF)
+      return (!converted_any && ret == 0) ? EOF : ret;
+    sunget(s, c);
+    converted_any = 1;
 
-    switch (*fmt++) {
-    case 'c':
-      const char c = ic(fp);
-      if (!skip) {
-        char *dst = va_arg(ap, char *);
-        if (c == EOF) {
-          return ret;
-        }
-        *dst = c;
+    switch (conv) {
+    case 'c': {
+      char *d = skip ? NULL : va_arg(ap, char *);
+      int n = wid ? wid : 1, got = 0;
+      while (got < n && (c = sget(s)) != EOF) {
+        if (d)
+          d[got] = (char)c;
+        got++;
       }
-      ret += !skip;
-      break;
-    case 'i': {
-      // const int sign = parse_sign_from_input(fp);
-      const int base = parse_base_from_input(fp);
-      long *dst = skip ? NULL : va_arg(ap, long *);
-      if (iint(fp, dst, t, base, wid, skip)) {
+      if (got < n)
         return ret;
-      }
       ret += !skip;
       break;
     }
-    case 'u':
-    case 'd': {
-      long *dst = skip ? NULL : va_arg(ap, long *);
-      if (iint(fp, dst, t, 10, wid, skip))
-        return ret;
-      ret += !skip;
-    } break;
-    case 'x': {
-      parse_base_from_input(fp);
-      long *dst = skip ? NULL : va_arg(ap, long *);
-      if (iint(fp, dst, t, 16, wid, skip))
-        return ret;
-      ret += !skip;
-    } break;
-    case 'o': {
-      parse_base_from_input(fp);
-      long *dst = skip ? NULL : va_arg(ap, long *);
-      if (iint(fp, dst, t, 8, wid, skip))
-        return ret;
-      ret += !skip;
-    } break;
     case 's': {
-      char *dst = skip ? NULL : va_arg(ap, char *);
-
-      if (istr(fp, dst, wid, skip))
-        return ret;
+      char *d = skip ? NULL : va_arg(ap, char *);
+      int n = wid ? wid : 1 << 30, got = 0;
+      while (got < n && (c = sget(s)) != EOF && !isspace(c)) {
+        if (d)
+          d[got] = (char)c;
+        got++;
+      }
+      if (got < n)
+        sunget(s, c);
+      if (d)
+        d[got] = '\0';
       ret += !skip;
-    } break;
+      break;
+    }
+    case '[': {
+      char set[256] = {0};
+      int negate = 0;
+      if (*fmt == '^') {
+        negate = 1;
+        fmt++;
+      }
+      if (*fmt == ']') /* a leading ] is a member, not the end */
+        set[(unsigned char)*fmt++] = 1;
+      while (*fmt && *fmt != ']') {
+        if (fmt[1] == '-' && fmt[2] && fmt[2] != ']') {
+          for (int i = (unsigned char)fmt[0]; i <= (unsigned char)fmt[2]; i++)
+            set[i] = 1;
+          fmt += 3;
+        } else {
+          set[(unsigned char)*fmt++] = 1;
+        }
+      }
+      if (*fmt != ']')
+        return ret;
+      fmt++;
+      char *d = skip ? NULL : va_arg(ap, char *);
+      int n = wid ? wid : 1 << 30, got = 0;
+      while (got < n && (c = sget(s)) != EOF && (set[(unsigned char)c] != negate)) {
+        if (d)
+          d[got] = (char)c;
+        got++;
+      }
+      if (got < n)
+        sunget(s, c);
+      if (got == 0) /* matching failure: nothing assigned */
+        return ret;
+      if (d)
+        d[got] = '\0';
+      ret += !skip;
+      break;
+    }
+    case 'd':
+    case 'u':
+    case 'i':
+    case 'x':
+    case 'X':
+    case 'o':
+    case 'p': {
+      int base = conv == 'i' ? 0 : (conv == 'x' || conv == 'X' || conv == 'p') ? 16 : conv == 'o' ? 8 : 10;
+      unsigned long long v;
+      if (conv == 'p')
+        size = sizeof(void *);
+      if (!scan_int(s, base, wid ? wid : 1 << 30, &v))
+        return ret;
+      if (!skip)
+        store_int(va_arg(ap, void *), size, v);
+      ret += !skip;
+      break;
+    }
+    default: /* unsupported conversion */
+      return ret;
     }
   }
   return ret;
@@ -367,8 +383,10 @@ long fread(void *v, long sz, long n, FILE *fp) {
     }
     if (total - got >= (long)fp->isize) {
       long r = read(fp->fd, s + got, total - got);
-      if (r <= 0)
+      if (r <= 0) {
+        fp->istat |= r ? _FILE_ERR : _FILE_EOF;
         break;
+      }
       got += r;
     } else {
       int c = ic(fp);
@@ -380,13 +398,13 @@ long fread(void *v, long sz, long n, FILE *fp) {
   return got / sz;
 }
 
+/* Whether a read has already found the end, as C says: not a peek. The old
+   peek kept the byte in a `char`, unsigned on ARM, so EOF never compared equal
+   -- feof() was never true and pushed back a 0xFF for fread() to return, and
+   make's "while (!feof(stdin)) fread()" copied `make -f -` input forever (a
+   pipe peek would block, too). */
 int feof(FILE *fp) {
-  char c = ic(fp);
-  if (c != EOF) {
-    ungetc(c, fp);
-    return 0;
-  }
-  return EOF;
+  return (fp->istat & _FILE_EOF) != 0;
 }
 
 /* `getline` is `getdelim` with the delimiter spelled out -- and it lives here

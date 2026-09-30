@@ -19,15 +19,27 @@
 // SOFTWARE.
 
 #include <fcntl.h>
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "sys/syscall.h"
 
 int openat(int dirfd, const char *pathname, int flags, ...) {
+  int mode = 0;
+  if (flags & O_CREAT) {
+    va_list args;
+    va_start(args, flags);
+    mode = va_arg(args, int);
+    va_end(args);
+#ifndef YASLIBC_NOOS
+    int __yasos_creation_mode(int mode);
+    mode = __yasos_creation_mode(mode);
+#endif
+  }
   const open_context context = {
       .path = pathname,
       .flags = flags,
-      .mode = 0,
+      .mode = mode,
       .fd = dirfd,
   };
 

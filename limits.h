@@ -18,6 +18,11 @@
 
 #define PATH_MAX 128
 
+/* <regex.h>: longest bracket class name ("xdigit" fits) and the largest
+   count a \{m,n\} / {m,n} bound may give (POSIX minimum, musl's value). */
+#define CHARCLASS_NAME_MAX 14
+#define RE_DUP_MAX 255
+
 #define LLONG_MAX 9223372036854775807LL
 #define LLONG_MIN (-9223372036854775807LL - 1)
 #define ULLONG_MAX 0xffffffffffffffffULL

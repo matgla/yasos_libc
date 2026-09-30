@@ -1,3 +1,4 @@
+#include <errno.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,49 +25,58 @@
 
 ssize_t getxattr(const char *path, const char *name, void *value, size_t size) {
   printf("TODO: Implement getxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 ssize_t lgetxattr(const char *path, const char *name, void *value,
                   size_t size) {
   printf("TODO: Implement lgetxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 ssize_t fgetxattr(int fd, const char *name, void *value, size_t size) {
   printf("TODO: Implement fgetxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 ssize_t listxattr(const char *path, char *list, size_t size) {
   printf("TODO: Implement listxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 ssize_t llistxattr(const char *path, char *list, size_t size) {
   printf("TODO: Implement llistxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 ssize_t flistxattr(int fd, char *list, size_t size) {
   printf("TODO: Implement flistxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int setxattr(const char *path, const char *name, const void *value, size_t size,
              int flags) {
   printf("TODO: Implement setxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int lsetxattr(const char *path, const char *name, const void *value,
               size_t size, int flags) {
   printf("TODO: Implement lsetxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int fsetxattr(int fd, const char *name, const void *value, size_t size,
               int flags) {
   printf("TODO: Implement fsetxattr\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }

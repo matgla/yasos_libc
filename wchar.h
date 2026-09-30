@@ -46,4 +46,8 @@ typedef struct mbstate_t {
 #define WINT_MIN 0U
 
 size_t wcrtomb(char *s, wchar_t wc, mbstate_t *ps);
+wchar_t *wmemcpy(wchar_t *dst, const wchar_t *src, size_t n);
+wchar_t *wmemmove(wchar_t *dst, const wchar_t *src, size_t n);
+wchar_t *wmemset(wchar_t *dst, wchar_t c, size_t n);
+int wmemcmp(const wchar_t *a, const wchar_t *b, size_t n);
 int wcwidth(wchar_t wc);

@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <signal.h>
 
 #include <stddef.h>
@@ -21,9 +22,20 @@ struct ksa {
   sigset_t mask;
 };
 
+/* YasOS delivers no signals, so the honest answer to "install this handler" is
+ * that it is recorded and will never fire -- not a failure. Refusing instead
+ * breaks every runtime that arms a handler on startup as a matter of course
+ * (Zig's does, and so does anything with a crash reporter), and a stub that
+ * returned -1 without setting errno made it worse: the caller then read
+ * whatever the previous failing call had left there and reported that. */
 int __sigaction(int sig, const struct sigaction *sa, struct sigaction *old) {
-  // printf("TODO: Implement __sigaction\n");
-  return -1;
+  (void)sig;
+  (void)sa;
+  if (old) {
+    struct sigaction none = {0};
+    *old = none;
+  }
+  return 0;
 }
 
 int sigaction(int sig, const struct sigaction *sa, struct sigaction *old_sa) {
@@ -51,17 +63,29 @@ int sigaddset(sigset_t *set, int signum) {
   return 0;
 }
 
+/* Nothing is ever delivered, so nothing is ever pending and the mask has no
+ * effect: report the empty set and succeed. Callers block signals around a
+ * critical section and check the result; failing there aborts work that had
+ * nothing to do with signals. */
 int sigprocmask(int howm, const sigset_t *set, sigset_t *oldset) {
-  printf("TODO: Implement sigprocmask\n");
-  return -1;
+  (void)howm;
+  (void)set;
+  if (oldset)
+    sigemptyset(oldset);
+  return 0;
 }
 
 int sigsuspend(const sigset_t *mask) {
-  printf("TODO: Implement sigsuspend\n");
+  errno = ENOSYS;
   return -1;
 }
 
 int sigfillset(sigset_t *set) {
-  printf("TODO: Implement sigfillset\n");
-  return -1;
+  if (!set) {
+    errno = EINVAL;
+    return -1;
+  }
+  for (int i = 0; i < sizeof(set->__bits) / sizeof(long); i++)
+    set->__bits[i] = ~0UL;
+  return 0;
 }

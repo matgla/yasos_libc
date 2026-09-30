@@ -22,6 +22,17 @@
 
 #include <stdio.h>
 
+#define MNTTAB "/etc/fstab"
+#define MOUNTED "/proc/mounts"
+#define _PATH_MNTTAB "/etc/fstab"
+#define _PATH_MOUNTED "/proc/mounts"
+
+#define MNTTYPE_IGNORE "ignore"
+#define MNTOPT_DEFAULTS "defaults"
+#define MNTOPT_RO "ro"
+#define MNTOPT_RW "rw"
+#define MNTOPT_NOAUTO "noauto"
+
 struct mntent {
   char *mnt_fsname; /* Filesystem name */
   char *mnt_dir;    /* Directory on which filesystem is mounted */

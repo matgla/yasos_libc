@@ -5,6 +5,14 @@
 #define EXIT_SUCCESS 0
 
 void *malloc(size_t n);
+/* Over-aligned allocation. malloc itself only promises 8-byte alignment; these
+   take an explicit one (a power of two, and for posix_memalign a multiple of
+   sizeof(void *)). Blocks from either are released with plain free(). */
+int posix_memalign(void **memptr, size_t alignment, size_t size);
+void *aligned_alloc(size_t alignment, size_t size);
+void *memalign(size_t alignment, size_t size);
+/* Bytes usable through a malloc'd pointer: the size it was asked for. */
+size_t malloc_usable_size(void *ptr);
 void free(void *m);
 void *calloc(size_t n, size_t sz);
 void *realloc(void *v, size_t sz);
@@ -22,8 +30,8 @@ long int labs(long n);
 long long int llabs(long long int n);
 double atof(const char *str);
 
-void exit(int status);
-void abort(void);
+__attribute__((noreturn)) void exit(int status);
+__attribute__((noreturn)) void abort(void);
 int atexit(void (*func)(void));
 int on_exit(void (*func)(int, void *), void *arg);
 
@@ -31,7 +39,10 @@ char *getenv(const char *name);
 int putenv(char *string);
 
 void qsort(void *a, int n, int sz, int (*cmp)(const void *, const void *));
+void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
+              int (*compar)(const void *, const void *));
 int mkstemp(char *t);
+char *mkdtemp(char *t);
 int system(char *cmd);
 
 void srand(unsigned int seed);
@@ -59,6 +70,9 @@ int setenv(const char *name, const char *value, int overwrite);
 int unsetenv(const char *name);
 
 #define MB_CUR_MAX 1
+/* The only locale is the single-byte C locale (MB_CUR_MAX 1): every byte is
+   one character whose wide value is the byte. */
+int mbtowc(wchar_t *pwc, const char *s, size_t n);
 
 long random(void);
 void srandom(unsigned int seed);

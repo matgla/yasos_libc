@@ -20,6 +20,5 @@
 
 #pragma once
 
-typedef char nl_item;
-
-#define CODESET 1
+/* POSIX: an int. The item constants are in <langinfo.h>. */
+typedef int nl_item;

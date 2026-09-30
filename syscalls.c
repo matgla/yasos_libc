@@ -102,7 +102,7 @@ void __attribute__((noreturn)) exit(int status) {
 }
 
 ssize_t read(int fd, void *buf, size_t count) {
-  ssize_t result;
+  ssize_t result = -1;
   if (buf == NULL) {
     return -1;
   }
@@ -117,7 +117,10 @@ ssize_t read(int fd, void *buf, size_t count) {
       .count = count,
       .result = &result,
   };
-  trigger_syscall(sys_read, &context);
+  /* The kernel fills `result` only on success; an error (EBADF, ...) used
+     to return whatever the stack held. */
+  if (trigger_syscall(sys_read, &context) < 0)
+    return -1;
   return result;
 }
 
@@ -128,7 +131,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 // }
 
 ssize_t write(int fd, const void *buf, size_t count) {
-  ssize_t result;
+  ssize_t result = -1;
   if (buf == NULL) {
     return -1;
   }
@@ -142,7 +145,8 @@ ssize_t write(int fd, const void *buf, size_t count) {
       .count = count,
       .result = &result,
   };
-  trigger_syscall(sys_write, &context);
+  if (trigger_syscall(sys_write, &context) < 0)
+    return -1;
   return result;
 }
 
@@ -192,11 +196,12 @@ int execve(const char *pathname, char *const argv[], char *const envp[]) {
 }
 
 char *getcwd(char *buf, size_t size) {
-  char *result;
+  char *result = NULL;
+  char *allocated = NULL;
   if (buf == NULL && size != 0) {
-    buf = (char *)malloc(size);
+    buf = allocated = (char *)malloc(size);
   } else if (buf == NULL) {
-    buf = (char *)malloc(PATH_MAX);
+    buf = allocated = (char *)malloc(PATH_MAX);
     size = PATH_MAX;
   }
   const getcwd_context context = {
@@ -204,7 +209,10 @@ char *getcwd(char *buf, size_t size) {
       .size = size,
       .result = &result,
   };
-  trigger_syscall(sys_getcwd, &context);
+  if (trigger_syscall(sys_getcwd, &context) < 0 || result == NULL) {
+    free(allocated);
+    return NULL;
+  }
   return result;
 }
 
@@ -252,14 +260,31 @@ char *getcwd(char *buf, size_t size) {
 // }
 
 off_t lseek(int fd, off_t offset, int whence) {
-  off_t result;
+  off_t result = -1;
   const lseek_context context = {
       .fd = fd,
       .offset = offset,
       .whence = whence,
       .result = &result,
   };
-  trigger_syscall(sys_lseek, &context);
+  /* A pipe cannot seek (ESPIPE). This used to return an uninitialised value
+     then, and toybox's fdlength() -- which takes a seek that "works" as leave
+     to probe the length by reading -- ate the output of every $(...). */
+  if (trigger_syscall(sys_lseek, &context) < 0)
+    return -1;
+  return result;
+}
+
+off64_t lseek64(int fd, off64_t offset, int whence) {
+  off64_t result = -1;
+  const lseek64_context context = {
+      .fd = fd,
+      .offset = offset,
+      .whence = whence,
+      .result = &result,
+  };
+  if (trigger_syscall(sys_lseek64, &context) < 0)
+    return -1;
   return result;
 }
 
@@ -274,6 +299,19 @@ int remove(const char *pathname) {
       .flags = 0,
   };
   return trigger_syscall(sys_unlink, &context);
+}
+
+/* rmdir(2): the kernel's unlink removes an empty directory (a non-empty one is
+   refused); what rmdir adds is refusing anything that is not a directory. */
+int rmdir(const char *pathname) {
+  struct stat st;
+  if (stat(pathname, &st) != 0)
+    return -1;
+  if (!S_ISDIR(st.st_mode)) {
+    errno = ENOTDIR;
+    return -1;
+  }
+  return remove(pathname);
 }
 
 // pid_t _wait(int *_Nullable wstatus) {
@@ -324,24 +362,26 @@ int open(const char *filename, int flags, ...) {
   va_start(args, flags);
   int mode = va_arg(args, int);
   va_end(args);
+  int __yasos_creation_mode(int mode);
   const open_context context = {
       .path = filename,
       .flags = flags,
-      .mode = mode,
+      .mode = (flags & O_CREAT) ? __yasos_creation_mode(mode) : 0,
       .fd = AT_FDCWD,
   };
   return trigger_syscall(sys_open, &context);
 }
 
 ssize_t getdents(int fd, struct dirent *de, size_t len) {
-  ssize_t result;
+  ssize_t result = -1;
   const getdents_context context = {
       .fd = fd,
       .dirp = de,
       .count = len,
       .result = &result,
   };
-  trigger_syscall(sys_getdents, &context);
+  if (trigger_syscall(sys_getdents, &context) < 0)
+    return -1;
   return result;
 }
 
@@ -376,12 +416,13 @@ int settimeofday(const struct timeval *tv, const struct timezone *tz) {
 }
 
 time_t time(time_t *timep) {
-  time_t result;
+  time_t result = (time_t)-1;
   time_context context = {
       .timep = timep,
       .result = &result,
   };
-  trigger_syscall(sys_time, &context);
+  if (trigger_syscall(sys_time, &context) < 0)
+    return (time_t)-1;
   return result;
 }
 
@@ -455,6 +496,13 @@ int chdir(const char *path) {
       .path = path,
   };
   return trigger_syscall(sys_chdir, &context);
+}
+
+int fchdir(int fd) {
+  const fchdir_context context = {
+      .fd = fd,
+  };
+  return trigger_syscall(sys_fchdir, &context);
 }
 
 int fcntl(int fd, int op, ...) {

@@ -60,13 +60,19 @@ static int dev_munmap(void *addr, long len) {
   return 0;
 }
 
-/* in-place extend only (flags ignored), mirrors try_extend_pages */
+/* in place only (flags ignored): extend into free pages, mirroring
+   try_extend_pages, or give back the tail, mirroring try_shrink_pages */
 static void *dev_mremap(void *addr, long old_len, long new_len, int flags) {
   (void)flags;
   long idx = dev_index(addr);
   long oldn = dev_pages_for(old_len);
   long newn = dev_pages_for(new_len);
-  if (newn <= oldn) return addr;
+  if (newn == oldn) return addr;
+  if (newn < oldn) {
+    if (newn <= 0) return (void *)-1;
+    for (long k = newn; k < oldn; k++) dev_bitmap[idx + k] = 0;
+    return addr;
+  }
   if (idx + newn > DEV_PAGES) return (void *)-1;
   for (long k = oldn; k < newn; k++)
     if (dev_bitmap[idx + k]) return (void *)-1;

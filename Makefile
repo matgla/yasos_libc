@@ -16,6 +16,12 @@ SRCS = arm/setjmp.S arm/vfork.S arm/call_with_got.S
 LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm -Wl,-Ttext=0x0
 ARM_BUILD = y
 EXTERNAL_LIBS += ../tinycc/armv8m-libtcc1.a
+# The crt objects are linked into every program, not into libc.so, so their
+# calls into libc (exit) are imports there. tcc decides which calls keep r9
+# from the shared libraries installed when it compiles, and while libc itself
+# is being built its own libc.so may not be installed yet: without this, exit
+# is taken for a module-local call and every program link is refused.
+CRT_CFLAGS = -fno-module-local-calls
 else
 CFLAGS += -Wno-pointer-arith -Wno-builtin-declaration-mismatch
 LDFLAGS_STATIC += -Wl,--build-id=none -Wl,--no-eh-frame-hdr
@@ -45,6 +51,10 @@ OBJS = $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
 # result is not a link error but a libc whose `localtime` reads eight bytes out
 # of a four-byte field. That failure surfaces as wrong dates in `ls -l`, half a
 # system away from the header that caused it.
+# The header rule below is the first rule in the file; without this it would be
+# the default goal, and a plain `make` would build one object and stop.
+.DEFAULT_GOAL := all
+
 HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(wildcard arpa/*.h) \
            $(wildcard arm/*.h) $(wildcard libs/*.h)
 $(filter %.o, $(OBJS)): $(HEADERS)
@@ -80,13 +90,13 @@ $(TARGET_STATIC): $(OBJS)
 $(BUILD)/arm/crt1.o $(BUILD)/arm/crti.o $(BUILD)/arm/crtn.o: $(HEADERS)
 
 $(BUILD)/arm/crt1.o: arm/crt1.c | prepare
-	${CC} $(CFLAGS) -c $< -o $@
+	${CC} $(CFLAGS) $(CRT_CFLAGS) -c $< -o $@
 
 $(BUILD)/arm/crti.o: arm/crti.c | prepare
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CRT_CFLAGS) -c $< -o $@
 
 $(BUILD)/arm/crtn.o: arm/crtn.c | prepare
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CRT_CFLAGS) -c $< -o $@
 
 
 install: $(TARGET_SHARED) $(TARGET_STATIC) $(BUILD)/arm/crt1.o $(BUILD)/arm/crti.o $(BUILD)/arm/crtn.o

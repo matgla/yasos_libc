@@ -135,33 +135,46 @@ uid_t getuid(void) {
 
 int setuid(uid_t uid) {
   printf("TODO: Implement setuid\n");
-  return -1; // Not implementedj
+  errno = ENOSYS;
+  return -1; // Not implemented
 }
 
 pid_t setsid(void) {
   printf("TODO: Implement setsid\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int setgid(gid_t gid) {
   printf("TODO: Implement setgid\n");
+  errno = ENOSYS;
   return -1; // Not implemented
+}
+
+/* chown(2) family. ext4 records owners; FAT and ramfs accept and ignore, as
+   these always did (tar restoring 1000:1000 must not fail there). */
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
+             int flags) {
+  const chown_context context = {
+      .path = pathname,
+      .fd = dirfd,
+      .uid = owner,
+      .gid = group,
+      .flags = flags,
+  };
+  return trigger_syscall(sys_chown, &context);
 }
 
 int fchown(int fd, uid_t owner, gid_t group) {
-  printf("TODO: Implement fchown\n");
-  return -1; // Not implemented
+  return fchownat(fd, 0, owner, group, 0);
+}
+
+int chown(const char *path, uid_t owner, gid_t group) {
+  return fchownat(AT_FDCWD, path, owner, group, 0);
 }
 
 int lchown(const char *path, uid_t owner, gid_t group) {
-  printf("TODO: Implement lchown\n");
-  return -1; // Not implemented
-}
-
-int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
-             int flags) {
-  printf("TODO: Implement fchownat\n");
-  return -1; // Not implemented
+  return fchownat(AT_FDCWD, path, owner, group, AT_SYMLINK_NOFOLLOW);
 }
 
 int link(const char *oldpath, const char *newpath) {
@@ -177,6 +190,7 @@ int link(const char *oldpath, const char *newpath) {
 
 int chroot(const char *path) {
   printf("TODO: Implement chroot\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
@@ -202,6 +216,7 @@ int gethostname(char *name, size_t size) {
 
 int sethostname(const char *name, size_t size) {
   printf("TODO: Implement sethostname\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
@@ -264,6 +279,7 @@ long sysconf(int name) {
 
 pid_t getsid(pid_t pid) {
   printf("TODO: Implement getsid\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
@@ -290,9 +306,21 @@ int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
   return trigger_syscall(sys_link, &context);
 }
 
+/* No yasos filesystem stores symbolic links, and EPERM is what POSIX has a
+   filesystem that does not support them report. It used to print a TODO and
+   return 0, so `ln -s` reported a link it never made; autoconf's AC_PROG_LN_S
+   and friends probe for exactly this and fall back to `ln` / `cp -pR`. */
 int symlinkat(const char *target, int newdirfd, const char *linkpath) {
-  printf("TODO: implement symlinkat\n");
-  return 0;
+  const symlink_context context = {
+      .target = target,
+      .dirfd = newdirfd,
+      .linkpath = linkpath,
+  };
+  return trigger_syscall(sys_symlink, &context);
+}
+
+int symlink(const char *target, const char *linkpath) {
+  return symlinkat(target, AT_FDCWD, linkpath);
 }
 
 int ftruncate(int fd, off_t length) {

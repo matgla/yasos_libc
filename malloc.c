@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +93,9 @@ void __attribute__((noinline)) malloc_debug_trap(void *block, int size, int allo
 #define MSETMAX_MIN 2048           /* first threshold, as before */
 #define MSETMAX_CAP (32 * 1024)
 #define LARGE_PER_CLASS 4
+/* Pooled requests at least this big look in the retired pools first; see
+   old_pool_best_fit. */
+#define RETIRED_FIT_MIN 1024
 
 /* Size of the next pool to map. The threshold is derived from it as half,
    clamped -- half guarantees the largest pooled object still fits a fresh pool
@@ -143,6 +147,12 @@ static int pool_len_for(int want) {
      +12 int  size        user-visible size (at user-4, the mhdr.size slot, so
                           msize() is uniform for both small and large). */
 #define LARGE_MOFF (-1)
+/* An aligned block (posix_memalign/aligned_alloc): the user pointer has been
+   moved forward to meet an alignment malloc does not promise, so neither of
+   free()'s two ways of finding the block's start applies. The pointer malloc
+   actually returned is parked in the word directly below this header, and
+   free() releases that instead. */
+#define ALIGNED_MOFF (-2)
 #define LARGE_HDR 16
 
 /* placed at the beginning of regions for small allocations */
@@ -152,8 +162,11 @@ struct mset {
   void *freelist; /* singly-linked list of freed blocks for reuse */
   struct mset *next_pool; /* linked list of old pools with refs > 0 */
   int len;      /* this pool's mapped length -- pools are no longer one size */
-  int pad;      /* keeps sizeof(struct mset) a multiple of 8, so the first
-                   block's user pointer stays 8-aligned (ARM LDRD, doubles) */
+  int max_free; /* retired pools: no block on the free list is bigger than
+                   this -- an upper bound, made exact by a full walk -- so a
+                   search can pass over the pool without walking it. Also keeps
+                   sizeof(struct mset) a multiple of 8, so the first block's
+                   user pointer stays 8-aligned (ARM LDRD, doubles). */
 };
 
 /* placed before each small allocation */
@@ -196,6 +209,17 @@ static long large_cache_bytes;
    from under the parent's live blocks. */
 static int in_vfork_window;
 
+static void release_parked(void) {
+  int i;
+  for (i = 0; i < LARGE_CACHE_SLOTS; i++) {
+    if (large_cache[i].base != NULL) {
+      munmap(large_cache[i].base, large_cache[i].mapped);
+      large_cache[i].base = NULL;
+    }
+  }
+  large_cache_bytes = 0;
+}
+
 static void *cache_map(long total) {
   if (!in_vfork_window) {
     for (int i = 0; i < LARGE_CACHE_SLOTS; i++) {
@@ -206,6 +230,11 @@ static void *cache_map(long total) {
         return base;
       }
     }
+    /* No exact fit, so this mapping is fresh memory, and a process's peak is
+       reached exactly here. Whatever is parked would be counted on top of it
+       while serving nothing, so it goes back first. Measured on the device: up
+       to 123 KB of a Zig compile's peak was parked mappings. */
+    release_parked();
   }
   {
     void *m = mmap(NULL, total, PROT_READ | PROT_WRITE,
@@ -234,14 +263,7 @@ static void cache_unmap(void *base, long total) {
    memory tier more than the parent -- the parent is suspended until the child
    execs, so anything it is sitting on is pure hold. */
 static void trim_slack(void) {
-  int i;
-  for (i = 0; i < LARGE_CACHE_SLOTS; i++) {
-    if (large_cache[i].base != NULL) {
-      munmap(large_cache[i].base, large_cache[i].mapped);
-      large_cache[i].base = NULL;
-    }
-  }
-  large_cache_bytes = 0;
+  release_parked();
   if (pool1 != NULL) {
     munmap(pool1, pool1->len);
     pool1 = NULL;
@@ -286,6 +308,26 @@ void __malloc_vfork_restore(void) {
     pool->freelist = vfork_saved_pool_freelist;
   }
   in_vfork_window = 0;
+}
+
+/* Give the whole pages of a retired pool from byte offset `from` to its end back
+   to the kernel (mremap shrinks a mapping in place), keeping `from` itself.
+   Nothing bumps a retired pool, so free space at its end serves only the
+   retired-pool paths, and until then it was mapped memory holding nothing: 85 KB
+   of a Zig compile's peak on the device. Only for a retired pool -- the current
+   one's end is its bump room. Trimming a pool's leftover bump room as it retires
+   too was worse for tcc (+29 KB): what it returns, later requests then map anew.
+   Returns the pool's length. */
+static int pool_trim_end(struct mset *ms, int from) {
+  int keep = (from + PGMASK) & ~PGMASK;
+  if (in_vfork_window || keep >= ms->len)
+    return ms->len;
+  if (mremap(ms, ms->len, keep, 0) == (void *)ms) {
+    ms->len = keep;
+    if (ms->size > keep)
+      ms->size = keep;
+  }
+  return ms->len;
 }
 
 /* Insert a freed block into a pool's free list, sorted by address.
@@ -335,7 +377,50 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
     memset((char *)prev_node + sizeof(struct free_node), 0xDE,
            prev_node->block_size - sizeof(struct free_node));
 #endif
+    fn = prev_node;
   }
+  /* A retired pool's free space reaching its end: hand its whole pages back. */
+  if (mset != pool && (char *)fn + fn->block_size == (char *)mset + mset->len &&
+      fn->block_size >= PGSIZE) {
+    int off = (char *)fn - (char *)mset;
+    int len = pool_trim_end(mset, off + (int)sizeof(struct free_node));
+    if (len < off + fn->block_size)
+      fn->block_size = len - off;
+  }
+  if (fn->block_size > mset->max_free)
+    mset->max_free = fn->block_size;
+}
+
+/* Whether a free block can be handed out for `alloc_size` bytes. Blocks whose
+   user pointer would be page-aligned are skipped -- page-aligned pointers are
+   mistaken for large allocations by msize()/free()/realloc(). */
+static int block_fits(struct free_node *fn, size_t alloc_size) {
+  return fn->block_size >= (int)alloc_size &&
+         ((unsigned long)((char *)fn + sizeof(struct mhdr)) & PGMASK);
+}
+
+/* Unlink the free block `*prev` points at, splitting what `alloc_size` does not
+   need back onto the same list. */
+static void *take_block(struct free_node **prev, size_t alloc_size) {
+  struct free_node *fn = *prev;
+  int remainder = fn->block_size - (int)alloc_size;
+  *prev = fn->next;
+  /* Split if remainder can hold a minimum-sized allocation (16 bytes).
+     sizeof(struct free_node) is only 8, but min alloc_size is 16,
+     so 8-byte splits would create permanently unusable fragments. */
+  if (remainder >= 2 * (int)sizeof(struct mhdr)) {
+    struct free_node *split = (struct free_node *)((char *)fn + alloc_size);
+    split->block_size = remainder;
+    split->next = *prev;
+    *prev = split;
+    fn->block_size = alloc_size;
+#if MALLOC_DEBUG
+    /* Poison the split remainder's data area */
+    memset((char *)split + sizeof(struct free_node), 0xDE,
+           remainder - sizeof(struct free_node));
+#endif
+  }
+  return fn;
 }
 
 /* Take a first-fit block of at least `alloc_size` bytes off `ms`'s free list,
@@ -345,31 +430,8 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
 static void *freelist_take(struct mset *ms, size_t alloc_size) {
   struct free_node **prev = (struct free_node **)&ms->freelist, *fn;
   while ((fn = *prev)) {
-    if (fn->block_size >= (int)alloc_size) {
-      /* Skip blocks where user pointer would be page-aligned —
-         page-aligned pointers are mistaken for large allocations
-         by msize()/free()/realloc(). */
-      if (!((unsigned long)((char *)fn + sizeof(struct mhdr)) & PGMASK)) {
-        prev = &fn->next;
-        continue;
-      }
-      int remainder = fn->block_size - (int)alloc_size;
-      *prev = fn->next;
-      /* Split if remainder can hold a minimum-sized allocation (16 bytes).
-         sizeof(struct free_node) is only 8, but min alloc_size is 16,
-         so 8-byte splits would create permanently unusable fragments. */
-      if (remainder >= 2 * (int)sizeof(struct mhdr)) {
-        struct free_node *split = (struct free_node *)((char *)fn + alloc_size);
-        split->block_size = remainder;
-        split->next = *prev;
-        *prev = split;
-        fn->block_size = alloc_size;
-#if MALLOC_DEBUG
-        /* Poison the split remainder's data area */
-        memset((char *)split + sizeof(struct free_node), 0xDE,
-               remainder - sizeof(struct free_node));
-#endif
-      }
+    if (block_fits(fn, alloc_size)) {
+      take_block(prev, alloc_size);
 #if MALLOC_DEBUG
       /* Check poison pattern to detect use-after-free */
       {
@@ -397,6 +459,26 @@ static void *freelist_take(struct mset *ms, size_t alloc_size) {
   return NULL;
 }
 
+/* Chain a pool that still has live blocks onto the retired list. Its free list
+   has not been measured, so the bound starts at the whole pool.
+
+   A pool retires because a request did not fit its remaining bump room, and a
+   pool serves requests up to MSETMAX_CAP, so that room can be most of 32 KB.
+   Nothing bumps a retired pool again, so it goes on the free list, where the
+   retired-pool paths can reach it; the bump pointer moves to the end so a
+   pool promoted back to current cannot hand the same bytes out twice. Left
+   where it was, it was stranded for the pool's lifetime: ~150 KB across the
+   14 retired pools of a Zig compile's peak on the device. */
+static void retire(struct mset *ms) {
+  int tail = (ms->size + 7) & ~7;
+  ms->size = ms->len;
+  ms->max_free = ms->len;
+  if (ms->len - tail >= 2 * (int)sizeof(struct mhdr))
+    freelist_insert(ms, (char *)ms + tail, ms->len - tail);
+  ms->next_pool = old_pools;
+  old_pools = ms;
+}
+
 /* Serve `alloc_size` from a retired pool, and make that pool current again.
    NULL when no retired pool has room.
 
@@ -420,7 +502,7 @@ static void *old_pool_take(size_t alloc_size) {
   if (in_vfork_window)
     return NULL;
   while ((old = *link) != NULL) {
-    void *m = freelist_take(old, alloc_size);
+    void *m = old->max_free >= (int)alloc_size ? freelist_take(old, alloc_size) : NULL;
     if (m == NULL) {
       link = &old->next_pool;
       continue;
@@ -434,8 +516,7 @@ static void *old_pool_take(size_t alloc_size) {
        the refs==0 check in free() would never run for it. */
     if (pool != NULL) {
       if (pool->refs > 0) {
-        pool->next_pool = old_pools;
-        old_pools = pool;
+        retire(pool);
       } else if (pool1 == NULL) {
         pool1 = pool;
       } else {
@@ -446,6 +527,57 @@ static void *old_pool_take(size_t alloc_size) {
     return m;
   }
   return NULL;
+}
+
+/* Serve a mid-size `alloc_size` from the best-fitting free block in any retired
+   pool, leaving that pool where it is. NULL when none fits.
+
+   old_pool_take only runs once the current pool's bump pointer is exhausted,
+   and the current pool is always the one being bumped -- so the holes a
+   retired pool accumulates sit unused while fresh pool space is spent. What
+   makes the holes is growth: a buffer grown by doubling leaves its previous
+   copy behind at every step. A Zig compile on the device had 476 KB free
+   inside 967 KB of retired pools at its peak, 371 KB of it in holes of 4 KB
+   and up, while only ~0.5 MB of small objects were live. Filling those holes
+   first took 205 KB off malloc's mapped peak there, and 197 KB off tcc
+   compiling the result;
+   a compile small enough never to retire a pool does not reach this.
+
+   Best fit rather than first fit, so a big hole is not spent on a small
+   request that a small hole could have served. Only requests of at least
+   RETIRED_FIT_MIN come here; they are the ones that fragment. Walking every
+   retired free list for each of them made tcc ~20% slower on a large file
+   (thousands of 1-4 KB requests against dozens of pools full of small
+   fragments), so a pool whose max_free rules out a fit is passed over, and a
+   full walk leaves max_free exact. */
+static void *old_pool_best_fit(size_t alloc_size, struct mset **owner) {
+  struct mset *ms;
+  struct free_node **prev, **best = NULL;
+  struct mset *best_pool = NULL;
+  if (in_vfork_window)
+    return NULL;
+  for (ms = old_pools; ms != NULL; ms = ms->next_pool) {
+    int largest = 0;
+    if (ms->max_free < (int)alloc_size)
+      continue;
+    for (prev = (struct free_node **)&ms->freelist; *prev; prev = &(*prev)->next) {
+      if ((*prev)->block_size > largest)
+        largest = (*prev)->block_size;
+      if (block_fits(*prev, alloc_size) &&
+          (best == NULL || (*prev)->block_size < (*best)->block_size)) {
+        best = prev;
+        best_pool = ms;
+        if ((*prev)->block_size == (int)alloc_size)
+          goto found;
+      }
+    }
+    ms->max_free = largest;
+  }
+  if (best == NULL)
+    return NULL;
+found:
+  *owner = best_pool;
+  return take_block(best, alloc_size);
 }
 
 /* Make `pool` a pool with room for `want` total bytes (the caller's block plus
@@ -468,8 +600,7 @@ static int mk_pool(int want) {
      kept as the spare if it has drained, released if there is already one. */
   if (cur != NULL) {
     if (cur->refs > 0) {
-      cur->next_pool = old_pools;
-      old_pools = cur;
+      retire(cur);
     } else if (pool1 == NULL) {
       pool1 = cur;
     } else if (cur->len > pool1->len) {
@@ -503,7 +634,7 @@ static int mk_pool(int want) {
     pool->refs = 0;
     pool->freelist = 0;
     pool->next_pool = 0;
-    pool->pad = 0;
+    pool->max_free = 0;
   }
   if (replacing)
     widen_pool_class();
@@ -539,6 +670,19 @@ void *malloc(size_t n) {
   if (!pool)
     if (mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
       return NULL;
+  if (alloc_size >= RETIRED_FIT_MIN && old_pools != NULL) {
+    struct mset *owner;
+    m = old_pool_best_fit(alloc_size, &owner);
+    if (m != NULL) {
+      ((struct mhdr *)m)->moff = (char *)m - (char *)owner;
+      ((struct mhdr *)m)->size = n;
+      owner->refs++;
+#if MALLOC_ZEROES
+      memset((char *)m + sizeof(struct mhdr), 0, n);
+#endif
+      return (char *)m + sizeof(struct mhdr);
+    }
+  }
   /* Search current pool's free list for a reusable block */
   m = freelist_take(pool, alloc_size);
   if (m != NULL) {
@@ -596,6 +740,12 @@ void free(void *v) {
   if (!v)
     return;
   struct mhdr *mhdr = (struct mhdr *)((char *)v - sizeof(struct mhdr));
+  /* An over-aligned block hands back the pointer malloc gave us; everything
+     about the real block (pool or mapping) hangs off that one. */
+  if (mhdr->moff == ALIGNED_MOFF) {
+    free(*(void **)((char *)mhdr - sizeof(void *)));
+    return;
+  }
   /* Large allocs carry the LARGE_MOFF sentinel in the mhdr.moff slot (a pool
      block's moff is its in-pool offset, always < its pool's len). */
   if (mhdr->moff == LARGE_MOFF) {
@@ -657,6 +807,68 @@ static long msize(void *v) {
   return ((struct mhdr *)((char *)v - sizeof(struct mhdr)))->size;
 }
 
+/* realloc to a smaller size. A shrink has to give something back to be worth
+   asking for: callers that trim a grown buffer (Zig's allocator does it for
+   every toOwnedSlice) keep the block for as long as it lives.
+
+   The size recorded in the header is what free() sizes the block by, so it may
+   only change when the bytes it no longer covers go somewhere. Recording the
+   smaller size without releasing anything -- what this used to do -- stranded
+   the tail of a pool block outside every free list until its pool drained. */
+static void *shrink(void *v, size_t sz, long old_size) {
+  struct mhdr *mhdr = (struct mhdr *)((char *)v - sizeof(struct mhdr));
+
+  if (mhdr->moff == LARGE_MOFF) {
+    /* A block that stays large keeps its mapping and gives the tail pages back
+       through mremap: moving it would hold old and new copies at once, which
+       is exactly the peak a trimmed buffer (Zig trims every grown one) is
+       meant to avoid. A kernel that cannot shrink a mapping refuses, and a
+       block small enough for a pool moves into one, where it frees at least
+       a page; otherwise the mapping stays as it is. */
+    char *base = (char *)v - LARGE_HDR;
+    long mapped = *(long *)base;
+    long need = (sz >= (size_t)cur_msetmax())
+                    ? (long)((sz + LARGE_HDR + PGMASK) & ~PGMASK)
+                    : (long)sz + (long)sizeof(struct mhdr);
+    if (sz >= (size_t)cur_msetmax() && mapped - need >= PGSIZE &&
+        !in_vfork_window) {
+      void *r = mremap(base, mapped, need, 0);
+      if (r == base) {
+        *(long *)base = need;
+        mhdr->size = sz;
+        return v;
+      }
+    }
+    if (mapped - need >= PGSIZE) {
+      void *r = malloc(sz);
+      if (r != NULL) {
+        memcpy(r, v, sz);
+        free(v);
+        return r;
+      }
+    }
+    return v;
+  }
+
+  if (mhdr->moff >= 0) {
+    /* A pool block: split the tail off onto its pool's free list, as long as it
+       is big enough to be a block of its own (freelist_take's split rule). */
+    int old_block = (old_size + sizeof(struct mhdr) + 7) & ~7;
+    int new_block = (sz + sizeof(struct mhdr) + 7) & ~7;
+    if (old_block - new_block >= 2 * (int)sizeof(struct mhdr)) {
+      struct mset *mset = (struct mset *)((char *)mhdr - mhdr->moff);
+      mhdr->size = sz;
+      freelist_insert(mset, (char *)mhdr + new_block, old_block - new_block);
+    }
+    return v;
+  }
+
+  /* An over-aligned block: free() goes through the pointer malloc returned, so
+     this header's size is only what msize() reports. */
+  mhdr->size = sz;
+  return v;
+}
+
 void *realloc(void *v, size_t sz) {
   void *r;
   long old_size;
@@ -670,12 +882,8 @@ void *realloc(void *v, size_t sz) {
 
   old_size = msize(v);
 
-  /* If shrinking or same size, return as-is (user size is in mhdr.size for
-     both small and large). */
-  if ((long)sz <= old_size) {
-    ((struct mhdr *)((char *)v - sizeof(struct mhdr)))->size = sz;
-    return v;
-  }
+  if ((long)sz <= old_size)
+    return shrink(v, sz, old_size);
 
   /* For large allocations, try to grow in-place */
   {
@@ -710,4 +918,86 @@ void *realloc(void *v, size_t sz) {
   }
   free(v);
   return r;
+}
+
+/* ── Over-aligned allocation ──────────────────────────────────────────────
+ *
+ * malloc promises 8-byte alignment (see the mset padding note above), which is
+ * all C requires. A caller wanting more -- 32-byte buffers are ordinary in
+ * languages with explicit alignment, and the Zig compiler asks for them -- goes
+ * through here.
+ *
+ * The block is over-allocated, the user pointer moved forward to the alignment,
+ * and a header written directly in front of it carrying the ALIGNED_MOFF
+ * sentinel; the pointer malloc returned is parked in the word below that
+ * header. free() recognises the sentinel and releases the original, so nothing
+ * is leaked and the pool/mapping bookkeeping is untouched. */
+static void *alloc_aligned(size_t alignment, size_t size) {
+  char *raw;
+  char *user;
+  size_t addr;
+  struct mhdr *hdr;
+  /* Room for the worst-case shift plus the header and the parked pointer. */
+  size_t extra = alignment + sizeof(struct mhdr) + sizeof(void *);
+
+  if (size > (size_t)-1 - extra)
+    return NULL;
+  raw = malloc(size + extra);
+  if (!raw)
+    return NULL;
+
+  addr = (size_t)raw + sizeof(void *) + sizeof(struct mhdr);
+  addr = (addr + alignment - 1) & ~(alignment - 1);
+  user = (char *)addr;
+
+  hdr = (struct mhdr *)(user - sizeof(struct mhdr));
+  hdr->moff = ALIGNED_MOFF;
+  hdr->size = (int)size;
+  *(void **)(user - sizeof(struct mhdr) - sizeof(void *)) = raw;
+  return user;
+}
+
+int posix_memalign(void **out, size_t alignment, size_t size) {
+  void *p;
+  if (out == NULL)
+    return EINVAL;
+  /* POSIX: a power of two, and a multiple of sizeof(void *). */
+  if (alignment < sizeof(void *) || (alignment & (alignment - 1)) != 0)
+    return EINVAL;
+  if (size == 0) {
+    *out = NULL;
+    return 0;
+  }
+  /* Nothing to do when malloc's own guarantee already covers it. */
+  p = (alignment <= 8) ? malloc(size) : alloc_aligned(alignment, size);
+  if (!p)
+    return ENOMEM;
+  *out = p;
+  return 0;
+}
+
+void *aligned_alloc(size_t alignment, size_t size) {
+  if (alignment == 0 || (alignment & (alignment - 1)) != 0) {
+    errno = EINVAL;
+    return NULL;
+  }
+  if (size == 0)
+    return NULL;
+  return (alignment <= 8) ? malloc(size) : alloc_aligned(alignment, size);
+}
+
+void *memalign(size_t alignment, size_t size) {
+  return aligned_alloc(alignment, size);
+}
+
+/* Bytes usable through this pointer. Both the small and the large path record
+ * the requested size in the header word below the user pointer, and an
+ * over-aligned block carries its own copy, so all three answer the same way.
+ * Reporting the requested size rather than the block's full capacity is the
+ * safe direction: a caller uses this to decide whether something fits without
+ * reallocating. */
+size_t malloc_usable_size(void *v) {
+  if (!v)
+    return 0;
+  return (size_t)((struct mhdr *)((char *)v - sizeof(struct mhdr)))->size;
 }

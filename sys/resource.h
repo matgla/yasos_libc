@@ -12,7 +12,16 @@ typedef struct rusage {
 
 int getrusage(int who, struct rusage *usage);
 
-typedef unsigned long rlim_t;
+/* 64-bit on every architecture, as musl has it -- NOT `unsigned long`.
+ *
+ * This is ABI, not taste: a program built against musl for 32-bit ARM passes a
+ * 16-byte `struct rlimit`, so a libc with 8-byte limits reads a caller's
+ * rlim_cur as (cur | max << 32) and writes back half a struct. The Zig compiler
+ * raises its own descriptor limit on startup that way, and with the narrow
+ * definition it ended up setting RLIMIT_NOFILE to 0 -- after which every open()
+ * failed with EMFILE and the error pointed at whatever file was unlucky enough
+ * to be next. */
+typedef unsigned long long rlim_t;
 typedef struct rlimit {
   rlim_t rlim_cur; /* current (soft) limit */
   rlim_t rlim_max; /* hard limit */

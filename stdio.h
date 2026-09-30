@@ -9,6 +9,13 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+/* C requires these in <stdio.h> as well as POSIX's <unistd.h>. */
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#endif
+
 #define EOF (-1)
 
 #define _IONBF 1
@@ -36,8 +43,11 @@ typedef struct {
   int iown, oown;    /* free the buffer when finished */
   int icur;          /* current position in ibuf */
   int ostat;
-  int istat;
+  int istat;         /* _FILE_EOF / _FILE_ERR: what feof()/ferror() report */
 } FILE;
+
+#define _FILE_EOF 1 /* a read found the end of the input */
+#define _FILE_ERR 2 /* a read or write failed */
 
 
 /* Embedded target: 256 B is plenty for line/block buffering and keeps the
@@ -73,6 +83,10 @@ int puts(const char *s);
 int pclose(FILE *stream);
 int fseek(FILE *fp, long offset, int whence);
 long ftell(FILE *fp);
+typedef long fpos_t;
+void rewind(FILE *fp);
+int fgetpos(FILE *fp, fpos_t *pos);
+int fsetpos(FILE *fp, const fpos_t *pos);
 FILE *popen(const char *command, const char *type);
 
 int fgetc(FILE *fp);
@@ -98,6 +112,14 @@ int vdprintf(int fildes, const char *format, va_list ap);
 int fileno(FILE *fp);
 
 int rename(const char *oldpath, const char *newpath);
+int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
+int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
+              unsigned int flags);
+
+/* renameat2 flags, same values as Linux. Only NOREPLACE is honoured. */
+#define RENAME_NOREPLACE (1 << 0)
+#define RENAME_EXCHANGE (1 << 1)
+#define RENAME_WHITEOUT (1 << 2)
 FILE *fdopen(int fd, const char *mode);
 FILE *fmemopen(void *buf, size_t size, const char *mode);
 ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream);

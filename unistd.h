@@ -49,11 +49,14 @@ ssize_t read(int fd, void *buf, size_t n);
 int fsync(int fd);
 
 /* lseek() whence */
+#ifndef SEEK_SET
 #define SEEK_SET 0
 #define SEEK_CUR 1
 #define SEEK_END 2
+#endif
 
 long lseek(int fd, long offset, int whence);
+off64_t lseek64(int fd, off64_t offset, int whence);
 
 int pipe(int fds[2]);
 int pipe2(int fds[2], int flags);
@@ -72,12 +75,14 @@ int execv(const char *path, char *argv[]);
 
 void *sbrk(intptr_t increment);
 
-void _exit(int status);
+__attribute__((noreturn)) void _exit(int status);
 
 int sleep(int n);
 
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
+int rmdir(const char *path);
+int fchdir(int fd);
 
 ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
 ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
@@ -88,6 +93,7 @@ int setuid(uid_t uid);
 pid_t setsid(void);
 int setgid(gid_t gid);
 
+int chown(const char *path, uid_t owner, gid_t group);
 int fchown(int fd, uid_t owner, gid_t group);
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
              int flags);
@@ -105,6 +111,7 @@ int unlinkat(int dirfd, const char *pathname, int flags);
 int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
            int flags);
 int symlinkat(const char *target, int newdirfd, const char *linkpath);
+int symlink(const char *target, const char *linkpath);
 
 int ftruncate(int fd, off_t length);
 

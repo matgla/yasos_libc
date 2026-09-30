@@ -24,3 +24,10 @@
 
 // void assert(bool expression);
 #define assert(expression) ((void)0)
+
+/* C11 spells it _Static_assert and leaves the short name to this header; C23
+   and C++ make static_assert a keyword of their own. */
+#if !defined(__cplusplus) && !defined(static_assert) &&                        \
+    (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
+#define static_assert _Static_assert
+#endif

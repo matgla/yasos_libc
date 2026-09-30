@@ -55,6 +55,17 @@ static int counting_munmap(void *addr, size_t len) {
   prof_munmap_calls++;
   return munmap(addr, len);
 }
+/* mremap, or a kernel that cannot resize a mapping (the device's could only
+   extend one until it learned to shrink one too). */
+static int prof_mremap_calls;
+static int mremap_refuses;
+static void *counting_mremap(void *addr, size_t old_len, size_t new_len,
+                             int flags) {
+  prof_mremap_calls++;
+  if (mremap_refuses)
+    return MAP_FAILED;
+  return mremap(addr, old_len, new_len, flags);
+}
 
 #define fprintf(...) (0)
 #define malloc test_malloc
@@ -63,6 +74,7 @@ static int counting_munmap(void *addr, size_t len) {
 #define realloc test_realloc
 #define mmap(a, l, p, f, fd, o) counting_mmap((a), (l), (p), (f), (fd), (o))
 #define munmap(a, l) counting_munmap((a), (l))
+#define mremap(a, o, n, f) counting_mremap((a), (o), (n), (f))
 #include "../malloc.c"
 #undef fprintf
 #undef malloc
@@ -71,6 +83,7 @@ static int counting_munmap(void *addr, size_t len) {
 #undef realloc
 #undef mmap
 #undef munmap
+#undef mremap
 
 /* Count entries in a pool's free list. The allocator no longer exposes a
    helper for this, so walk the singly-linked list of free_node directly. */
@@ -195,6 +208,115 @@ UTEST(malloc_tests, realloc_large_to_small_no_overflow) {
     ASSERT_EQ((unsigned char)q[i], 0x42);
 
   test_free(q);
+}
+
+/* ---- realloc shrink gives memory back ---- */
+
+UTEST(malloc_tests, realloc_shrink_pool_block_frees_its_tail) {
+  /* Trimming a pool block puts the bytes it no longer needs on the free list,
+     where the next allocation that fits can have them. */
+  reset_allocator_state();
+  char *p = (char *)test_malloc(512);
+  ASSERT_TRUE(p != NULL);
+  void *guard = test_malloc(64); /* keep the tail off the bump pointer */
+  ASSERT_TRUE(guard != NULL);
+  memset(p, 0x5a, 512);
+
+  char *q = (char *)test_realloc(p, 64);
+  ASSERT_TRUE(q == p);
+  ASSERT_EQ(msize(q), 64);
+  for (int i = 0; i < 64; i++)
+    ASSERT_EQ((unsigned char)q[i], 0x5a);
+
+  char *r = (char *)test_malloc(200);
+  ASSERT_TRUE(r > q && r < q + 512);
+
+  test_free(r);
+  test_free(q);
+  test_free(guard);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, realloc_shrink_too_small_to_split_keeps_block_size) {
+  /* A tail too small to be a block stays with the block. The recorded size
+     must not drop, or free() would size the block short and strand the tail. */
+  reset_allocator_state();
+  char *p = (char *)test_malloc(100);
+  ASSERT_TRUE(p != NULL);
+  char *q = (char *)test_realloc(p, 96);
+  ASSERT_TRUE(q == p);
+  ASSERT_EQ(msize(q), 100);
+  test_free(q);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, realloc_shrink_mapping_gives_back_its_tail_in_place) {
+  reset_allocator_state();
+  unsigned char *p = (unsigned char *)test_malloc(64 * 1024);
+  ASSERT_TRUE(p != NULL);
+  for (int i = 0; i < 64 * 1024; i++)
+    p[i] = (unsigned char)(i * 7);
+
+  int mmaps = prof_mmap_calls, mremaps = prof_mremap_calls;
+  unsigned char *q = (unsigned char *)test_realloc(p, 40 * 1024);
+  ASSERT_TRUE(q == p);
+  ASSERT_EQ(prof_mmap_calls, mmaps);
+  ASSERT_EQ(prof_mremap_calls, mremaps + 1);
+  ASSERT_EQ(msize(q), 40 * 1024);
+  /* The header now records the shorter mapping, which free() unmaps. */
+  ASSERT_EQ(*(long *)((char *)q - LARGE_HDR),
+            (long)((40 * 1024 + LARGE_HDR + PGMASK) & ~PGMASK));
+  for (int i = 0; i < 40 * 1024; i++)
+    ASSERT_EQ(q[i], (unsigned char)(i * 7));
+  test_free(q);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, realloc_shrink_mapping_moves_when_mremap_refuses) {
+  reset_allocator_state();
+  unsigned char *p = (unsigned char *)test_malloc(64 * 1024);
+  ASSERT_TRUE(p != NULL);
+  for (int i = 0; i < 64 * 1024; i++)
+    p[i] = (unsigned char)(i * 7);
+
+  mremap_refuses = 1;
+  unsigned char *q = (unsigned char *)test_realloc(p, 40 * 1024);
+  mremap_refuses = 0;
+  ASSERT_TRUE(q != NULL);
+  ASSERT_TRUE(q != p);
+  ASSERT_EQ(msize(q), 40 * 1024);
+  for (int i = 0; i < 40 * 1024; i++)
+    ASSERT_EQ(q[i], (unsigned char)(i * 7));
+  test_free(q);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, realloc_shrink_mapping_into_pool_range_moves) {
+  /* Small enough for a pool: moving it there frees the whole mapping, where
+     mremap could only cut it down to a page. */
+  reset_allocator_state();
+  unsigned char *p = (unsigned char *)test_malloc(64 * 1024);
+  ASSERT_TRUE(p != NULL);
+  memset(p, 0x3c, 512);
+  int mremaps = prof_mremap_calls;
+  unsigned char *q = (unsigned char *)test_realloc(p, 512);
+  ASSERT_TRUE(q != p);
+  ASSERT_EQ(prof_mremap_calls, mremaps);
+  for (int i = 0; i < 512; i++)
+    ASSERT_EQ(q[i], 0x3c);
+  test_free(q);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, realloc_shrink_mapping_stays_when_under_a_page) {
+  reset_allocator_state();
+  unsigned char *p = (unsigned char *)test_malloc(64 * 1024);
+  ASSERT_TRUE(p != NULL);
+  /* 64 KiB plus the 16-byte header spills into a 17th page; so does this. */
+  unsigned char *q = (unsigned char *)test_realloc(p, 64 * 1024 - 8);
+  ASSERT_TRUE(q == p);
+  test_free(q);
+  reset_allocator_state();
 }
 
 UTEST(malloc_tests, realloc_null_acts_as_malloc) {
@@ -644,5 +766,153 @@ UTEST(malloc_tests, realloc_across_the_moving_threshold_preserves_bytes) {
     sz = nsz;
   }
   test_free(b);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, retired_pool_hole_is_filled_before_fresh_pool_space) {
+  reset_allocator_state();
+  void *warm[40];
+  for (int i = 0; i < 40; i++)
+    warm[i] = test_malloc(MSETMAX_MIN + 16);
+  for (int i = 0; i < 40; i++)
+    test_free(warm[i]);
+
+  /* A block that will become a hole, pinned in place by a neighbour. */
+  void *hole = test_malloc(8 * 1024);
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(hole != NULL && pin != NULL);
+  struct mset *first = pool;
+
+  /* Retire that pool by running it out of bump room. */
+  void *fill[32];
+  int nfill = 0;
+  while (pool == first && nfill < 32)
+    fill[nfill++] = test_malloc(8 * 1024);
+  ASSERT_TRUE(pool != first);
+
+  test_free(hole);
+  prof_mmap_calls = 0;
+  char *q = test_malloc(4 * 1024);
+  ASSERT_TRUE(q != NULL);
+  ASSERT_TRUE(q >= (char *)first && q + 4 * 1024 <= (char *)first + first->len);
+  ASSERT_EQ(prof_mmap_calls, 0);
+  memset(q, 0x6B, 4 * 1024);
+
+  test_free(q);
+  for (int i = 0; i < nfill; i++)
+    test_free(fill[i]);
+  test_free(pin);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, retired_pool_bump_tail_goes_on_its_free_list) {
+  reset_allocator_state();
+  void *warm[40];
+  for (int i = 0; i < 40; i++)
+    warm[i] = test_malloc(MSETMAX_MIN + 16);
+  for (int i = 0; i < 40; i++)
+    test_free(warm[i]);
+
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(pin != NULL);
+  struct mset *first = pool;
+
+  /* Run the pool out of bump room with requests that leave a tail behind. */
+  void *fill[64];
+  int nfill = 0, tail_at = 0;
+  while (pool == first && nfill < 64) {
+    tail_at = (first->size + 7) & ~7;
+    fill[nfill++] = test_malloc(7 * 1024);
+  }
+  ASSERT_TRUE(pool != first);
+  int tail = first->len - tail_at;
+  ASSERT_TRUE(tail >= 1024);
+
+  /* The tail is a free block of the retired pool, and bump room is gone. */
+  ASSERT_EQ(first->size, first->len);
+  struct free_node *fn = (struct free_node *)first->freelist;
+  while (fn && (char *)fn != (char *)first + tail_at)
+    fn = fn->next;
+  ASSERT_TRUE(fn != NULL);
+  ASSERT_EQ(fn->block_size, tail);
+
+  /* ...and serves a request that fits it, with no new mapping. */
+  prof_mmap_calls = 0;
+  char *q = test_malloc(tail - 64);
+  ASSERT_TRUE(q != NULL);
+  ASSERT_TRUE(q >= (char *)first && q + tail - 64 <= (char *)first + first->len);
+  ASSERT_EQ(prof_mmap_calls, 0);
+  memset(q, 0x6B, tail - 64);
+
+  test_free(q);
+  for (int i = 0; i < nfill; i++)
+    test_free(fill[i]);
+  test_free(pin);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, retired_pool_gives_back_free_pages_at_its_end) {
+  reset_allocator_state();
+  void *warm[40];
+  for (int i = 0; i < 40; i++)
+    warm[i] = test_malloc(MSETMAX_MIN + 16);
+  for (int i = 0; i < 40; i++)
+    test_free(warm[i]);
+
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(pin != NULL);
+  struct mset *first = pool;
+  void *fill[64];
+  int nfill = 0;
+  while (pool == first && nfill < 64)
+    fill[nfill++] = test_malloc(7 * 1024);
+  ASSERT_TRUE(pool != first);
+  /* The last request did not fit, so it came from the new pool; the ones
+     before it are the retired pool's last blocks. */
+  int len_retired = first->len;
+  ASSERT_EQ(len_retired & PGMASK, 0);
+
+  /* Free the retired pool's last blocks: once free space at its end spans a
+     page, the pages go back and the pool is shorter, still page-sized. */
+  int mremaps = prof_mremap_calls;
+  for (int i = nfill - 2; i >= 0 && (char *)fill[i] > (char *)first + first->len / 2; i--) {
+    test_free(fill[i]);
+    fill[i] = NULL;
+  }
+  ASSERT_TRUE(first->len < len_retired);
+  ASSERT_EQ(first->len & PGMASK, 0);
+  ASSERT_TRUE(prof_mremap_calls > mremaps);
+  ASSERT_TRUE(first->size <= first->len);
+  /* Every free block still lies inside the shortened pool. */
+  for (struct free_node *fn = first->freelist; fn; fn = fn->next)
+    ASSERT_TRUE((char *)fn + fn->block_size <= (char *)first + first->len);
+
+  for (int i = 0; i < nfill; i++)
+    if (fill[i]) test_free(fill[i]);
+  test_free(pin);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, parked_mapping_is_released_before_a_fresh_one) {
+  reset_allocator_state();
+  void *p = test_malloc(8 * 1024);
+  ASSERT_TRUE(p != NULL);
+  test_free(p);
+  ASSERT_TRUE(large_cache_bytes > 0);
+
+  /* The same size is served from the cache... */
+  prof_mmap_calls = 0;
+  p = test_malloc(8 * 1024);
+  ASSERT_EQ(prof_mmap_calls, 0);
+  test_free(p);
+
+  /* ...but a size it cannot serve maps fresh memory, and whatever is parked
+     is given back first rather than held alongside it. */
+  prof_munmap_calls = 0;
+  void *q = test_malloc(20 * 1024);
+  ASSERT_TRUE(q != NULL);
+  ASSERT_EQ(large_cache_bytes, 0);
+  ASSERT_EQ(prof_munmap_calls, 1);
+  test_free(q);
   reset_allocator_state();
 }

@@ -20,22 +20,12 @@
 
 #include <sys/utsname.h>
 
-#include <string.h>
-
-#include <stdio.h>
+#include "sys/syscall.h"
 
 int uname(struct utsname *buf) {
-  const char *default_sysname = "yasos";
-  const char *default_nodename = "localhost";
-  const char *default_release = "0.0.1";
-  const char *default_version = "0";
-  const char *default_machine = "arm";
+  uname_context context = {
+      .buf = buf,
+  };
 
-  memcpy(buf->sysname, default_sysname, strlen(default_sysname) + 1);
-  memcpy(buf->nodename, default_nodename, strlen(default_nodename) + 1);
-  memcpy(buf->release, default_release, strlen(default_release) + 1);
-  memcpy(buf->version, default_version, strlen(default_version) + 1);
-  memcpy(buf->machine, default_machine, strlen(default_machine) + 1);
-
-  return -1; // Not implemented
+  return trigger_syscall(sys_uname, &context);
 }

@@ -71,26 +71,40 @@ int lstat(const char *file, struct stat *buf) {
   return trigger_syscall(sys_stat, &context);
 }
 
+/* chmod(2) family. ext4 keeps the bits; FAT and ramfs have nowhere to and
+   accept the call as they always did; the read-only root refuses it. */
+int fchmodat(int dirfd, const char *pathname, int mode, int flags) {
+  const chmod_context context = {
+      .path = pathname,
+      .fd = dirfd,
+      .mode = (mode_t)mode,
+      .flags = flags,
+  };
+  return trigger_syscall(sys_chmod, &context);
+}
+
 int chmod(char *file, int mode) {
-  printf("TODO: implement sys/stat chmod\n");
-  return 0;
+  return fchmodat(AT_FDCWD, file, mode, 0);
 }
 
 int fchmod(int fd, int mode) {
-  printf("TODO: implement sys/stat fchmod\n");
-  return 0;
+  return fchmodat(fd, 0, mode, 0);
 }
 
-int fchmodat(int dirfd, const char *pathname, int mode, int flags) {
-  printf("TODO: implement sys/stat fchmodat\n");
-  return 0;
-}
+/* The creation mask. The kernel knows none, so it is applied here: by open
+   with O_CREAT and by mkdir. Per process, reset by exec. */
+static int file_mode_mask = 022;
 
 int umask(int mask) {
-  return 0xffffffff & 0777;
+  int old = file_mode_mask;
+  file_mode_mask = mask & 0777;
+  return old;
 }
 
+int __yasos_creation_mode(int mode) { return mode & ~file_mode_mask; }
+
 int mkdir(char *path, int mode) {
+  mode = __yasos_creation_mode(mode);
   mkdir_context context = {
       .path = (const char *)path,
       .mode = mode,
@@ -135,6 +149,7 @@ int fstatat(int fd, const char *path, struct stat *buf, int flag) {
 }
 
 int mkdirat(int dirfd, const char *pathname, mode_t mode) {
+  mode = (mode_t)__yasos_creation_mode((int)mode);
   mkdir_context context = {
       .path = (const char *)pathname,
       .mode = mode,

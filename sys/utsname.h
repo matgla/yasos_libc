@@ -20,14 +20,19 @@
 
 #pragma once
 
+/* Every field is the same width, as on Linux. That is not tidiness: portable
+ * code walks this struct in steps of sizeof(sysname) -- toybox's uname does
+ * exactly that for -a -- so fields of different sizes print the wrong bytes.
+ * The kernel fills it in (sys_uname), NUL-terminated and truncated to fit. */
+#define _UTSNAME_LENGTH 65
+
 struct utsname {
-  char sysname[16];  /* Operating system name (e.g., "Linux") */
-  char nodename[16]; /* Name within communications network
-                      to which the node is attached, if any */
-  char release[32];  /* Operating system release
-                      (e.g., "2.6.28") */
-  char version[32];  /* Operating system version */
-  char machine[8];   /* Hardware type identifier */
+  char sysname[_UTSNAME_LENGTH];  /* Operating system name: "YasOS" */
+  char nodename[_UTSNAME_LENGTH]; /* This machine's name; the board, since
+                                     there is no network to be named on */
+  char release[_UTSNAME_LENGTH];  /* Operating system release */
+  char version[_UTSNAME_LENGTH];  /* When this kernel's image was built */
+  char machine[_UTSNAME_LENGTH];  /* CPU architecture, e.g. "armv8-m" */
 };
 
 int uname(struct utsname *buf);

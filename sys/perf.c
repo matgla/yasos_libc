@@ -76,6 +76,15 @@ static const char *syscall_name(unsigned int id) {
     case sys_settimeofday: return "settimeofday";
     case sys_utimensat: return "utimensat";
     case sys_readlink: return "readlink";
+    case sys_uname: return "uname";
+    case sys_fchdir: return "fchdir";
+    case sys_mount: return "mount";
+    case sys_umount: return "umount";
+    case sys_statvfs: return "statvfs";
+    case sys_lseek64: return "lseek64";
+    case sys_symlink: return "symlink";
+    case sys_chmod: return "chmod";
+    case sys_chown: return "chown";
     case sys_nanosleep: return "nanosleep";
     case sys_chdir: return "chdir";
     case sys_time: return "time";

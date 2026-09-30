@@ -25,7 +25,7 @@
 #include <sys/syscall.h>
 
 void *dlopen(const char *path, int mode) {
-  void *result;
+  void *result = NULL;
   printf("dlopen: %s %d\n", path, mode);
   const dlopen_context context = {
       .path = path,
@@ -39,7 +39,7 @@ void *dlopen(const char *path, int mode) {
 }
 
 void *dlsym(void *handle, const char *symbol_name) {
-  void *result;
+  void *result = NULL;
   printf("dlsym: %p %s\n", handle, symbol_name);
   const dlsym_context context = {
       .handle = handle,

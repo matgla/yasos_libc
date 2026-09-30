@@ -17,9 +17,22 @@
 
 #pragma once
 
+#ifndef __cplusplus
+#if defined(__TINYC__)
+/* What every tcc-built program has been compiled with so far. Not _Bool, so a
+   value converts by truncation rather than to 0/1 -- kept only because moving
+   the whole rootfs over is a change of its own. */
 #define bool unsigned char
 #define true 1
 #define false 0
+#elif !defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L
+/* C23 makes bool, true and false keywords; before that they are these. */
+#define bool _Bool
+#define true 1
+#define false 0
+#endif
+#endif
+
 #define TRUE 1
 #define FALSE 0
 #define __bool_true_false_are_defined 1

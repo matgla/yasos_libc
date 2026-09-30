@@ -5,6 +5,12 @@
 
 int nanosleep(struct timespec *req, struct timespec *rem);
 
+/* Processor time. There is no per-process CPU clock, so clock() measures
+ * wall time since its first call; only differences are meaningful anyway. */
+typedef long clock_t;
+#define CLOCKS_PER_SEC 1000000L
+clock_t clock(void);
+
 struct tm {
   int tm_sec;
   int tm_min;

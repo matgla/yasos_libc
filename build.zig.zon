@@ -1,0 +1,8 @@
+.{
+    .name = .yaslibc,
+    .version = "0.0.1",
+    .fingerprint = 0x2cc08db53c86c90e,
+    .minimum_zig_version = "0.17.0-dev.1640+2597da025",
+    .dependencies = .{},
+    .paths = .{""},
+}

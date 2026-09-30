@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "sys/syscall.h"
 #include <unistd.h>
 
 #include <fcntl.h>
@@ -233,8 +235,10 @@ int fflush(FILE *fp) {
   }
   if (fp->fd < 0)
     return 0;
-  if (write(fp->fd, fp->obuf, fp->olen) != fp->olen)
+  if (write(fp->fd, fp->obuf, fp->olen) != fp->olen) {
+    fp->istat |= _FILE_ERR;
     return EOF;
+  }
   fp->olen = 0;
   return 0;
 }
@@ -246,8 +250,10 @@ int fputc(int c, FILE *fp) {
     // touch a real fd.
     if (fp->fd < 0)
       return c;
-    if (write(fp->fd, (char *)&c, 1) != 1)
+    if (write(fp->fd, (char *)&c, 1) != 1) {
+      fp->istat |= _FILE_ERR;
       return EOF;
+    }
     return c;
   }
   if (fp->olen < fp->osize) {
@@ -963,8 +969,10 @@ long fwrite(void *v, long sz, long n, FILE *fp) {
       /* buffer is empty and the remainder would fill it anyway: write the
          whole chunk straight through */
       long w = write(fp->fd, (char *)s, left);
-      if (w <= 0)
+      if (w <= 0) {
+        fp->istat |= _FILE_ERR;
         break;
+      }
       fp->ostat += w;
       s += w;
       left -= w;
@@ -993,6 +1001,8 @@ int fseek(FILE *fp, long offset, int whence) {
     return -1;
   fp->ilen = fp->olen = 0;
   fp->icur = 0;
+  fp->back = EOF;
+  fp->istat &= ~_FILE_EOF;
   return 0;
 }
 
@@ -1003,8 +1013,25 @@ long ftell(FILE *fp) {
   return lseek(fp->fd, 0, SEEK_CUR) - fp->ilen + fp->icur;
 }
 
-int ferror(FILE *fp) {
+void rewind(FILE *fp) {
+  (void)fseek(fp, 0, SEEK_SET);
+  clearerr(fp);
+}
+
+int fgetpos(FILE *fp, fpos_t *pos) {
+  long off = ftell(fp);
+  if (off < 0)
+    return -1;
+  *pos = off;
   return 0;
+}
+
+int fsetpos(FILE *fp, const fpos_t *pos) {
+  return fseek(fp, *pos, SEEK_SET);
+}
+
+int ferror(FILE *fp) {
+  return (fp->istat & _FILE_ERR) != 0;
 }
 
 int pclose(FILE *stream) {
@@ -1018,9 +1045,25 @@ FILE *popen(const char *command, const char *type) {
   return NULL;
 }
 
+int renameat2(int olddirfd, const char *oldpath, int newdirfd,
+              const char *newpath, unsigned int flags) {
+  const rename_context context = {
+      .olddirfd = olddirfd,
+      .oldpath = oldpath,
+      .newdirfd = newdirfd,
+      .newpath = newpath,
+      .flags = flags,
+  };
+  return trigger_syscall(sys_renameat2, &context);
+}
+
+int renameat(int olddirfd, const char *oldpath, int newdirfd,
+             const char *newpath) {
+  return renameat2(olddirfd, oldpath, newdirfd, newpath, 0);
+}
+
 int rename(const char *oldpath, const char *newpath) {
-  printf("TODO: Implement rename\n");
-  return -1; // Not implemented
+  return renameat2(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
 }
 
 FILE *fmemopen(void *buf, size_t size, const char *mode) {
@@ -1123,7 +1166,7 @@ ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) {
 }
 
 void clearerr(FILE *fp) {
-  // printf("TODO: Implement clearerr\n");
+  fp->istat &= ~(_FILE_EOF | _FILE_ERR);
 }
 
 int setvbuf(FILE *fp, char *buf, int mode, size_t size) {

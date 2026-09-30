@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -59,9 +60,12 @@ char *getenv(const char *name) {
 
 int putenv(char *string) {
   printf("TODO: Implement putenv\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
+/* The no-OS build has no processes to run a shell in. */
+#ifndef YASLIBC_NOOS
 int system(char *cmd) {
   char *argv[] = {"/bin/sh", "-c", cmd, NULL};
   pid_t pid;
@@ -77,6 +81,7 @@ int system(char *cmd) {
     return -1;
   return ret;
 }
+#endif
 
 /* ISO C forbids direct conversion between function pointers and void *.
  * Use a union to store arbitrary handler types without violating pedantic. */
@@ -113,6 +118,7 @@ int atexit(void (*func)(void)) {
 }
 
 void __libc_finalize_and_exit(int status) {
+#ifndef YASLIBC_NOOS
   /* Run destructors from the YAFF initfini table.
    * These are raw code addresses (not thunked), so we call them
    * via __call_with_got which switches R9 to the originating
@@ -130,6 +136,7 @@ void __libc_finalize_and_exit(int status) {
       __call_with_got(fini_funcs[i], __yasos_fini_got);
     }
   }
+#endif
   /* Run atexit/on_exit handlers (LIFO) */
   while (atexit_cnt > 0) {
     --atexit_cnt;
@@ -277,6 +284,7 @@ void srandom(unsigned int seed) {
 
 int setenv(const char *name, const char *value, int overwrite) {
   printf("TODO: Implement setenv\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 

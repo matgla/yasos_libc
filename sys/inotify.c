@@ -1,3 +1,4 @@
+#include <errno.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,15 +25,18 @@
 
 int inotify_init(void) {
   printf("TODO: Implement inotify_init\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int inotify_init1(int flags) {
   printf("TODO: Implement inotify_init1\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }
 
 int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
   printf("TODO: Implement inotify_add_watch\n");
+  errno = ENOSYS;
   return -1; // Not implemented
 }

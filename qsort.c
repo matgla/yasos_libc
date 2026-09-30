@@ -43,3 +43,21 @@ void qsort(void *a, int n, int sz, int (*cmp)(const void *, const void *)) {
     fix(a, 0, i - 1, sz, cmp);
   }
 }
+
+void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
+              int (*compar)(const void *, const void *)) {
+  const char *lo = (const char *)base;
+  while (nmemb > 0) {
+    const char *mid = lo + (nmemb / 2) * size;
+    int c = compar(key, mid);
+    if (c == 0)
+      return (void *)mid;
+    if (c > 0) {
+      lo = mid + size;
+      nmemb -= nmemb / 2 + 1;
+    } else {
+      nmemb /= 2;
+    }
+  }
+  return 0;
+}

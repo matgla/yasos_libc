@@ -28,6 +28,6 @@ typedef jmp_buf sigjmp_buf;
 #endif
 
 int setjmp(jmp_buf env);
-void longjmp(jmp_buf env, int val);
-void siglongjmp(sigjmp_buf env, int val);
+__attribute__((noreturn)) void longjmp(jmp_buf env, int val);
+__attribute__((noreturn)) void siglongjmp(sigjmp_buf env, int val);
 int sigsetjmp(sigjmp_buf env, int savemask);

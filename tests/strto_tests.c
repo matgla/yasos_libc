@@ -45,6 +45,8 @@
 
 long long sut_strtoll(const char *str, char **endptr, int base);
 unsigned long long sut_strtoull(const char *str, char **endptr, int base);
+long sut_strtol(const char *str, char **endptr, int base);
+unsigned long sut_strtoul(const char *str, char **endptr, int base);
 
 /*
  * The library under test carries its own `errno` -- rename_symbols.sh renames
@@ -65,6 +67,10 @@ static const char *const CASES[] = {
     "18446744073709551615", "18446744073709551616", "999999999999999999999999",
     "abc",      "",         "0x",       "7z",       "  -0x10zz",
     "  \t 0755q", "-0",     "1103515245",
+    /* punctuation between '9' and 'A' is not a digit: sed parses the ';'
+     * after "s/^/X/" with strtol and read it as 4 */
+    ";",        "; s/x/Y/", ":7",       "@1",       "9:",       "5;",
+    "  -",      "+",        " -x",
 };
 
 static const int BASES[] = {0, 2, 8, 10, 16, 36};
@@ -114,6 +120,38 @@ UTEST(strto, strtoull_matches_host) {
       int got_range = sut_errno == ERANGE;
 
       ASSERT_EQ_MSG(want, got, s);
+      ASSERT_EQ_MSG(want_end - s, got_end - s, s);
+      ASSERT_EQ_MSG(want_range, got_range, s);
+    }
+  }
+}
+
+/* The `long` pair: the host is 64-bit, so its long agrees with long long and
+ * the table's limits test the narrowing only on the device. */
+UTEST(strto, strtol_and_strtoul_match_host) {
+  for (size_t c = 0; c < sizeof(CASES) / sizeof(*CASES); ++c) {
+    for (size_t b = 0; b < sizeof(BASES) / sizeof(*BASES); ++b) {
+      const char *s = CASES[c];
+      char *want_end;
+      char *got_end;
+
+      errno = 0;
+      long want = strtol(s, &want_end, BASES[b]);
+      int want_range = errno == ERANGE;
+      sut_errno = 0;
+      long got = sut_strtol(s, &got_end, BASES[b]);
+      int got_range = sut_errno == ERANGE;
+      ASSERT_EQ_MSG(want, got, s);
+      ASSERT_EQ_MSG(want_end - s, got_end - s, s);
+      ASSERT_EQ_MSG(want_range, got_range, s);
+
+      errno = 0;
+      unsigned long uwant = strtoul(s, &want_end, BASES[b]);
+      want_range = errno == ERANGE;
+      sut_errno = 0;
+      unsigned long ugot = sut_strtoul(s, &got_end, BASES[b]);
+      got_range = sut_errno == ERANGE;
+      ASSERT_EQ_MSG(uwant, ugot, s);
       ASSERT_EQ_MSG(want_end - s, got_end - s, s);
       ASSERT_EQ_MSG(want_range, got_range, s);
     }

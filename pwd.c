@@ -24,6 +24,7 @@
 #include <pwd.h>
 
 #include <stdio.h>
+#include <string.h>
 
 struct passwd *getpwnam(const char *name) {
   printf("TODO: Implement getpwnam\n");
@@ -44,10 +45,20 @@ struct passwd *getpwuid(uid_t uid) {
   return &root_passwd; // Return root user for now
 }
 
+/* The only account is root. POSIX: a name that is not found is not an error
+   -- return 0 with *result NULL. This used to print a TODO and return -1
+   leaving *result unset, and toybox tar read that garbage as a passwd. */
 int getpwnam_r(const char *name, struct passwd *pwd, char *buf, size_t size,
                struct passwd **result) {
-  printf("TODO: Implement getpwnam_r\n");
-  return -1;
+  (void)buf;
+  (void)size;
+  if (name == NULL || strcmp(name, root_passwd.pw_name) != 0) {
+    *result = NULL;
+    return 0;
+  }
+  *pwd = root_passwd;
+  *result = pwd;
+  return 0;
 }
 
 int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t size,

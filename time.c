@@ -34,3 +34,17 @@ int clock_gettime(clockid_t clockid, struct timespec *res) {
   res->tv_nsec = tv.tv_usec * 1000;
   return 0;
 }
+
+clock_t clock(void) {
+  static struct timespec start;
+  static int started;
+  struct timespec now;
+  if (clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
+    return (clock_t)-1;
+  }
+  if (!started) {
+    start = now;
+    started = 1;
+  }
+  return (clock_t)((now.tv_sec - start.tv_sec) * CLOCKS_PER_SEC + (now.tv_nsec - start.tv_nsec) / 1000);
+}

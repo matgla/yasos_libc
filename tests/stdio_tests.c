@@ -37,6 +37,14 @@ int sut_fflush(void *fp);
 char *sut_tmpnam(char *buffer);
 void *sut_freopen(const char *path, const char *mode, void *fp);
 int sut_fileno(void *fp);
+void *sut_fdopen(int fd, const char *mode);
+long sut_fread(void *v, long sz, long n, void *fp);
+int sut_feof(void *fp);
+int sut_ferror(void *fp);
+void sut_clearerr(void *fp);
+int sut_ungetc(int c, void *fp);
+int sut_fgetc(void *fp);
+int sut_fclose(void *fp);
 extern void *sut_stdout;
 
 /* Buffer to capture write() output */
@@ -228,4 +236,111 @@ UTEST(stdio_tests, freopen_flushes_closes_and_reopens_stream) {
   ASSERT_STREQ("/tmp/reopened.log", freopen_open_path);
   ASSERT_EQ(O_WRONLY | O_CREAT | O_TRUNC, freopen_open_flags);
   ASSERT_EQ(freopen_open_fd, sut_fileno(sut_stdout));
+}
+
+/* End-of-file and error state of an input stream: feof() used to peek a byte
+ * into a `char`, which is unsigned on ARM, so it never reported the end and
+ * pushed back a 0xFF for the next fread() -- GNU make's
+ * "while (!feof(stdin)) fread()" copy of `make -f -` input never ended. */
+static const char *feof_input;
+static int feof_input_len;
+static int feof_input_pos;
+static int feof_read_fails;
+
+static void feof_syscalls(int number, const void *args, syscall_result *result) {
+  result->err = 0;
+  result->result = 0;
+  if (number == sys_mmap) {
+    const mmap_context *ctx = args;
+    *ctx->result = mmap(NULL, ctx->length, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  } else if (number == sys_munmap) {
+    const munmap_context *ctx = args;
+    munmap(ctx->addr, ctx->length);
+  } else if (number == sys_read) {
+    const read_context *ctx = args;
+    int n = feof_input_len - feof_input_pos;
+    if (feof_read_fails) {
+      result->err = 5; /* EIO */
+      result->result = -1;
+      return;
+    }
+    if (n > (int)ctx->count)
+      n = (int)ctx->count;
+    memcpy(ctx->buf, feof_input + feof_input_pos, n);
+    feof_input_pos += n;
+    *ctx->result = n;
+  }
+}
+
+static void *feof_open(const char *input, int fails) {
+  RESET_FAKE(trigger_supervisor_call);
+  trigger_supervisor_call_fake.custom_fake = feof_syscalls;
+  feof_input = input;
+  feof_input_len = (int)strlen(input);
+  feof_input_pos = 0;
+  feof_read_fails = fails;
+  return sut_fdopen(3, "r");
+}
+
+UTEST(stdio_tests, fread_loop_until_feof_ends) {
+  void *fp = feof_open("abc", 0);
+  char buf[16], all[64];
+  long n, total = 0;
+  int rounds = 0;
+
+  ASSERT_TRUE(fp != NULL);
+  ASSERT_EQ(0, sut_feof(fp));
+  while (!sut_feof(fp) && !sut_ferror(fp) && rounds++ < 10) {
+    n = sut_fread(buf, 1, sizeof(buf), fp);
+    memcpy(all + total, buf, n);
+    total += n;
+  }
+  ASSERT_LT(rounds, 10);
+  ASSERT_EQ(3, total);
+  ASSERT_EQ(0, memcmp(all, "abc", 3));
+  ASSERT_NE(0, sut_feof(fp));
+  ASSERT_EQ(0, sut_ferror(fp));
+  sut_fclose(fp);
+}
+
+UTEST(stdio_tests, feof_does_not_consume_input) {
+  void *fp = feof_open("xy", 0);
+
+  ASSERT_EQ(0, sut_feof(fp));
+  ASSERT_EQ('x', sut_fgetc(fp));
+  ASSERT_EQ(0, sut_feof(fp));
+  ASSERT_EQ('y', sut_fgetc(fp));
+  ASSERT_EQ(0, sut_feof(fp)); /* the end is only known once a read finds it */
+  ASSERT_EQ(EOF, sut_fgetc(fp));
+  ASSERT_NE(0, sut_feof(fp));
+  sut_fclose(fp);
+}
+
+UTEST(stdio_tests, ungetc_and_clearerr_reset_eof) {
+  void *fp = feof_open("", 0);
+
+  ASSERT_EQ(EOF, sut_fgetc(fp));
+  ASSERT_NE(0, sut_feof(fp));
+  ASSERT_EQ('q', sut_ungetc('q', fp));
+  ASSERT_EQ(0, sut_feof(fp));
+  ASSERT_EQ('q', sut_fgetc(fp));
+  ASSERT_EQ(EOF, sut_ungetc(EOF, fp));
+  ASSERT_EQ(EOF, sut_fgetc(fp));
+  ASSERT_NE(0, sut_feof(fp));
+  sut_clearerr(fp);
+  ASSERT_EQ(0, sut_feof(fp));
+  sut_fclose(fp);
+}
+
+UTEST(stdio_tests, read_error_sets_ferror_not_feof) {
+  void *fp = feof_open("zzz", 1);
+  char buf[8];
+
+  ASSERT_EQ(0, sut_fread(buf, 1, sizeof(buf), fp));
+  ASSERT_NE(0, sut_ferror(fp));
+  ASSERT_EQ(0, sut_feof(fp));
+  sut_clearerr(fp);
+  ASSERT_EQ(0, sut_ferror(fp));
+  sut_fclose(fp);
 }

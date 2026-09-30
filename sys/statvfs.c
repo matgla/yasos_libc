@@ -20,14 +20,22 @@
 
 #include <sys/statvfs.h>
 
-#include <stdio.h>
+#include "sys/syscall.h"
 
-int statvfs(char *path, struct statvfs *buf) {
-  printf("TODO: Implement statvfs\n");
-  return 0; // Not implemented
+int statvfs(const char *path, struct statvfs *buf) {
+  const statvfs_context context = {
+      .path = path,
+      .fd = -1,
+      .buf = buf,
+  };
+  return trigger_syscall(sys_statvfs, &context);
 }
 
 int fstatvfs(int fd, struct statvfs *buf) {
-  printf("TODO: Implement fstatvfs\n");
-  return 0; // Not implemented
+  const statvfs_context context = {
+      .path = 0,
+      .fd = fd,
+      .buf = buf,
+  };
+  return trigger_syscall(sys_statvfs, &context);
 }

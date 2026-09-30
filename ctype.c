@@ -3,6 +3,9 @@
 // Modified by:
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 
+/* The out-of-line definitions; <ctype.h> would otherwise map these names to
+ * its inline versions. */
+#define __YASLIBC_CTYPE_IMPL
 #include <ctype.h>
 
 int isascii(int c) {
@@ -46,7 +49,11 @@ int toupper(int c) {
 }
 
 int isprint(int c) {
-  return (c & 0x7f) >= 32 && c < 127;
+  return (unsigned)(c - 32) < 95u;
+}
+
+int isgraph(int c) {
+  return (unsigned)(c - 33) < 94u;
 }
 
 int ispunct(int c) {
@@ -58,5 +65,5 @@ int isxdigit(int c) {
 }
 
 int iscntrl(int c) {
-  return (unsigned)(c & 0x7f) < 32u || (c & 0x7f) == 127;
+  return (unsigned)c < 32u || c == 127;
 }

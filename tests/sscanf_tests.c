@@ -273,3 +273,59 @@ UTEST(sscanf, scanset_single_letters_commas_positive_and_negated) {
   ASSERT_STREQ(l2, "b");
   ASSERT_STREQ(l3, "c");
 }
+
+// toysh (nommu) hands a subshell its state as "%lld %u %ld %u %u" + rest of
+// line, then "%u %lu" + rest of line per variable. %lld stored 32 bits and
+// %*[^\n] swallowed the newline and the next line's first number, so every
+// `$(...)` in a script hung the child shell.
+UTEST(sscanf, toysh_state_handoff_formats) {
+  long long seconds = -1;
+  unsigned options = 0, pid = 0, bangpid = 0;
+  long lineno = 0;
+  int rc = sut_sscanf("12 3 4 5 6\n7 9\n", "%lld %u %ld %u %u%*[^\n]", &seconds, &options, &lineno, &pid, &bangpid);
+  ASSERT_EQ(rc, 5);
+  ASSERT_EQ(seconds, 12LL);
+  ASSERT_EQ(bangpid, 6u);
+
+  unsigned len = 0;
+  unsigned long flags = 0;
+  rc = sut_sscanf("7 9 trailing\n", "%u %lu%*[^\n]", &len, &flags);
+  ASSERT_EQ(rc, 2);
+  ASSERT_EQ(len, 7u);
+  ASSERT_EQ(flags, 9ul);
+}
+
+UTEST(sscanf, long_long_and_short_sizes) {
+  long long big = 0;
+  unsigned char byte = 0xff;
+  short sh = 0;
+  int rc = sut_sscanf("-8589934592 300 -5", "%lld %hhu %hd", &big, &byte, &sh);
+  ASSERT_EQ(rc, 3);
+  ASSERT_EQ(big, -8589934592LL);
+  ASSERT_EQ(byte, (unsigned char)44); /* 300 truncated to a byte */
+  ASSERT_EQ(sh, -5);
+}
+
+UTEST(sscanf, width_applies_to_one_conversion) {
+  char a[8] = {0}, b[16] = {0};
+  int rc = sut_sscanf("abcdefgh ijklmnop", "%3s%s %s", a, b, b);
+  ASSERT_EQ(rc, 3);
+  ASSERT_STREQ(a, "abc");
+  ASSERT_STREQ(b, "ijklmnop");
+}
+
+UTEST(sscanf, percent_literal_hex_zero_and_eof) {
+  int pct = 0, hex = -1;
+  ASSERT_EQ(sut_sscanf("50% 0", "%d%% %x", &pct, &hex), 2);
+  ASSERT_EQ(pct, 50);
+  ASSERT_EQ(hex, 0);
+  ASSERT_EQ(sut_sscanf("", "%d", &pct), -1);
+  ASSERT_EQ(sut_sscanf("   ", "%d", &pct), -1);
+}
+
+UTEST(sscanf, scanset_does_not_skip_whitespace) {
+  char s[8] = {0};
+  ASSERT_EQ(sut_sscanf(" x", "%[x]", s), 0);
+  ASSERT_EQ(sut_sscanf("]]a", "%[]]", s), 1);
+  ASSERT_STREQ(s, "]]");
+}

@@ -31,7 +31,12 @@ extern unsigned int __yaff_initfini[] __attribute__((weak));
 extern void *__yasos_fini_table;
 extern void *__yasos_fini_got;
 
-int main(int argc, char *argv[]);
+/* Declared with the three-argument form POSIX allows and glibc uses. A main()
+ * written with two parameters still works -- the caller cleans up under AAPCS,
+ * so the extra argument is simply ignored -- but one written with three (which
+ * is how the Zig compiler's C output declares it) gets a real environment
+ * instead of whatever register r2 happened to hold. */
+int main(int argc, char *argv[], char *envp[]);
 
 /* Pure-assembly _start: capture R9 (GOT base) into R2 before any
  * GOT-relative C code runs, then tail-call __crt1_main. */
@@ -67,6 +72,6 @@ void __crt1_main(int argc, char *argv[], void *r9_value) {
 
   __yasos_fini_table = __yaff_initfini;
 
-  int ret = main(argc, argv);
+  int ret = main(argc, argv, environ);
   exit(ret);
 }
