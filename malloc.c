@@ -87,7 +87,24 @@ void __attribute__((noinline)) malloc_debug_trap(void *block, int size, int allo
    four large ones moves the same bytes; and a 64 KiB pool spreads a small
    compile's working set over sixteen times the address range, which a 16 KiB
    XIP cache notices. The ladder is not overhead to be optimised away -- it is
-   what keeps a small compile's heap small. */
+   what keeps a small compile's heap small.
+
+   A pool that runs out of bump room first tries to grow in place (mremap into
+   the free pages after it, one page at a time, up to MSETLEN_MAX), and a pool
+   that has to be mapped fresh is mapped at the size its first request needs,
+   then grows the same way. The ladder still sets the pooled/mapped threshold,
+   and growth counts as the same evidence a replacement pool did; but a pool is
+   no longer mapped at the class size up front. That had left most of the
+   newest pool unused at a compile's peak. Replaying tcc's own allocation
+   traces against a port of the device's page allocator, the 64 KiB pool
+   mapped last held 16-20 KiB, and hello world peaked at 212 KiB mapped for
+   141 KiB live; with growth in place it peaks at 152 KiB, and the peaks of
+   50 libc files fall 18% in sum at -O0 and 9% at -O2. The kernel places a
+   mapping at the lowest free run, so the newest pool is normally at the top
+   and the pages after it are free; when they are not (a large mapping landed
+   there), a fresh pool is mapped instead. The cap keeps a pool's free list as
+   short as it was: unbounded growth took only ~3% more off the peak and
+   doubled the free-list walks. */
 #define MSETLEN_MIN (1 << 12)      /* first pool: one page, as before */
 #define MSETLEN_MAX (64 * 1024)
 #define MSETMAX_MIN 2048           /* first threshold, as before */
@@ -624,7 +641,10 @@ static int mk_pool(int want) {
     return 0;
   }
   {
-    int len = pool_len_for(want);
+    /* Just what the request needs: the pool grows in place from here (see
+       pool_grow). Not inside the vfork window, where nothing grows and the
+       child should keep the old sizing. */
+    int len = in_vfork_window ? pool_len_for(want) : (want + PGMASK) & ~PGMASK;
     pool = cache_map(len);
     if (pool == NULL) {
       return 1;
@@ -641,11 +661,42 @@ static int mk_pool(int want) {
   return 0;
 }
 
+/* Extend the current pool in place so its bump room reaches `need` bytes,
+   growing by at least a page. Nonzero on success. Refused past MSETLEN_MAX,
+   where a fresh pool is mapped instead, and inside the vfork window, where the
+   child would be growing the parent's mapping. A pool that grows has outgrown
+   its class just as surely as one that had to be replaced, so the class
+   follows it (that is what moves mid-size requests into pools). */
+static int pool_grow(int need) {
+  int len = pool->len + PGSIZE;
+  if (len < need)
+    len = (need + PGMASK) & ~PGMASK;
+  if (in_vfork_window || len > MSETLEN_MAX)
+    return 0;
+  if (mremap(pool, pool->len, len, 0) != (void *)pool)
+    return 0;
+  pool->len = len;
+  while (pool_len_next < len && pool_len_next < MSETLEN_MAX)
+    widen_pool_class();
+  return 1;
+}
+
+/* A request of whole pages (4096, 8192, ... -- tcc's arenas and buffers are
+   sized like that) would take a mapping one page longer than itself, for the
+   16-byte header alone. A pool block costs it 8 bytes, so below the pooled
+   ceiling such a request is served from a pool whatever the class: on hello
+   world, before the class widened, they were 15 KiB of the 36 KiB mapped for
+   21 KiB of large requests. */
+static int header_spills_page(size_t n) {
+  size_t rem = (n + LARGE_HDR) & PGMASK;
+  return n < MSETMAX_CAP && rem != 0 && rem <= LARGE_HDR;
+}
+
 void *malloc(size_t n) {
   void *m;
   size_t alloc_size;
   int offset;
-  if (n >= (size_t)cur_msetmax()) {
+  if (n >= (size_t)cur_msetmax() && !header_spills_page(n)) {
     /* Self-tracking large alloc: header in the mapping, no table, unbounded. */
     long total = (n + LARGE_HDR + PGMASK) & ~PGMASK;
     char *lm = cache_map(total);
@@ -715,7 +766,8 @@ void *malloc(size_t n) {
 #endif
       return (char *)m + sizeof(struct mhdr);
     }
-    if (mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
+    if (!pool_grow(offset + (int)alloc_size + 8) &&
+        mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
       return NULL;
     offset = pool->size;
     if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) &

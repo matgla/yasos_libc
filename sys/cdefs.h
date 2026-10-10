@@ -34,6 +34,12 @@
 #define __END_DECLS
 #endif
 
+/* Host glibc headers reached through include_next (limits.h with _GNU_SOURCE)
+ * use these; they mean nothing to this libc, so they expand to nothing. */
+#ifndef __THROW
+#define __THROW
+#endif
+
 #define __CONCAT1(x, y) x##y
 #define __CONCAT(x, y) __CONCAT1(x, y)
 #define __STRING(x) #x

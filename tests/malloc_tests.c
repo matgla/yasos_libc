@@ -46,9 +46,21 @@
  */
 static int prof_mmap_calls;
 static int prof_munmap_calls;
+/* Address space to leave unmapped after each new mapping, so that a pool can
+   grow into it the way it does on the device, whose page allocator places a
+   mapping at the lowest free run -- on the host, what follows a mapping is
+   usually the previous one. */
+static size_t mmap_room;
 static void *counting_mmap(void *addr, size_t len, int prot, int flags, int fd,
                            off_t off) {
   prof_mmap_calls++;
+  if (mmap_room != 0 && addr == NULL) {
+    size_t mapped = (len + 4095) & ~(size_t)4095;
+    char *m = mmap(NULL, mapped + mmap_room, prot, flags, fd, off);
+    if (m != MAP_FAILED)
+      munmap(m + mapped, mmap_room);
+    return m;
+  }
   return mmap(addr, len, prot, flags, fd, off);
 }
 static int counting_munmap(void *addr, size_t len) {
@@ -59,10 +71,11 @@ static int counting_munmap(void *addr, size_t len) {
    extend one until it learned to shrink one too). */
 static int prof_mremap_calls;
 static int mremap_refuses;
+static int mremap_refuses_growth; /* the pages after the mapping are taken */
 static void *counting_mremap(void *addr, size_t old_len, size_t new_len,
                              int flags) {
   prof_mremap_calls++;
-  if (mremap_refuses)
+  if (mremap_refuses || (mremap_refuses_growth && new_len > old_len))
     return MAP_FAILED;
   return mremap(addr, old_len, new_len, flags);
 }
@@ -125,6 +138,8 @@ static void reset_allocator_state(void) {
   large_allocs = 0;
   prof_mmap_calls = 0;
   prof_munmap_calls = 0;
+  mmap_room = 0;
+  mremap_refuses_growth = 0;
 }
 
 /* ---- msize correctness ---- */
@@ -507,6 +522,9 @@ UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
      and prevents the pool from ever reaching refs=0 for reclaim.
      Instead, old pools drain naturally as their live allocations are freed. */
   reset_allocator_state();
+  /* These pools have to run out of room and retire, which a pool that can
+     grow in place does not do until MSETLEN_MAX. */
+  mremap_refuses_growth = 1;
 
   #define FILL_SIZE 48
   #define MAX_PTRS 700
@@ -555,6 +573,9 @@ UTEST(malloc_tests, old_pool_removed_from_list_when_refs_zero) {
   /* When all allocations from an old pool are freed, it should be removed
      from old_pools and recycled (to pool1 or munmap'd). */
   reset_allocator_state();
+  /* These pools have to run out of room and retire, which a pool that can
+     grow in place does not do until MSETLEN_MAX. */
+  mremap_refuses_growth = 1;
 
   /* Create allocations that fill the first pool */
   #define FILL_SIZE2 48
@@ -771,6 +792,9 @@ UTEST(malloc_tests, realloc_across_the_moving_threshold_preserves_bytes) {
 
 UTEST(malloc_tests, retired_pool_hole_is_filled_before_fresh_pool_space) {
   reset_allocator_state();
+  /* These pools have to run out of room and retire, which a pool that can
+     grow in place does not do until MSETLEN_MAX. */
+  mremap_refuses_growth = 1;
   void *warm[40];
   for (int i = 0; i < 40; i++)
     warm[i] = test_malloc(MSETMAX_MIN + 16);
@@ -807,6 +831,9 @@ UTEST(malloc_tests, retired_pool_hole_is_filled_before_fresh_pool_space) {
 
 UTEST(malloc_tests, retired_pool_bump_tail_goes_on_its_free_list) {
   reset_allocator_state();
+  /* These pools have to run out of room and retire, which a pool that can
+     grow in place does not do until MSETLEN_MAX. */
+  mremap_refuses_growth = 1;
   void *warm[40];
   for (int i = 0; i < 40; i++)
     warm[i] = test_malloc(MSETMAX_MIN + 16);
@@ -828,13 +855,14 @@ UTEST(malloc_tests, retired_pool_bump_tail_goes_on_its_free_list) {
   int tail = first->len - tail_at;
   ASSERT_TRUE(tail >= 1024);
 
-  /* The tail is a free block of the retired pool, and bump room is gone. */
+  /* The tail is free space of the retired pool (coalesced with any free block
+     just below it), and bump room is gone. */
   ASSERT_EQ(first->size, first->len);
   struct free_node *fn = (struct free_node *)first->freelist;
-  while (fn && (char *)fn != (char *)first + tail_at)
+  while (fn && (char *)fn + fn->block_size != (char *)first + first->len)
     fn = fn->next;
   ASSERT_TRUE(fn != NULL);
-  ASSERT_EQ(fn->block_size, tail);
+  ASSERT_TRUE((char *)fn <= (char *)first + tail_at);
 
   /* ...and serves a request that fits it, with no new mapping. */
   prof_mmap_calls = 0;
@@ -853,6 +881,9 @@ UTEST(malloc_tests, retired_pool_bump_tail_goes_on_its_free_list) {
 
 UTEST(malloc_tests, retired_pool_gives_back_free_pages_at_its_end) {
   reset_allocator_state();
+  /* The pool has to hold several blocks when it retires: let it grow in
+     place to MSETLEN_MAX and retire there. */
+  mmap_room = 256 * 1024;
   void *warm[40];
   for (int i = 0; i < 40; i++)
     warm[i] = test_malloc(MSETMAX_MIN + 16);
@@ -895,24 +926,142 @@ UTEST(malloc_tests, retired_pool_gives_back_free_pages_at_its_end) {
 
 UTEST(malloc_tests, parked_mapping_is_released_before_a_fresh_one) {
   reset_allocator_state();
-  void *p = test_malloc(8 * 1024);
+  /* Not whole pages: those are pooled (see header_spills_page). */
+  void *p = test_malloc(8 * 1024 + 512);
   ASSERT_TRUE(p != NULL);
   test_free(p);
   ASSERT_TRUE(large_cache_bytes > 0);
 
   /* The same size is served from the cache... */
   prof_mmap_calls = 0;
-  p = test_malloc(8 * 1024);
+  p = test_malloc(8 * 1024 + 512);
   ASSERT_EQ(prof_mmap_calls, 0);
   test_free(p);
 
   /* ...but a size it cannot serve maps fresh memory, and whatever is parked
      is given back first rather than held alongside it. */
   prof_munmap_calls = 0;
-  void *q = test_malloc(20 * 1024);
+  void *q = test_malloc(20 * 1024 + 512);
   ASSERT_TRUE(q != NULL);
   ASSERT_EQ(large_cache_bytes, 0);
   ASSERT_EQ(prof_munmap_calls, 1);
   test_free(q);
+  reset_allocator_state();
+}
+
+/* ---- pools grow in place ---- */
+
+UTEST(malloc_tests, pool_grows_in_place_instead_of_mapping_another) {
+  reset_allocator_state();
+  mmap_room = 256 * 1024;
+  void *p[200];
+  for (int i = 0; i < 200; i++) {
+    p[i] = test_malloc(200);
+    ASSERT_TRUE(p[i] != NULL);
+    ASSERT_TRUE(block_inside_its_pool(p[i]));
+    memset(p[i], i, 200);
+  }
+  /* ~41 KiB of blocks: one mapping, extended a page at a time. */
+  ASSERT_EQ(prof_mmap_calls, 1);
+  ASSERT_TRUE(pool->len > 40 * 1024 && pool->len <= 48 * 1024);
+  ASSERT_EQ(pool->len & PGMASK, 0);
+  /* The class follows the pool, as it would have through replacements. */
+  ASSERT_TRUE(pool_len_next >= pool->len);
+  for (int i = 0; i < 200; i++) {
+    ASSERT_EQ(((unsigned char *)p[i])[199], (unsigned char)i);
+    test_free(p[i]);
+  }
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, pool_growth_stops_at_the_largest_pool) {
+  reset_allocator_state();
+  mmap_room = 256 * 1024;
+  void *p[400];
+  int n = 0;
+  while (prof_mmap_calls < 2 && n < 400) {
+    p[n] = test_malloc(400);
+    ASSERT_TRUE(p[n] != NULL);
+    ASSERT_TRUE(block_inside_its_pool(p[n]));
+    n++;
+  }
+  ASSERT_EQ(prof_mmap_calls, 2);
+  /* The first pool stopped at MSETLEN_MAX and retired; the new one starts
+     small again. */
+  ASSERT_TRUE(old_pools != NULL);
+  ASSERT_EQ(old_pools->len, MSETLEN_MAX);
+  ASSERT_TRUE(pool->len < MSETLEN_MAX);
+  for (int i = 0; i < n; i++)
+    test_free(p[i]);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, blocked_pool_maps_a_fresh_one_sized_to_the_request) {
+  reset_allocator_state();
+  mremap_refuses_growth = 1;
+  void *p[40];
+  for (int i = 0; i < 40; i++) {
+    p[i] = test_malloc(200);
+    ASSERT_TRUE(p[i] != NULL);
+    ASSERT_TRUE(block_inside_its_pool(p[i]));
+  }
+  /* Nothing could grow, so pools were replaced -- each one page, not a whole
+     class, because the request needed no more. */
+  ASSERT_TRUE(prof_mmap_calls >= 2);
+  ASSERT_EQ(pool->len, PGSIZE);
+  for (int i = 0; i < 40; i++)
+    test_free(p[i]);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, whole_page_requests_are_pooled) {
+  reset_allocator_state();
+  mmap_room = 256 * 1024;
+  /* At the starting class a size that fills its last page anyway is still
+     mapped (growing the pool below widens the class, so check it first)... */
+  void *q = test_malloc(4096 + 512);
+  ASSERT_EQ(((struct mhdr *)((char *)q - sizeof(struct mhdr)))->moff, LARGE_MOFF);
+  /* ...while these would each take one more page for the header than they
+     asked for, so they come from a pool. */
+  static const int sizes[] = {4096, 8192, 16384, 8192 - 8};
+  void *p[4];
+  for (int i = 0; i < 4; i++) {
+    p[i] = test_malloc(sizes[i]);
+    ASSERT_TRUE(p[i] != NULL);
+    ASSERT_NE(((struct mhdr *)((char *)p[i] - sizeof(struct mhdr)))->moff,
+              LARGE_MOFF);
+    ASSERT_TRUE(block_inside_its_pool(p[i]));
+    ASSERT_EQ(msize(p[i]), sizes[i]);
+    memset(p[i], 0x77, sizes[i]);
+  }
+  /* The pooled ceiling still holds. */
+  void *r = test_malloc(MSETMAX_CAP);
+  ASSERT_EQ(((struct mhdr *)((char *)r - sizeof(struct mhdr)))->moff, LARGE_MOFF);
+  test_free(q);
+  test_free(r);
+  for (int i = 0; i < 4; i++)
+    test_free(p[i]);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, pool_does_not_grow_inside_the_vfork_window) {
+  reset_allocator_state();
+  mmap_room = 256 * 1024;
+  void *keep = test_malloc(64);
+  ASSERT_TRUE(keep != NULL);
+  struct mset *parent = pool;
+  __malloc_vfork_save();
+  int mremaps = prof_mremap_calls;
+  void *p[40];
+  for (int i = 0; i < 40; i++) {
+    p[i] = test_malloc(200);
+    ASSERT_TRUE(p[i] != NULL);
+  }
+  /* The child must not extend the parent's mapping. */
+  ASSERT_EQ(prof_mremap_calls, mremaps);
+  ASSERT_EQ(parent->len, MSETLEN_MIN);
+  __malloc_vfork_restore();
+  ASSERT_TRUE(pool == parent);
+  test_free(keep);
   reset_allocator_state();
 }
