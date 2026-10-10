@@ -134,11 +134,15 @@ void *memcpy(void *dst, const void *src, size_t n) {
   } else if (n) {
     /* 1..3 bytes: three byte copies cover any length, no loop at all.
        Ascending order again; d[n-2] repeats d[0] when n == 2, which
-       writes the same byte twice with the same value. */
+       writes the same byte twice with the same value. Returns here:
+       falling through to the trailing byte loop would re-copy these
+       bytes after an overlapping memmove (d < s) had already shifted
+       the source. */
     *d = *s;
     if (n > 1)
       d[n - 2] = s[n - 2];
     d[n - 1] = s[n - 1];
+    return dst;
   }
   for (; n; --n)
     *d++ = *s++;
