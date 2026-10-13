@@ -24,6 +24,7 @@ void *sut_memchr(const void *s, int c, long n);
 void *sut_mempcpy(void *dst, const void *src, size_t n);
 void *sut_memcpy(void *dst, const void *src, size_t n);
 void *sut_memmove(void *dst, const void *src, size_t n);
+void *sut_memset(void *dst, int c, size_t n);
 char *sut_strchr(char *s, int c);
 size_t sut_strspn(const char *s, const char *accept);
 size_t sut_strcspn(const char *s, const char *reject);
@@ -46,6 +47,19 @@ UTEST(string_tests, mempcpy) {
   ASSERT_EQ(dst + sizeof(src), sut_mempcpy(dst, src, sizeof(src)));
   ASSERT_EQ(0, memcmp(dst, src, sizeof(src)));
   ASSERT_EQ(dst, sut_mempcpy(dst, src, 0));
+}
+
+UTEST(string_tests, memset_alignment_and_stride_sweep) {
+  unsigned char dst[528];
+  const int fills[] = {0, 0xa5, -1, 0x1234};
+  for (size_t n = 0; n <= 512; ++n)
+    for (size_t off = 0; off < 8; ++off)
+      for (size_t f = 0; f < sizeof fills / sizeof fills[0]; ++f) {
+        for (size_t i = 0; i < sizeof dst; ++i) dst[i] = 0x5a;
+        ASSERT_EQ(dst + off, sut_memset(dst + off, fills[f], n));
+        for (size_t i = 0; i < sizeof dst; ++i)
+          ASSERT_EQ(i >= off && i < off + n ? (unsigned char)fills[f] : 0x5a, dst[i]);
+      }
 }
 
 /* memcpy takes a word path once the destination is word-aligned, and the

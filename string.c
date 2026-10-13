@@ -50,9 +50,41 @@ void *memset(void *ptr, int value, size_t num) {
     }
     uint32_t w = 0x01010101u * b;
     uint32_t *pw = (uint32_t *)p;
-    /* 64 bytes per trip: the loop overhead (sub, add, cmp, branch) then
-       costs a quarter of what it does per 16 -- memset was 10% of the
-       kernel's instructions per process launch, half of them that overhead. */
+    /* Amortize the latch over 128 bytes; retain the 64-byte remainder for medium clears. */
+    for (; num >= 128; num -= 128, pw += 32) {
+      pw[0] = w;
+      pw[1] = w;
+      pw[2] = w;
+      pw[3] = w;
+      pw[4] = w;
+      pw[5] = w;
+      pw[6] = w;
+      pw[7] = w;
+      pw[8] = w;
+      pw[9] = w;
+      pw[10] = w;
+      pw[11] = w;
+      pw[12] = w;
+      pw[13] = w;
+      pw[14] = w;
+      pw[15] = w;
+      pw[16] = w;
+      pw[17] = w;
+      pw[18] = w;
+      pw[19] = w;
+      pw[20] = w;
+      pw[21] = w;
+      pw[22] = w;
+      pw[23] = w;
+      pw[24] = w;
+      pw[25] = w;
+      pw[26] = w;
+      pw[27] = w;
+      pw[28] = w;
+      pw[29] = w;
+      pw[30] = w;
+      pw[31] = w;
+    }
     for (; num >= 64; num -= 64, pw += 16) {
       pw[0] = w;
       pw[1] = w;
