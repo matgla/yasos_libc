@@ -314,11 +314,9 @@ size_t strcspn(const char *str1, const char *str2) {
   return count;
 }
 
-char *strtok(char *str, const char *delimiters) {
-  static char *last = NULL;
-
+char *strtok_r(char *str, const char *delimiters, char **saveptr) {
   if (str == NULL) {
-    str = last;
+    str = *saveptr;
   }
 
   if (str == NULL) {
@@ -328,7 +326,7 @@ char *strtok(char *str, const char *delimiters) {
   str += strspn(str, delimiters);
 
   if (*str == '\0') {
-    last = NULL;
+    *saveptr = NULL;
     return NULL;
   }
 
@@ -338,8 +336,14 @@ char *strtok(char *str, const char *delimiters) {
     *end = '\0';
     ++end;
   }
-  last = end;
+  *saveptr = end;
   return str;
+}
+
+char *strtok(char *str, const char *delimiters) {
+  static char *last = NULL;
+
+  return strtok_r(str, delimiters, &last);
 }
 
 char *strpbrk(const char *str1, const char *str2) {

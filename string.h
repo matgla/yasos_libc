@@ -34,6 +34,7 @@ char *strndup(const char *s, size_t n);
 size_t strspn(const char *s, const char *accept);
 size_t strcspn(const char *s, const char *reject);
 char *strtok(char *str, const char *delimiters);
+char *strtok_r(char *str, const char *delimiters, char **saveptr);
 /* faster implementations */
 #define memchr(s, c, n) __memchr_c(s, c, n)
 

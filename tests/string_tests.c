@@ -29,6 +29,7 @@ char *sut_strchr(char *s, int c);
 size_t sut_strspn(const char *s, const char *accept);
 size_t sut_strcspn(const char *s, const char *reject);
 char *sut_strtok(char *s, const char *delimiters);
+char *sut_strtok_r(char *s, const char *delimiters, char **saveptr);
 
 UTEST(string_tests, memchr) {
   const unsigned char bytes[] = {'A', 'B', 0, 'C', 'B'};
@@ -136,6 +137,29 @@ UTEST(string_tests, strcspn) {
   ASSERT_EQ(result, 0);
   result = sut_strcspn(str1 + 22, str2);
   ASSERT_EQ(result, 5);
+}
+
+UTEST(string_tests, strtok_r_keeps_two_scans_apart) {
+  char a[] = "a b";
+  char b[] = "c,,d";
+  char *sa = NULL;
+  char *sb = NULL;
+
+  ASSERT_STREQ("a", sut_strtok_r(a, " ", &sa));
+  ASSERT_STREQ("c", sut_strtok_r(b, ",", &sb));
+  ASSERT_STREQ("b", sut_strtok_r(NULL, " ", &sa));
+  ASSERT_STREQ("d", sut_strtok_r(NULL, ",", &sb));
+  ASSERT_EQ(NULL, sut_strtok_r(NULL, " ", &sa));
+  ASSERT_EQ(NULL, sut_strtok_r(NULL, ",", &sb));
+  /* Finished stays finished */
+  ASSERT_EQ(NULL, sut_strtok_r(NULL, " ", &sa));
+}
+
+UTEST(string_tests, strtok_r_only_delimiters) {
+  char s[] = " , ";
+  char *save = NULL;
+
+  ASSERT_EQ(NULL, sut_strtok_r(s, " ,", &save));
 }
 
 UTEST(string_tests, strtok) {
