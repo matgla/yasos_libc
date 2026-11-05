@@ -1,14 +1,15 @@
+#include "rorel.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <time.h>
 
-static char *wday_ab[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-static char *wday[] = {"Sunday",   "Monday", "Tuesday", "Wednesday",
+static char *ROREL const wday_ab[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+static char *ROREL const wday[] = {"Sunday",   "Monday", "Tuesday", "Wednesday",
                        "Thursday", "Friday", "Saturday"};
-static char *mon_ab[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+static char *ROREL const mon_ab[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-static char *mon[] = {"January",   "February", "March",    "April",
+static char *ROREL const mon[] = {"January",   "February", "March",    "April",
                       "May",       "June",     "July",     "August",
                       "September", "October",  "November", "December"};
 

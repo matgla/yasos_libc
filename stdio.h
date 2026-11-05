@@ -46,6 +46,7 @@ typedef struct {
   int istat;         /* _FILE_EOF / _FILE_ERR: what feof()/ferror() report */
 } FILE;
 
+#define STDIO_OBUF_LAZY (-1) /* oown: allocate at the first write */
 #define _FILE_EOF 1 /* a read found the end of the input */
 #define _FILE_ERR 2 /* a read or write failed */
 

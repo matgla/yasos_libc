@@ -22,7 +22,17 @@ static int ic(FILE *fp) {
   }
 
   while (fp->fd >= 0 && fp->icur == fp->ilen) {
-    int nr = read(fp->fd, fp->ibuf, fp->isize);
+    int nr;
+    /* stdin's buffer waits for its first read */
+    if (fp->ibuf == NULL) {
+      if ((fp->ibuf = malloc(BUFSIZ)) == NULL) {
+        fp->istat |= _FILE_ERR;
+        return EOF;
+      }
+      fp->isize = BUFSIZ;
+      fp->iown = 1;
+    }
+    nr = read(fp->fd, fp->ibuf, fp->isize);
     if (nr <= 0) {
       fp->istat |= nr ? _FILE_ERR : _FILE_EOF;
       break;

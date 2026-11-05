@@ -12,12 +12,14 @@
 
 #include <fcntl.h>
 
-static char _ibuf[BUFSIZ], _obuf[BUFSIZ];
-/* stderr's line buffer can be smaller — error lines are short, and it stays
+/* The standard streams allocate their buffers at first use (stdio_lazy_obuf,
+ * and ic() in scanf.c): most processes never touch stdin, and a program that
+ * sets its own stdout buffer would have paid for this one too.
+ * stderr's line buffer can be smaller — error lines are short, and it stays
  * block-buffered (see below), just with a lower line-length ceiling. */
-static char _ebuf[128];
-static FILE _stdin = {0, EOF, _ibuf, NULL, BUFSIZ, 0};
-static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
+#define STDERR_BUFSIZ 128
+static FILE _stdin = {0, EOF};
+static FILE _stdout = {1, EOF, .oown = STDIO_OBUF_LAZY};
 /* stderr is LINE-buffered (osize = BUFSIZ), not unbuffered (osize = 1).
  * fputc() already flushes on '\n' or when the buffer fills, so diagnostics
  * still appear promptly, but a whole line is emitted in ONE block write()
@@ -25,7 +27,7 @@ static FILE _stdout = {1, EOF, NULL, _obuf, 0, BUFSIZ};
  * its bytes on this target (rapid single-byte writes outrun the console/FS
  * write path), which was scrambling every error message to every-other-char
  * (e.g. tcc's compile errors became unreadable). Block writes are reliable. */
-static FILE _stderr = {2, EOF, NULL, _ebuf, 0, 128};
+static FILE _stderr = {2, EOF, .oown = STDIO_OBUF_LAZY};
 FILE *stdin = &_stdin;
 FILE *stdout = &_stdout;
 FILE *stderr = &_stderr;
@@ -66,6 +68,33 @@ static void stdio_reset_stream(FILE *fp) {
   fp->icur = 0;
   fp->ostat = 0;
   fp->istat = 0;
+}
+
+/* A standard stream's first write: give it its buffer. 0 leaves it unbuffered,
+ * which still works, one write() per character. */
+static int stdio_lazy_obuf(FILE *fp) {
+  int size = fp == &_stderr ? STDERR_BUFSIZ : BUFSIZ;
+  char *buf;
+
+  if (fp->oown != STDIO_OBUF_LAZY)
+    return 0;
+  fp->oown = 0;
+  buf = malloc(size);
+  if (buf == NULL)
+    return 0;
+  fp->obuf = buf;
+  fp->osize = size;
+  fp->oown = 1;
+  return 1;
+}
+
+/* Called in the parent, just before vfork. The child shares this heap and the
+ * parent winds the pool back when it resumes (__malloc_vfork_restore), so a buffer
+ * the child allocates gets handed out a second time. What a child most often does
+ * before it execs is report that it could not: in a process that has not printed
+ * an error yet, that first use of stderr would allocate. */
+void __stdio_vfork_prepare(void) {
+  stdio_lazy_obuf(&_stderr);
 }
 
 static int stdio_ensure_buffers(FILE *fp) {
@@ -233,7 +262,7 @@ int fflush(FILE *fp) {
       r = EOF;
     return r;
   }
-  if (fp->fd < 0)
+  if (fp->fd < 0 || fp->olen == 0)
     return 0;
   if (write(fp->fd, fp->obuf, fp->olen) != fp->olen) {
     fp->istat |= _FILE_ERR;
@@ -244,7 +273,7 @@ int fflush(FILE *fp) {
 }
 
 int fputc(int c, FILE *fp) {
-  if (fp->osize == 0) {
+  if (fp->osize == 0 && !stdio_lazy_obuf(fp)) {
     // String sinks (fd < 0) with no room — e.g. the vsnprintf(NULL, 0, ...)
     // length-measuring idiom — must only count (via vfprintf's return), never
     // touch a real fd.
@@ -856,13 +885,11 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
 }
 
 void perror(const char *s) {
-  int idx = errno;
-  if (idx >= sys_nerr)
-    idx = 0;
+  const char *msg = strerror(errno);
   if (s && *s)
-    fprintf(stderr, "%s: %s\n", s, sys_errlist[idx]);
+    fprintf(stderr, "%s: %s\n", s, msg);
   else
-    fprintf(stderr, "%s\n", sys_errlist[idx]);
+    fprintf(stderr, "%s\n", msg);
 }
 
 int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) {
@@ -955,7 +982,7 @@ long fwrite(void *v, long sz, long n, FILE *fp) {
   long left = total;
   if (total <= 0)
     return 0;
-  if (fp->fd < 0 || fp->osize == 0 || fp->obuf == NULL) {
+  if (fp->fd < 0 || (fp->osize == 0 && !stdio_lazy_obuf(fp)) || fp->obuf == NULL) {
     while (left > 0) {
       if (fputc(*s++, fp) == EOF)
         return (total - left) / sz;
@@ -1172,7 +1199,10 @@ void clearerr(FILE *fp) {
 int setvbuf(FILE *fp, char *buf, int mode, size_t size) {
   if (fp->fd < 0)
     return -1;
-  if (buf == NULL) {
+  if (buf == NULL && size == 0) {
+    fp->obuf = NULL;
+    fp->oown = 0;
+  } else if (buf == NULL) {
     fp->obuf = malloc(size);
     fp->oown = 1;
   } else {

@@ -18,6 +18,13 @@
 #define MAP_LOCKED 0x2000     /* pages are locked */
 #define MAP_NORESERVE 0x4000  /* don't check for reservations */
 #define MAP_POPULATE 0x8000
+/* Need not be zero, only not another process's data. */
+#define MAP_UNINITIALIZED 0x4000000
+/* YasOS: a program with data it knows is hot keeps its heap out of the way with
+ * MAP_SLOW (prefer the slowest memory with room) and places that data with
+ * MAP_FAST (the fastest memory, or MAP_FAILED). */
+#define MAP_SLOW 0x100000
+#define MAP_FAST 0x200000
 #define MAP_ANON MAP_ANONYMOUS
 #define MAP_FILE 0
 

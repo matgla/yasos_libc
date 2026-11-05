@@ -1,3 +1,4 @@
+#include "rorel.h"
 /*
   regcomp.c - TRE POSIX compatible regex compilation functions.
 
@@ -416,7 +417,7 @@ typedef struct {
 /* Some macros for expanding \w, \s, etc. */
 static const struct {
 	char c;
-	const char *expansion;
+	const char *ROREL expansion;
 } tre_macros[] = {
 	{'t', "\t"}, {'n', "\n"}, {'r', "\r"},
 	{'f', "\f"}, {'a', "\a"}, {'e', "\033"},

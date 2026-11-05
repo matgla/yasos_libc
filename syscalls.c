@@ -44,6 +44,7 @@
 /* malloc vfork save/restore (defined in malloc.c) */
 extern void __malloc_vfork_save(void);
 extern void __malloc_vfork_restore(void);
+extern void __stdio_vfork_prepare(void);
 
 #ifdef YASLIBC_ARM_SVC_TRIGGER
 inline void __attribute__((naked))
@@ -171,6 +172,7 @@ pid_t _vfork_process(void *lr, void *r9, void *sp, uint32_t is_fpu_used) {
   /* Save malloc pool state before child runs on shared address space.
      The child may allocate/free, corrupting the bump-allocator position.
      Restore after the syscall returns (always in the parent). */
+  __stdio_vfork_prepare();
   __malloc_vfork_save();
   pid_t result = trigger_syscall(sys_vfork, &context);
   __malloc_vfork_restore();

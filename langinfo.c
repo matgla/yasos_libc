@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "rorel.h"
 #include <langinfo.h>
 
 #include <stddef.h>
@@ -26,7 +27,7 @@
 
 /* The C locale's answer for each item (POSIX, XBD 7.3); "" for the items the
  * C locale leaves empty and for anything unknown. */
-static const char *const c_locale_items[] = {
+static const char *ROREL const c_locale_items[] = {
     [CODESET] = "UTF-8",
     [D_T_FMT] = "%a %b %e %H:%M:%S %Y",
     [D_FMT] = "%m/%d/%y",

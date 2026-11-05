@@ -16,7 +16,7 @@ void tzset(void) {
 }
 
 static void tp2tm(struct tm *tm, time_t t) {
-  static int dpm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  static const int dpm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   long days = t / SPD;
   long rem = t % SPD;
   int i;
@@ -58,7 +58,7 @@ struct tm *gmtime(const time_t *t) {
 }
 
 time_t mktime(struct tm *tm) {
-  static int dpm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  static const int dpm[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
   int d = 0, s = 0;
   int i;
   s = tm->tm_hour * 3600 + tm->tm_min * 60 + tm->tm_sec;

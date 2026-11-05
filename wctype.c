@@ -73,27 +73,34 @@ wint_t towupper_l(wint_t wc, locale_t locale) {
   return towupper(wc);
 }
 
-static const struct {
-  const char *name;
-  int (*fn)(wint_t);
-} wctype_classes[] = {
-    {"alnum", iswalnum}, {"alpha", iswalpha}, {"blank", iswblank}, {"cntrl", iswcntrl},
-    {"digit", iswdigit}, {"graph", iswgraph}, {"lower", iswlower}, {"print", iswprint},
-    {"punct", iswpunct}, {"space", iswspace}, {"upper", iswupper}, {"xdigit", iswxdigit},
-};
+/* No function pointers: each would be a per-process thunk and GOT slot. */
+static const char wctype_names[][7] = {"alnum", "alpha", "blank", "cntrl", "digit", "graph",
+                                       "lower", "print", "punct", "space", "upper", "xdigit"};
 
 /* A wctype_t is the class's index + 1; 0 names no class. */
 wctype_t wctype(const char *name) {
-  for (unsigned i = 0; i < sizeof(wctype_classes) / sizeof(wctype_classes[0]); i++)
-    if (strcmp(name, wctype_classes[i].name) == 0)
+  for (unsigned i = 0; i < sizeof(wctype_names) / sizeof(wctype_names[0]); i++)
+    if (strcmp(name, wctype_names[i]) == 0)
       return i + 1;
   return 0;
 }
 
 int iswctype(wint_t wc, wctype_t desc) {
-  if (desc == 0 || desc > sizeof(wctype_classes) / sizeof(wctype_classes[0]))
-    return 0;
-  return wctype_classes[desc - 1].fn(wc);
+  switch (desc) {
+  case 1: return iswalnum(wc);
+  case 2: return iswalpha(wc);
+  case 3: return iswblank(wc);
+  case 4: return iswcntrl(wc);
+  case 5: return iswdigit(wc);
+  case 6: return iswgraph(wc);
+  case 7: return iswlower(wc);
+  case 8: return iswprint(wc);
+  case 9: return iswpunct(wc);
+  case 10: return iswspace(wc);
+  case 11: return iswupper(wc);
+  case 12: return iswxdigit(wc);
+  }
+  return 0;
 }
 
 /* 1 = tolower, 2 = toupper, 0 = none. */

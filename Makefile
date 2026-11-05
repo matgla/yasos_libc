@@ -12,6 +12,9 @@ CFLAGS += -DYASLIBC_ARM_SVC_TRIGGER
 CFLAGS += -share-rodata
 LDFLAGS_STATIC += -Wl,-Ttext=0x0
 LDFLAGS += -larmv8m-libtcc1.a
+# What runs from a shared copy in SRAM (libs/tinycc/docs/hot_text.md).
+CFLAGS += -ffunction-sections
+LDFLAGS += -Wl,--hot-text=hot_functions.txt
 SRCS = arm/setjmp.S arm/vfork.S arm/call_with_got.S
 LDFLAGS_ELF += -Wl,-oformat=elf32-littlearm -Wl,-Ttext=0x0
 ARM_BUILD = y

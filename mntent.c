@@ -20,6 +20,7 @@
 // SOFTWARE.
 
 #include <mntent.h>
+#include <stdlib.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +28,8 @@
 /* fstab(5) / /proc/mounts reader. One static entry, like glibc's getmntent:
  * each call overwrites the previous result. */
 
-static char mntent_line[256];
+#define MNTENT_LINE_SIZE 256
+static char *mntent_line;
 static struct mntent mntent_entry;
 
 FILE *setmntent(const char *filename, const char *type) {
@@ -73,7 +75,9 @@ static int parse_number(const char *text) {
 }
 
 struct mntent *getmntent(FILE *stream) {
-  while (fgets(mntent_line, sizeof(mntent_line), stream)) {
+  if (mntent_line == NULL && (mntent_line = malloc(MNTENT_LINE_SIZE)) == NULL)
+    return NULL;
+  while (fgets(mntent_line, MNTENT_LINE_SIZE, stream)) {
     size_t len = strlen(mntent_line);
     while (len && (mntent_line[len - 1] == '\n' || mntent_line[len - 1] == '\r'))
       mntent_line[--len] = '\0';
