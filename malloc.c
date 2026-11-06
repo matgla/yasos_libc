@@ -179,9 +179,9 @@ struct mset {
   void *freelist; /* singly-linked list of freed blocks for reuse */
   struct mset *next_pool; /* linked list of old pools with refs > 0 */
   int len;      /* this pool's mapped length -- pools are no longer one size */
-  int max_free; /* retired pools: no block on the free list is bigger than
-                   this -- an upper bound, made exact by a full walk -- so a
-                   search can pass over the pool without walking it. Also keeps
+  int max_free; /* no reusable block on the free list is bigger than this --
+                   an upper bound tightened by failed searches and best-fit
+                   walks -- so a search can skip the list. Also keeps
                    sizeof(struct mset) a multiple of 8, so the first block's
                    user pointer stays 8-aligned (ARM LDRD, doubles). */
 };
@@ -294,6 +294,7 @@ static struct mset *vfork_saved_old_pools;
 static int vfork_saved_pool_size;
 static int vfork_saved_pool_refs;
 static void *vfork_saved_pool_freelist;
+static int vfork_saved_pool_max_free;
 
 void __malloc_vfork_save(void) {
   /* Hand back the slack before the child runs, not after: the child is about
@@ -307,6 +308,7 @@ void __malloc_vfork_save(void) {
   vfork_saved_pool_size = pool ? pool->size : 0;
   vfork_saved_pool_refs = pool ? pool->refs : 0;
   vfork_saved_pool_freelist = pool ? pool->freelist : 0;
+  vfork_saved_pool_max_free = pool ? pool->max_free : 0;
 }
 
 void __malloc_vfork_restore(void) {
@@ -323,6 +325,7 @@ void __malloc_vfork_restore(void) {
     pool->size = vfork_saved_pool_size;
     pool->refs = vfork_saved_pool_refs;
     pool->freelist = vfork_saved_pool_freelist;
+    pool->max_free = vfork_saved_pool_max_free;
   }
   in_vfork_window = 0;
 }
@@ -446,6 +449,11 @@ static void *take_block(struct free_node **prev, size_t alloc_size) {
    that knows which pool the block came from. */
 static void *freelist_take(struct mset *ms, size_t alloc_size) {
   struct free_node **prev = (struct free_node **)&ms->freelist, *fn;
+  /* A failed search bounds the list once. Until a free/coalesce increases
+     the bound, larger requests can go straight to the bump path. Successful
+     takes only shrink free blocks, so leaving a stale upper bound is safe. */
+  if (ms->max_free < (int)alloc_size)
+    return NULL;
   while ((fn = *prev)) {
     if (block_fits(fn, alloc_size)) {
       take_block(prev, alloc_size);
@@ -473,11 +481,16 @@ static void *freelist_take(struct mset *ms, size_t alloc_size) {
     }
     prev = &fn->next;
   }
+  /* No eligible block reaches alloc_size. Do not compute an exact maximum
+     inside the hot loop: that also taxes every successful first-fit search.
+     Page-aligned user addresses rejected by block_fits remain ineligible
+     until coalescing changes the block, which raises this bound on insert. */
+  ms->max_free = ms->freelist ? (int)alloc_size - 1 : 0;
   return NULL;
 }
 
-/* Chain a pool that still has live blocks onto the retired list. Its free list
-   has not been measured, so the bound starts at the whole pool.
+/* Chain a pool that still has live blocks onto the retired list. Its free-list
+   bound remains valid; inserting the bump tail raises it if needed.
 
    A pool retires because a request did not fit its remaining bump room, and a
    pool serves requests up to MSETMAX_CAP, so that room can be most of 32 KB.
@@ -489,7 +502,6 @@ static void *freelist_take(struct mset *ms, size_t alloc_size) {
 static void retire(struct mset *ms) {
   int tail = (ms->size + 7) & ~7;
   ms->size = ms->len;
-  ms->max_free = ms->len;
   if (ms->len - tail >= 2 * (int)sizeof(struct mhdr))
     freelist_insert(ms, (char *)ms + tail, ms->len - tail);
   ms->next_pool = old_pools;
@@ -611,6 +623,7 @@ static int mk_pool(int want) {
   if (cur != NULL && cur->refs == 0 && cur->len >= want) {
     cur->size = sizeof(*cur);
     cur->freelist = 0;
+    cur->max_free = 0;
     return 0;
   }
   /* Otherwise this pool is retired: chained if blocks are still live in it,
@@ -638,6 +651,7 @@ static int mk_pool(int want) {
     pool->size = sizeof(*pool);
     pool->refs = 0;
     pool->freelist = 0;
+    pool->max_free = 0;
     return 0;
   }
   {

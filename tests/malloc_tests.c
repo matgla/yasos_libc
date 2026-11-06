@@ -1065,3 +1065,113 @@ UTEST(malloc_tests, pool_does_not_grow_inside_the_vfork_window) {
   test_free(keep);
   reset_allocator_state();
 }
+
+/* ---- failed free-list searches are cached for current pools too ---- */
+
+UTEST(malloc_tests, failed_search_tightens_bound_without_hiding_smaller_holes) {
+  reset_allocator_state();
+  void *hole = test_malloc(64);
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(hole != NULL && pin != NULL);
+  test_free(hole);
+  /* A take/split can leave an overestimate, as can a retired best-fit walk. */
+  pool->max_free = pool->len;
+  ASSERT_TRUE(freelist_take(pool, 512) == NULL);
+  ASSERT_TRUE(pool->max_free >= 72 && pool->max_free < 512);
+  for (int i = 0; i < 32; i++)
+    ASSERT_TRUE(freelist_take(pool, 512) == NULL);
+  ASSERT_TRUE(test_malloc(64) == hole);
+  test_free(hole);
+  test_free(pin);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, coalescing_raises_bound_after_a_cached_miss) {
+  reset_allocator_state();
+  void *a = test_malloc(64);
+  void *b = test_malloc(64);
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(a != NULL && b != NULL && pin != NULL);
+  test_free(a);
+  ASSERT_TRUE(freelist_take(pool, 128) == NULL);
+  test_free(b);
+  ASSERT_EQ(pool->max_free, 144);
+  /* Neither original hole fits, but their coalesced block does. */
+  void *q = test_malloc(128);
+  ASSERT_TRUE(q == a);
+  test_free(q);
+  test_free(pin);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, split_remainder_remains_reusable_after_bound_tightens) {
+  reset_allocator_state();
+  void *hole = test_malloc(256);
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(hole != NULL && pin != NULL);
+  test_free(hole);
+  void *a = test_malloc(64);
+  ASSERT_TRUE(a == hole);
+  ASSERT_TRUE(freelist_take(pool, 256) == NULL);
+  ASSERT_TRUE(pool->max_free >= 192 && pool->max_free < 256);
+  void *b = test_malloc(184);
+  ASSERT_TRUE(b == (char *)a + 72);
+  test_free(a);
+  test_free(b);
+  test_free(pin);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, rewinding_a_drained_pool_clears_its_free_bound) {
+  reset_allocator_state();
+  void *p = test_malloc(64);
+  ASSERT_TRUE(p != NULL);
+  test_free(p);
+  ASSERT_TRUE(pool->max_free > 0);
+  ASSERT_EQ(mk_pool(512), 0);
+  ASSERT_EQ(pool->max_free, 0);
+  ASSERT_TRUE(pool->freelist == NULL);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, page_skipped_hole_becomes_reusable_after_coalescing) {
+  reset_allocator_state();
+  struct mset *ms = counting_mmap(NULL, 2 * PGSIZE, PROT_READ | PROT_WRITE,
+                                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  ASSERT_TRUE(ms != MAP_FAILED);
+  ms->len = 2 * PGSIZE;
+  ms->freelist = NULL;
+  ms->max_free = 0;
+  char *skipped = (char *)ms + PGSIZE - sizeof(struct mhdr);
+  freelist_insert(ms, skipped, 512);
+  ASSERT_TRUE(freelist_take(ms, 128) == NULL);
+  ASSERT_TRUE(ms->max_free < 128);
+  /* Joining a lower-address neighbour moves the user pointer off the page
+     boundary. The old miss must not hide this newly eligible block. */
+  freelist_insert(ms, skipped - 64, 64);
+  ASSERT_EQ(ms->max_free, 576);
+  ASSERT_TRUE(freelist_take(ms, 128) == skipped - 64);
+  counting_munmap(ms, ms->len);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, vfork_restores_bound_after_child_measures_parent_list) {
+  reset_allocator_state();
+  void *hole = test_malloc(64);
+  void *pin = test_malloc(64);
+  ASSERT_TRUE(hole != NULL && pin != NULL);
+  test_free(hole);
+  __malloc_vfork_save();
+  /* Remove the hole without overwriting its free-node header, then measure
+     the empty list. This isolates the metadata save/restore from writes a
+     child must avoid making to its parent's heap contents. */
+  ASSERT_TRUE(freelist_take(pool, 72) == (char *)hole - sizeof(struct mhdr));
+  ASSERT_TRUE(freelist_take(pool, 72) == NULL);
+  ASSERT_EQ(pool->max_free, 0);
+  __malloc_vfork_restore();
+  ASSERT_EQ(pool->max_free, 72);
+  ASSERT_TRUE(test_malloc(64) == hole);
+  test_free(hole);
+  test_free(pin);
+  reset_allocator_state();
+}

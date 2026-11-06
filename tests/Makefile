@@ -31,6 +31,9 @@ build/%.o: %.c
 	mkdir -p build
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# These tests include the allocator directly rather than linking its object.
+build/malloc_tests.o $(addprefix build/, $(STANDALONE)): ../malloc.c
+
 $(LIBC_STATIC): $(LIBC_SRCS)
 	$(MAKE) -C .. CC=$(CC) BUILD=$(notdir $(LIBC_BUILD))
 
