@@ -260,15 +260,20 @@ UTEST(malloc_tests, realloc_shrink_pool_block_frees_its_tail) {
 }
 
 UTEST(malloc_tests, realloc_shrink_too_small_to_split_keeps_block_size) {
-  /* A tail too small to be a block stays with the block. The recorded size
-     must not drop, or free() would size the block short and strand the tail. */
+  /* A tail too small to be a block stays with the block (MOFF_SLACK8): the
+     size is the new one, and free() still gives back the whole block. */
   reset_allocator_state();
   char *p = (char *)test_malloc(100);
-  ASSERT_TRUE(p != NULL);
+  void *barrier = test_malloc(8);
+  ASSERT_TRUE(p != NULL && barrier != NULL);
   char *q = (char *)test_realloc(p, 96);
   ASSERT_TRUE(q == p);
-  ASSERT_EQ(msize(q), 100);
+  ASSERT_EQ(msize(q), 96);
   test_free(q);
+  char *r = (char *)test_malloc(100);
+  ASSERT_TRUE(r == p);
+  test_free(r);
+  test_free(barrier);
   reset_allocator_state();
 }
 
@@ -834,6 +839,37 @@ UTEST(malloc_tests, retired_pool_hole_is_filled_before_fresh_pool_space) {
   for (int i = 0; i < nfill; i++)
     test_free(fill[i]);
   test_free(pin);
+  reset_allocator_state();
+}
+
+/* A hole 8 bytes larger than a request is handed out whole (8 bytes cannot be
+   a free block).  Its header must still account for those 8 bytes: free() sizes
+   a block from its header, and a block freed 8 bytes short stranded them
+   between two blocks for good.  Repeated, the strands grew into gaps of
+   hundreds of bytes -- 367 KB of a Zig kernel compile's peak. */
+UTEST(malloc_tests, hole_taken_whole_comes_back_whole) {
+  reset_allocator_state();
+  char *a = test_malloc(40); /* a 48-byte block */
+  void *barrier = test_malloc(8);
+  ASSERT_TRUE(a != NULL && barrier != NULL);
+  test_free(a);
+  char *c = test_malloc(32); /* needs 40 of the 48 */
+  ASSERT_TRUE(c == a);
+  ASSERT_EQ(msize(c), 32);
+  memset(c, 0x5A, 32);
+  test_free(c);
+  /* the whole 48 bytes are free again: a 40-byte request fits there */
+  char *d = test_malloc(40);
+  ASSERT_TRUE(d == a);
+  /* and a shrink into the same 8 bytes of slack keeps the size exact */
+  char *e = test_realloc(d, 32);
+  ASSERT_TRUE(e == d);
+  ASSERT_EQ(msize(e), 32);
+  test_free(e);
+  char *f = test_malloc(40);
+  ASSERT_TRUE(f == a);
+  test_free(f);
+  test_free(barrier);
   reset_allocator_state();
 }
 

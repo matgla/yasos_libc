@@ -192,9 +192,26 @@ struct mset {
 
 /* placed before each small allocation */
 struct mhdr {
-  int moff; /* mset offset */
+  int moff; /* mset offset, | MOFF_SLACK8 */
   int size; /* allocation size */
 };
+
+/* A free block 8 bytes larger than a request is handed out whole: 8 bytes
+   cannot be a free block of their own.  The header records the requested size
+   (msize() reports it exactly), so this bit in moff says the block is 8 bytes
+   longer than that size implies.  Without it free() gave back 8 bytes less,
+   which then sat between two blocks for good, and each later reuse of the hole
+   beside them added 8 more: at the peak of a Zig kernel compile 367 KB of pool
+   space belonged to nothing, in gaps of up to a kilobyte.  A pool offset is
+   below MSETLEN_MAX, so the bit is free; the large and aligned sentinels are
+   negative and never carry it. */
+#define MOFF_SLACK8 (1 << 30)
+#define MOFF_OFFSET(moff) ((moff) & ~MOFF_SLACK8)
+
+/* The pool block a header describes, in bytes, header included. */
+static int mhdr_block_size(const struct mhdr *h) {
+  return ((h->size + (int)sizeof(struct mhdr) + 7) & ~7) + ((h->moff & MOFF_SLACK8) ? 8 : 0);
+}
 
 /* overlays mhdr in freed blocks (must be >= sizeof(mhdr)) */
 struct free_node {
@@ -803,7 +820,8 @@ void *malloc(size_t n) {
     struct mset *owner;
     m = bin_take(alloc_size, &owner);
     if (m != NULL) {
-      ((struct mhdr *)m)->moff = (char *)m - (char *)owner;
+      const int slack = ((struct free_node *)m)->block_size != (int)alloc_size ? MOFF_SLACK8 : 0;
+      ((struct mhdr *)m)->moff = ((char *)m - (char *)owner) | slack;
       ((struct mhdr *)m)->size = n;
       owner->refs++;
 #if MALLOC_ZEROES
@@ -815,7 +833,8 @@ void *malloc(size_t n) {
   /* Search current pool's free list for a reusable block */
   m = freelist_take(pool, alloc_size);
   if (m != NULL) {
-    ((struct mhdr *)m)->moff = (char *)m - (char *)pool;
+    const int slack = ((struct free_node *)m)->block_size != (int)alloc_size ? MOFF_SLACK8 : 0;
+    ((struct mhdr *)m)->moff = ((char *)m - (char *)pool) | slack;
     ((struct mhdr *)m)->size = n;
     pool->refs++;
 #if MALLOC_ZEROES
@@ -870,10 +889,10 @@ void free(void *v) {
     return;
   }
   {
-    struct mset *mset = (void *)mhdr - mhdr->moff;
+    struct mset *mset = (void *)mhdr - MOFF_OFFSET(mhdr->moff);
 #if MALLOC_DEBUG
     if ((unsigned long)v < 0x10000000UL || ((unsigned long)mset & PGMASK) ||
-        mhdr->moff < (int)sizeof(struct mset) || mhdr->moff >= MSETLEN_MAX) {
+        MOFF_OFFSET(mhdr->moff) < (int)sizeof(struct mset) || MOFF_OFFSET(mhdr->moff) >= MSETLEN_MAX) {
       fprintf(stderr, "[malloc] WILD FREE v=%p moff=%d size=%d mset=%p ra=%p\n",
               v, mhdr->moff, mhdr->size, (void *)mset,
               __builtin_return_address(0));
@@ -900,14 +919,14 @@ void free(void *v) {
       }
     } else if (mset != pool && mset->refs > 0) {
       /* Block freed into non-current pool - these are unreachable by malloc */
-      int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+      int block_size = mhdr_block_size(mhdr);
 #if MALLOC_DEBUG
       memset((char *)mhdr + sizeof(struct mhdr), 0xDE, block_size - sizeof(struct mhdr));
 #endif
       freelist_insert(mset, mhdr, block_size);
     } else {
       /* Add freed block to current pool's free list for reuse */
-      int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+      int block_size = mhdr_block_size(mhdr);
 #if MALLOC_DEBUG
       memset((char *)mhdr + sizeof(struct mhdr), 0xDE, block_size - sizeof(struct mhdr));
 #endif
@@ -974,12 +993,20 @@ static void *shrink(void *v, size_t sz, long old_size) {
   if (mhdr->moff >= 0) {
     /* A pool block: split the tail off onto its pool's free list, as long as it
        is big enough to be a block of its own (freelist_take's split rule). */
-    int old_block = (old_size + sizeof(struct mhdr) + 7) & ~7;
+    int old_block = mhdr_block_size(mhdr);
     int new_block = (sz + sizeof(struct mhdr) + 7) & ~7;
-    struct mset *mset = (struct mset *)((char *)mhdr - mhdr->moff);
-    if (old_block - new_block >= 2 * (int)sizeof(struct mhdr) && !(mset != pool && in_vfork_window)) {
+    struct mset *mset = (struct mset *)((char *)mhdr - MOFF_OFFSET(mhdr->moff));
+    (void)old_size;
+    if (old_block - new_block >= 2 * (int)sizeof(struct mhdr)) {
+      if (!(mset != pool && in_vfork_window)) {
+        mhdr->size = sz;
+        mhdr->moff &= ~MOFF_SLACK8;
+        freelist_insert(mset, (char *)mhdr + new_block, old_block - new_block);
+      }
+    } else {
+      /* Too little to give back: the block keeps it, the size stays exact. */
       mhdr->size = sz;
-      freelist_insert(mset, (char *)mhdr + new_block, old_block - new_block);
+      mhdr->moff = MOFF_OFFSET(mhdr->moff) | (old_block != new_block ? MOFF_SLACK8 : 0);
     }
     return v;
   }
