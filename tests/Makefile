@@ -8,7 +8,7 @@ CFLAGS = -Wall -pedantic -g -std=c11 -D_DEFAULT_SOURCE
 # directly, so they cannot be linked into the unified utest binary (duplicate
 # main / allocator symbols). They are slow O(n^2)-audit stress drivers meant to
 # be run on demand via `make stress`, not as part of the routine suite.
-STANDALONE = malloc_overlap_repro malloc_overlap_devbackend malloc_big_chain_test
+STANDALONE = malloc_overlap_repro malloc_overlap_devbackend malloc_big_chain_test malloc_replay
 
 SRCS = $(filter-out $(addsuffix .c,$(STANDALONE)), $(wildcard *.c))
 OBJS = $(patsubst %.c, build/%.o, $(SRCS))

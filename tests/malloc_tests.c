@@ -134,6 +134,13 @@ static void reset_allocator_state(void) {
     }
   }
   large_cache_bytes = 0;
+  /* The bins point into the pools just unmapped. */
+  memset(bins, 0, sizeof bins);
+  memset(binmap, 0, sizeof binmap);
+  if (retired != NULL)
+    counting_munmap(retired, ((long)cap_retired * (long)sizeof(*retired) + PGMASK) & ~PGMASK);
+  retired = NULL;
+  nbinned_pools = cap_retired = 0;
   pool_len_next = MSETLEN_MIN;
   large_allocs = 0;
   prof_mmap_calls = 0;
@@ -517,10 +524,11 @@ UTEST(malloc_tests, split_creates_usable_remainder) {
 
 /* ---- old pool free list reuse ---- */
 
-UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
-  /* Old pools must NOT be searched for new allocations — doing so adds refs
-     and prevents the pool from ever reaching refs=0 for reclaim.
-     Instead, old pools drain naturally as their live allocations are freed. */
+UTEST(malloc_tests, retired_pool_holes_are_reused_first) {
+  /* A hole a retired pool's freed block left serves the next request that
+     fits, before the current pool's bump room: bumping past the holes left
+     2.1 MB of a Zig compile's pools free at its peak.  (A pool still drains
+     and is reclaimed once every block in it is free; see the next test.) */
   reset_allocator_state();
   /* These pools have to run out of room and retire, which a pool that can
      grow in place does not do until MSETLEN_MAX. */
@@ -537,10 +545,9 @@ UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
     if (!p)
       break;
     ptrs[count++] = p;
-    if (prof_mmap_calls >= 2)
+    if (old_pools != NULL)
       break;
   }
-  ASSERT_GE(prof_mmap_calls, 2);
   ASSERT_TRUE(old_pools != NULL);
 
   struct mset *old = old_pools;
@@ -553,11 +560,12 @@ UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
   }
   ASSERT_LT(old->refs, refs_after_fill);
 
-  /* New allocations should NOT come from old pool — they use current pool */
+  /* The next allocation of that size takes one of those holes */
   int old_refs_before = old->refs;
   void *new_alloc = test_malloc(FILL_SIZE);
   ASSERT_TRUE(new_alloc != NULL);
-  ASSERT_EQ(old->refs, old_refs_before); /* old pool refs unchanged */
+  ASSERT_EQ(old->refs, old_refs_before + 1);
+  ASSERT_TRUE((char *)new_alloc > (char *)old && (char *)new_alloc < (char *)old + old->len);
   test_free(new_alloc);
 
   /* Clean up */
@@ -979,13 +987,14 @@ UTEST(malloc_tests, pool_growth_stops_at_the_largest_pool) {
   mmap_room = 256 * 1024;
   void *p[400];
   int n = 0;
-  while (prof_mmap_calls < 2 && n < 400) {
+  /* Until the first pool retires (retiring maps the bins' pool index too, so
+     the mappings are not counted here). */
+  while (old_pools == NULL && n < 400) {
     p[n] = test_malloc(400);
     ASSERT_TRUE(p[n] != NULL);
     ASSERT_TRUE(block_inside_its_pool(p[n]));
     n++;
   }
-  ASSERT_EQ(prof_mmap_calls, 2);
   /* The first pool stopped at MSETLEN_MAX and retired; the new one starts
      small again. */
   ASSERT_TRUE(old_pools != NULL);
