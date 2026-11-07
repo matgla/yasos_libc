@@ -422,14 +422,30 @@ int __malloc_map_flags;
    a heap of a few MB).  */
 static void punch_retired(void);
 
+/* The parked mapping cache_map would take for TOTAL bytes, or -1. */
+static int cache_fit(long total) {
+  int best = -1;
+  for (int i = 0; i < LARGE_CACHE_SLOTS; i++) {
+    if (large_cache[i].base && large_cache[i].mapped >= total && large_cache[i].mapped <= total * 2 &&
+        (best < 0 || large_cache[i].mapped < large_cache[best].mapped))
+      best = i;
+  }
+  return best;
+}
+
+/* Fresh pages are about to be mapped: a process's peak is reached exactly
+   here, and whatever is parked or punchable would count on top of it while
+   serving nothing. */
+static void before_fresh_pages(void) {
+  if (!in_vfork_window) {
+    release_parked();
+    punch_retired();
+  }
+}
+
 static void *cache_map(long *total) {
   if (!in_vfork_window) {
-    int best = -1;
-    for (int i = 0; i < LARGE_CACHE_SLOTS; i++) {
-      if (large_cache[i].base && large_cache[i].mapped >= *total && large_cache[i].mapped <= *total * 2 &&
-          (best < 0 || large_cache[i].mapped < large_cache[best].mapped))
-        best = i;
-    }
+    int best = cache_fit(*total);
     if (best >= 0) {
       void *base = large_cache[best].base;
       *total = large_cache[best].mapped;
@@ -441,8 +457,7 @@ static void *cache_map(long *total) {
        reached exactly here. Whatever is parked would be counted on top of it
        while serving nothing, so it goes back first. Measured on the device: up
        to 123 KB of a Zig compile's peak was parked mappings. */
-    release_parked();
-    punch_retired();
+    before_fresh_pages();
   }
   {
     /* Nothing here needs zeroes: the parked mappings above are not zero either. */
@@ -922,7 +937,7 @@ static int pool_grow(int need) {
     len = (need + PGMASK) & ~PGMASK;
   if (in_vfork_window || len > MSETLEN_MAX)
     return 0;
-  punch_retired();
+  before_fresh_pages(); /* growing in place maps fresh pages as well */
   if (mremap(pool, pool->len, len, 0) != (void *)pool)
     return 0;
   pool->len = len;
@@ -1201,9 +1216,16 @@ void *realloc(void *v, size_t sz) {
         mhdr->size = sz;
         return v;
       }
-      /* Try kernel mremap to extend the mapping in-place. */
+      /* Try kernel mremap to extend the mapping in-place -- unless a parked
+         mapping fits: the copy below takes it, no fresh pages.  Growing maps
+         fresh pages, so the parked ones go first (cache_map does the same);
+         kept, up to 245 KB of them sat on a Zig compile's peak. */
       long new_mapped = (sz + LARGE_HDR + PGMASK) & ~PGMASK;
-      r = mremap(base, mapped, new_mapped, 0);
+      r = NULL;
+      if (in_vfork_window || cache_fit(new_mapped) < 0) {
+        before_fresh_pages();
+        r = mremap(base, mapped, new_mapped, 0);
+      }
       if (r != NULL && r != (void *)-1) {
         *(long *)r = new_mapped;
         ((struct mhdr *)((char *)r + 8))->moff = LARGE_MOFF;
