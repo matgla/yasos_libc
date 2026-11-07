@@ -25,9 +25,16 @@
 
 #include <stdint.h>
 
+/* Gaps up to this many bytes are let through: the device-sized build (-m32,
+   a 4-byte long, so blocks can start 4 bytes off 8) strands 4-byte gaps the
+   64-bit one never makes -- waste, not overlap; everything else stays checked. */
+#ifndef TILING_SLACK
+#define TILING_SLACK 0
+#endif
+
 #define SLOTS 6000
 static struct { unsigned char *p; size_t n; unsigned char tag; } slot[SLOTS];
-static unsigned long checks, tilings, searches, binned_seen, list_seen, retired_seen;
+static unsigned long checks, tilings, searches, binned_seen, list_seen, retired_seen, holes_seen;
 
 static void die(const char *what)
 {
@@ -35,9 +42,11 @@ static void die(const char *what)
   abort();
 }
 
+/* In MS's range and not in one of its holes, where another pool may lie. */
 static int in_pool(const struct mset *ms, const void *p)
 {
-  return (const char *)p >= (const char *)ms && (const char *)p < (const char *)ms + ms->len;
+  const long off = (const char *)p - (const char *)ms;
+  return off >= 0 && off < ms->len && !(MS_HOLES(ms) & MS_HOLE(off / PGSIZE));
 }
 
 /* Every retired pool's free list against the bins. */
@@ -56,7 +65,7 @@ static void check(void)
       if ((char *)fn < (char *)ms + sizeof(*ms) || (char *)fn + fn->block_size > (char *)ms + ms->len)
         die("a free block outside its pool");
       if (last && !((char *)last + last->block_size < (char *)fn)) die("list out of order or not coalesced");
-      if (ms->binned && BINNABLE(fn))
+      if ((ms->flags & MS_BINNED) && BINNABLE(fn))
       {
         in_lists++;
         int b = bin_of(fn->block_size);
@@ -96,6 +105,15 @@ static void check_tiling(struct mset *ms, uintptr_t end)
 {
   long k = 0;
   pieces[k][0] = (uintptr_t)ms, pieces[k][1] = sizeof(struct mset), k++;
+  /* pages given back (pool_punch): nothing of the pool may be there */
+  for (int p = 1; p < MS_HOLE_PAGES; p++)
+    if (MS_HOLES(ms) & MS_HOLE(p))
+    {
+      if (ms == pool) die("the current pool has a hole");
+      if ((long)p * PGSIZE >= ms->len) die("a hole past the pool's end");
+      pieces[k][0] = (uintptr_t)ms + (uintptr_t)p * PGSIZE, pieces[k][1] = PGSIZE, k++;
+      holes_seen++;
+    }
   for (struct free_node *fn = ms->freelist; fn; fn = fn->next)
     pieces[k][0] = (uintptr_t)fn, pieces[k][1] = fn->block_size, k++;
   for (int i = 0; i < SLOTS; i++)
@@ -111,8 +129,13 @@ static void check_tiling(struct mset *ms, uintptr_t end)
   {
     uintptr_t gap = pieces[i][0] - at;
     if (pieces[i][0] < at) die("two pieces of a pool overlap");
-    if (gap && !(gap <= sizeof(long) && !((at + sizeof(struct mhdr)) & PGMASK)) &&
-        !(gap < 8 && i == 0))
+    /* beside a hole: a piece's size in 8s leaves up to 4 bytes (pool_punch) */
+    const uintptr_t next_off = pieces[i][0] - (uintptr_t)ms, at_off = at - (uintptr_t)ms;
+    const int by_hole = gap < 8 && ((!(next_off & PGMASK) && (MS_HOLES(ms) & MS_HOLE(next_off / PGSIZE))) ||
+                                    (!(at_off & PGMASK) && at_off >= PGSIZE &&
+                                     (MS_HOLES(ms) & MS_HOLE(at_off / PGSIZE - 1))));
+    if (gap && !by_hole && !(gap <= sizeof(long) && !((at + sizeof(struct mhdr)) & PGMASK)) &&
+        !(gap < 8 && i == 0) && gap > TILING_SLACK)
     {
       fprintf(stderr, "gap %lu at offset %lu of %s pool (len %d size %d), before a piece of %lu at %lu (prev end %lu)\n",
               (unsigned long)gap, (unsigned long)(at - (uintptr_t)ms), ms == pool ? "current" : "retired", ms->len,
@@ -141,7 +164,7 @@ static void check_all_tilings(void)
 static int binned_hole_fits(size_t alloc_size)
 {
   for (struct mset *ms = old_pools; ms; ms = ms->next_pool)
-    if (ms->binned)
+    if (ms->flags & MS_BINNED)
       for (struct free_node *fn = ms->freelist; fn; fn = fn->next)
         if (BINNABLE(fn) && block_fits(fn, alloc_size))
           return 1;
@@ -238,8 +261,9 @@ int main(void)
   pieces = t_calloc(SLOTS + (1 << 16), sizeof(*pieces));
   for (unsigned seed = 1; seed <= 6; seed++)
     run(seed * 2654435761u, 600000);
-  printf("ok: %lu checks, %lu tilings, %lu hole searches, %lu retired pool visits, %lu free blocks, %lu binned\n",
-         checks, tilings, searches, retired_seen, list_seen, binned_seen);
+  printf("ok: %lu checks, %lu tilings, %lu hole searches, %lu retired pool visits, %lu free blocks, %lu binned, %lu pages given back\n",
+         checks, tilings, searches, retired_seen, list_seen, binned_seen, holes_seen);
   if (searches == 0 || binned_seen == 0 || retired_seen == 0 || tilings == 0) die("the test never reached the bins");
+  if (holes_seen == 0) die("no retired pool ever gave a page back");
   return 0;
 }

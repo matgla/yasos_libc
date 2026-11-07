@@ -47,12 +47,17 @@ test: $(TARGET)
 build_tests: $(TARGET)
 
 # Standalone allocator stress reproducers (slow; run on demand).
-build/%: %.c
+build/%: %.c ../malloc.c
 	mkdir -p build
-	$(CC) $(CFLAGS) -O2 $< -o $@
+	$(CC) $(CFLAGS) -O2 -DPUNCH_MIN_PAGES=1 $< -o $@
 
-stress: $(addprefix build/, $(STANDALONE))
-	@for t in $(addprefix build/, $(STANDALONE)); do \
+# The bins test again at the device's sizes (4-byte pointers and long).
+build/malloc_bins_test32: malloc_bins_test.c ../malloc.c
+	mkdir -p build
+	$(CC) $(CFLAGS) -O2 -m32 -DTILING_SLACK=8 -DPUNCH_MIN_PAGES=1 $< -o $@
+
+stress: $(addprefix build/, $(STANDALONE)) build/malloc_bins_test32
+	@for t in $(addprefix build/, $(STANDALONE)) build/malloc_bins_test32; do \
 	  echo "------------ $$t ------------"; ./$$t || exit 1; \
 	done
 
