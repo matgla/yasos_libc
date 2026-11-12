@@ -25,6 +25,10 @@
  * MAP_FAST (the fastest memory, or MAP_FAILED). */
 #define MAP_SLOW 0x100000
 #define MAP_FAST 0x200000
+/* YasOS: short-lived blocks -- the highest free run of the slowest memory, apart from what
+ * grows up from the bottom and stays (a compiler's tables), which without an MMU would
+ * otherwise be left in pieces between them. */
+#define MAP_TOP 0x400000
 #define MAP_ANON MAP_ANONYMOUS
 #define MAP_FILE 0
 

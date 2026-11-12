@@ -116,9 +116,9 @@ void __attribute__((noinline)) malloc_debug_trap(void *block, int size, int allo
 #define MSETMAX_MIN 2048           /* first threshold, as before */
 #define MSETMAX_CAP (32 * 1024)
 #define LARGE_PER_CLASS 4
-/* Pooled requests at least this big look in the retired pools first; see
-   old_pool_best_fit. */
-#define RETIRED_FIT_MIN 1024
+/* Size bins of the free blocks in retired pools (see bin_take): 8-byte steps
+   up to 256 bytes, then four per octave up to the largest pool. */
+#define NBINS 68
 
 /* Size of the next pool to map. The threshold is derived from it as half,
    clamped -- half guarantees the largest pooled object still fits a fresh pool
@@ -185,33 +185,196 @@ struct mset {
   void *freelist; /* singly-linked list of freed blocks for reuse */
   struct mset *next_pool; /* linked list of old pools with refs > 0 */
   int len;      /* this pool's mapped length -- pools are no longer one size */
-  int max_free; /* retired pools: no block on the free list is bigger than
-                   this -- an upper bound, made exact by a full walk -- so a
-                   search can pass over the pool without walking it. Also keeps
-                   sizeof(struct mset) a multiple of 8, so the first block's
-                   user pointer stays 8-aligned (ARM LDRD, doubles). */
-  void *big;    /* retired pools: the free blocks of at least RETIRED_FIT_MIN,
-                   in address order, chained through free_node.next_big */
-  int pad;      /* the size stays a multiple of 8, as above */
+  unsigned flags; /* MS_BINNED, and the pages given back (MS_HOLE); also
+                     keeps sizeof(struct mset) a multiple of 8, so the first
+                     block's user pointer stays 8-aligned (ARM LDRD, doubles) */
 };
+
+/* A retired pool whose free blocks are in the size bins. */
+#define MS_BINNED 1u
+/* Page k of the pool (k >= 1: page 0 holds this header) was given back to the
+   kernel (pool_punch); only pools of up to MS_HOLE_PAGES pages get holes. */
+#define MS_HOLE(k) (1u << (k))
+#define MS_HOLE_PAGES 32
+#define MS_HOLES(ms) ((ms)->flags & ~MS_BINNED)
+/* The fewest whole pages a free block gives back (punch_retired).  Replayed
+   over 13 tcc compiles (Zig kernel.c at several tcc revisions, -O0/-O1/-O2,
+   with and without the internal spill): 4 lowered the peak in 12, by 0.15 MB
+   on average (worst +0.13); 1 raised it in most, 2 and 3 by up to 0.4 / 0.25.
+   A smaller run splits free space a later request would have fit, for a page
+   or two.  The stress tests set 1, to make holes as often as they can. */
+#ifndef PUNCH_MIN_PAGES
+#define PUNCH_MIN_PAGES 4
+#endif
 
 /* placed before each small allocation */
 struct mhdr {
-  int moff; /* mset offset */
+  int moff; /* mset offset, | MOFF_SLACK8 */
   int size; /* allocation size */
 };
 
+/* A free block 8 bytes larger than a request is handed out whole: 8 bytes
+   cannot be a free block of their own.  The header records the requested size
+   (msize() reports it exactly), so this bit in moff says the block is 8 bytes
+   longer than that size implies.  Without it free() gave back 8 bytes less,
+   which then sat between two blocks for good, and each later reuse of the hole
+   beside them added 8 more: at the peak of a Zig kernel compile 367 KB of pool
+   space belonged to nothing, in gaps of up to a kilobyte.  A pool offset is
+   below MSETLEN_MAX, so the bit is free; the large and aligned sentinels are
+   negative and never carry it. */
+#define MOFF_SLACK8 (1 << 30)
+#define MOFF_OFFSET(moff) ((moff) & ~MOFF_SLACK8)
+
+/* The pool block a header describes, in bytes, header included. */
+static int mhdr_block_size(const struct mhdr *h) {
+  return ((h->size + (int)sizeof(struct mhdr) + 7) & ~7) + ((h->moff & MOFF_SLACK8) ? 8 : 0);
+}
+
 /* overlays mhdr in freed blocks (must be >= sizeof(mhdr)) */
 struct free_node {
-  struct free_node *next;
+  struct free_node *next; /* the pool's free blocks, in address order */
   int block_size; /* total block size including mhdr, aligned */
-  struct free_node *next_big; /* only in a retired pool's block of at least
-                                 RETIRED_FIT_MIN; smaller blocks may end here */
+  struct free_node *bin_next; /* retired pools: the block's size bin, */
+  struct free_node *bin_prev; /* doubly linked (16 bytes: the smallest block) */
 };
 
 static struct mset *pool;
 static struct mset *pool1; /* a freed pool */
 static struct mset *old_pools; /* linked list of full pools with refs > 0 */
+
+/* ── Hole reuse across retired pools ──────────────────────────────────────
+   A pool retires when its bump room runs out, and the blocks freed in it
+   afterwards are holes between the ones still live.  They used to be reached
+   only by requests of at least 1 KB, and the rest only when the current pool
+   was exhausted, so every smaller request bumped fresh memory past them: at
+   the peak of a Zig kernel compile (12.4 MB mapped for 8.8 MB live) 2.1 MB of
+   pool space was free, 1.2 MB of it in holes under 1 KB.  Every free block of a
+   retired pool is now in a size bin, and any request takes the best fitting
+   hole -- smallest bin first -- before the current pool's free list, its bump
+   room or a new mapping.  Replayed against the device page allocator
+   (tests/malloc_replay.c) that compile maps 10.2 MB at its peak.  A binned
+   block's pool is found by address in retired[], which is mapped (not .bss)
+   the first time a process retires a pool -- a light process never pays for
+   it.  The pools' address ordered free lists stay, for coalescing.  Every
+   block is binned on the device: the smallest block is exactly a free_node,
+   and the 16-byte holes are the ones the smallest requests need (leaving
+   them out kept 1.4 MB more mapped in that compile).  A 64-bit host build has
+   16-byte blocks and 32-byte nodes, and leaves those out. */
+extern int __malloc_map_flags;
+static struct free_node *bins[NBINS];
+static unsigned binmap[(NBINS + 31) / 32];
+static int bin_of(int size) {
+  if (size <= 256)
+    return (size >> 3) - 2;
+  int o = 31 - __builtin_clz((unsigned)size) - 8;
+  int b = 31 + o * 4 + ((size >> (o + 6)) & 3);
+  return b < NBINS ? b : NBINS - 1;
+}
+
+#define BINNABLE(fn) ((fn)->block_size >= (int)sizeof(struct free_node))
+
+static void bin_insert(struct free_node *fn) {
+  if (!BINNABLE(fn))
+    return;
+  int b = bin_of(fn->block_size);
+  fn->bin_prev = NULL;
+  fn->bin_next = bins[b];
+  if (bins[b])
+    bins[b]->bin_prev = fn;
+  bins[b] = fn;
+  binmap[b >> 5] |= 1u << (b & 31);
+}
+
+static void bin_remove(struct free_node *fn) {
+  if (!BINNABLE(fn))
+    return;
+  int b = bin_of(fn->block_size);
+  if (fn->bin_prev)
+    fn->bin_prev->bin_next = fn->bin_next;
+  else
+    bins[b] = fn->bin_next;
+  if (fn->bin_next)
+    fn->bin_next->bin_prev = fn->bin_prev;
+  if (!bins[b])
+    binmap[b >> 5] &= ~(1u << (b & 31));
+}
+
+/* The first non-empty bin at or above b, or NBINS. */
+static int bin_next_used(int b) {
+  while (b < NBINS) {
+    unsigned w = binmap[b >> 5] >> (b & 31);
+    if (w)
+      return b + __builtin_ctz(w);
+    b = (b | 31) + 1;
+  }
+  return NBINS;
+}
+
+/* retired[]: the binned pools, by address. */
+static struct mset **retired;
+static int nbinned_pools, cap_retired;
+
+static int retired_index(const void *p) {
+  int lo = 0, hi = nbinned_pools - 1, r = -1;
+  while (lo <= hi) {
+    int mid = (lo + hi) >> 1;
+    if ((const void *)retired[mid] <= p) {
+      r = mid;
+      lo = mid + 1;
+    } else
+      hi = mid - 1;
+  }
+  return r;
+}
+
+/* The retired pool holding block P.  Usually the last pool starting at or
+   below it, but a pool can lie in another one's hole (pool_punch gives pages
+   back, and the next mapping may land there), so a block past that hole
+   belongs to an earlier pool. */
+static struct mset *retired_owner(const void *p) {
+  for (int i = retired_index(p); i >= 0; i--) {
+    struct mset *ms = retired[i];
+    const long off = (const char *)p - (const char *)ms;
+    if (off < ms->len && !(MS_HOLES(ms) & MS_HOLE(off / PGSIZE)))
+      return ms;
+  }
+  return NULL;
+}
+
+static void retired_add(struct mset *ms) {
+  if (nbinned_pools == cap_retired) {
+    long bytes = ((long)(cap_retired ? cap_retired * 2 : 64) * (long)sizeof(*retired) + PGMASK) & ~PGMASK;
+    struct mset **n = mmap(NULL, bytes, PROT_READ | PROT_WRITE,
+                           MAP_PRIVATE | MAP_ANONYMOUS | MAP_UNINITIALIZED | __malloc_map_flags, -1, 0);
+    if (n == MAP_FAILED)
+      return; /* its holes just stay out of the bins */
+    if (retired) {
+      memcpy(n, retired, nbinned_pools * sizeof(*retired));
+      munmap(retired, ((long)cap_retired * (long)sizeof(*retired) + PGMASK) & ~PGMASK);
+    }
+    retired = n;
+    cap_retired = (int)(bytes / (long)sizeof(*retired));
+  }
+  int i = retired_index(ms) + 1;
+  memmove(retired + i + 1, retired + i, (nbinned_pools - i) * sizeof(*retired));
+  retired[i] = ms;
+  nbinned_pools++;
+  ms->flags |= MS_BINNED;
+  for (struct free_node *fn = ms->freelist; fn != NULL; fn = fn->next)
+    bin_insert(fn);
+}
+
+static void retired_remove(struct mset *ms) {
+  if (!(ms->flags & MS_BINNED))
+    return;
+  int i = retired_index(ms);
+  for (struct free_node *fn = ms->freelist; fn != NULL; fn = fn->next)
+    bin_remove(fn);
+  memmove(retired + i, retired + i + 1, (nbinned_pools - i - 1) * sizeof(*retired));
+  nbinned_pools--;
+  ms->flags &= ~MS_BINNED;
+}
+
 
 /* ── Mapping cache ────────────────────────────────────────────────────────
    Freed mappings are parked here rather than returned to the kernel, and the
@@ -257,14 +420,32 @@ int __malloc_map_flags;
    clear of every byte through PSRAM, 6.9% of a compile before this took near fits
    as well as exact ones (456 MB cleared over eight units, 8311 mappings, all for
    a heap of a few MB).  */
+static void punch_retired(void);
+
+/* The parked mapping cache_map would take for TOTAL bytes, or -1. */
+static int cache_fit(long total) {
+  int best = -1;
+  for (int i = 0; i < LARGE_CACHE_SLOTS; i++) {
+    if (large_cache[i].base && large_cache[i].mapped >= total && large_cache[i].mapped <= total * 2 &&
+        (best < 0 || large_cache[i].mapped < large_cache[best].mapped))
+      best = i;
+  }
+  return best;
+}
+
+/* Fresh pages are about to be mapped: a process's peak is reached exactly
+   here, and whatever is parked or punchable would count on top of it while
+   serving nothing. */
+static void before_fresh_pages(void) {
+  if (!in_vfork_window) {
+    release_parked();
+    punch_retired();
+  }
+}
+
 static void *cache_map(long *total) {
   if (!in_vfork_window) {
-    int best = -1;
-    for (int i = 0; i < LARGE_CACHE_SLOTS; i++) {
-      if (large_cache[i].base && large_cache[i].mapped >= *total && large_cache[i].mapped <= *total * 2 &&
-          (best < 0 || large_cache[i].mapped < large_cache[best].mapped))
-        best = i;
-    }
+    int best = cache_fit(*total);
     if (best >= 0) {
       void *base = large_cache[best].base;
       *total = large_cache[best].mapped;
@@ -276,7 +457,7 @@ static void *cache_map(long *total) {
        reached exactly here. Whatever is parked would be counted on top of it
        while serving nothing, so it goes back first. Measured on the device: up
        to 123 KB of a Zig compile's peak was parked mappings. */
-    release_parked();
+    before_fresh_pages();
   }
   {
     /* Nothing here needs zeroes: the parked mappings above are not zero either. */
@@ -373,6 +554,126 @@ static int pool_trim_end(struct mset *ms, int from) {
   return ms->len;
 }
 
+/* The pages pool_punch would give back from free block FN of MS, [*p0, *p1)
+   from the pool's start, and the pieces left of it (sizes in 8s, 0 = none):
+   zero when there is nothing worth giving. */
+static int punch_range(const struct mset *ms, const struct free_node *fn, int *p0, int *p1, int *left, int *right) {
+  const int lo = (const char *)fn - (const char *)ms, hi = lo + fn->block_size;
+  if (ms->len > MS_HOLE_PAGES * PGSIZE)
+    return 0;
+  *p0 = (lo + PGMASK) & ~PGMASK;
+  *p1 = hi & ~PGMASK;
+  /* Every block is a multiple of 8 bytes (a block handed out whole is taken
+     to be exactly 8 over its request, MOFF_SLACK8), but after the bump path's
+     page skip a block can start 4 bytes off: the pieces keep their sizes in
+     8s, the left one from lo and the right one to hi, and the 4 bytes between
+     a piece and the hole belong to nothing, as a page skip's do. */
+  *left = (*p0 - lo) & ~7;
+  *right = (hi - *p1) & ~7;
+  if (*p0 > lo && *left < (int)sizeof(struct free_node)) {
+    *p0 += PGSIZE;
+    *left = (*p0 - lo) & ~7;
+  }
+  if (hi > *p1 && *right < (int)sizeof(struct free_node)) {
+    *p1 -= PGSIZE;
+    *right = (hi - *p1) & ~7;
+  }
+  return *p1 - *p0 >= PUNCH_MIN_PAGES * PGSIZE;
+}
+
+/* Give the whole pages inside free block FN of the retired pool MS back to the
+   kernel, as a hole in the pool (MS_HOLE).  Nothing bumps a retired pool, so a
+   free page there serves only a later request that happens to fit it.  What is
+   left of FN on either side stays a free block; the two never coalesce again,
+   as they are not adjacent.  Returns the block left in FN's place, or NULL; a
+   block after the hole is put on the free list (and in its bin, if BINNED)
+   here.  A pool with holes is unmapped piece by piece (pool_unmap_holes) and
+   never reused whole. */
+static struct free_node *pool_punch(struct mset *ms, struct free_node *fn, int binned) {
+  char *base = (char *)ms;
+  int p0, p1, left, right;
+  if (!punch_range(ms, fn, &p0, &p1, &left, &right))
+    return fn;
+  const int hi = ((char *)fn - base) + fn->block_size;
+  /* FN itself may be in the pages going: read it first. */
+  struct free_node *const after = fn->next, **prev = NULL;
+  if (left == 0) {
+    prev = (struct free_node **)&ms->freelist;
+    while (*prev != fn)
+      prev = &(*prev)->next;
+  }
+  if (munmap(base + p0, p1 - p0) != 0)
+    return fn;
+  for (int k = p0 / PGSIZE; k < p1 / PGSIZE; k++)
+    ms->flags |= MS_HOLE(k);
+  struct free_node *rn = NULL;
+  if (right > 0) {
+    rn = (struct free_node *)(base + hi - right);
+    rn->block_size = right;
+    rn->next = after;
+  }
+  if (prev) {
+    *prev = rn ? rn : after;
+    fn = NULL;
+  } else {
+    fn->block_size = left;
+    fn->next = rn ? rn : after;
+  }
+  if (rn && binned)
+    bin_insert(rn);
+  return fn;
+}
+
+/* Unmap a drained pool with holes: each run of pages it still holds is a
+   mapping of its own now, and a range across a hole could take pages the
+   kernel has since handed to another mapping of this process. */
+static void pool_unmap_holes(struct mset *ms) {
+  const unsigned holes = MS_HOLES(ms);
+  const int pages = ms->len / PGSIZE;
+  char *base = (char *)ms;
+  for (int k = 0; k < pages;) {
+    if (holes & MS_HOLE(k)) {
+      k++;
+      continue;
+    }
+    int e = k;
+    while (e < pages && !(holes & MS_HOLE(e)))
+      e++;
+    munmap(base + (long)k * PGSIZE, (long)(e - k) * PGSIZE);
+    k = e;
+  }
+}
+
+static struct mset *retired_owner(const void *p);
+
+/* About to map fresh memory -- where a process's peak grows: first give back
+   the whole free pages of the retired pools' big blocks (pool_punch).  Only
+   then: given back as soon as they were free, they split runs a later request
+   would have fit, and the pieces under a page kept more mapped than the pages
+   saved (Zig kernel compile: 7.65 -> 8.20 MB at the peak; 7.33 this way).
+   The blocks of a page or more are all in the bins from bin_of(PGSIZE) up. */
+static void punch_retired(void) {
+  if (in_vfork_window || !nbinned_pools)
+    return;
+  for (int b = bin_next_used(bin_of(PGSIZE)); b < NBINS; b = bin_next_used(b + 1)) {
+  again:
+    for (struct free_node *fn = bins[b]; fn != NULL; fn = fn->bin_next) {
+      int p0, p1, left, right;
+      struct mset *ms;
+      if (fn->block_size < PGSIZE || !(ms = retired_owner(fn)) || !punch_range(ms, fn, &p0, &p1, &left, &right))
+        continue;
+      const unsigned before = ms->flags;
+      bin_remove(fn);
+      struct free_node *rest = pool_punch(ms, fn, 1);
+      if (rest != NULL)
+        bin_insert(rest);
+      if (ms->flags == before)
+        return; /* the kernel refused: leave the rest for the next time */
+      goto again; /* the bins changed; what is left in this one is smaller */
+    }
+  }
+}
+
 /* Insert a freed block into a pool's free list, sorted by address.
    Coalesces with adjacent free blocks to combat fragmentation. */
 static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
@@ -390,21 +691,14 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
   struct free_node **prev = (struct free_node **)&mset->freelist;
   struct free_node *prev_node = NULL;
   struct free_node *cur;
-  const int chained = mset != pool;
-  struct free_node *big_before = NULL; /* last chained block before prev_node */
+  /* A retired pool's free blocks are in the size bins (see bin_take). */
+  const int binned = mset != pool && (mset->flags & MS_BINNED);
 
   /* Find sorted position by address */
   while ((cur = *prev) && cur < fn) {
-    if (chained && prev_node && prev_node->block_size >= RETIRED_FIT_MIN)
-      big_before = prev_node;
     prev_node = cur;
     prev = &cur->next;
   }
-  const int prev_was_big = prev_node && prev_node->block_size >= RETIRED_FIT_MIN;
-  const int cur_was_big = cur && cur->block_size >= RETIRED_FIT_MIN;
-  struct free_node *big_after = NULL; /* first chained block after this spot */
-  if (chained)
-    big_after = prev_was_big ? prev_node->next_big : big_before ? big_before->next_big : mset->big;
 
   /* Insert */
   fn->next = cur;
@@ -412,10 +706,10 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
 
   /* Coalesce with next block if adjacent */
   if (cur && (char *)fn + fn->block_size == (char *)cur) {
+    if (binned)
+      bin_remove(cur);
     fn->block_size += cur->block_size;
     fn->next = cur->next;
-    if (chained && cur_was_big)
-      big_after = cur->next_big;
 #if MALLOC_DEBUG
     /* Re-poison merged area so stale free_node headers don't cause false positives */
     memset((char *)fn + sizeof(struct free_node), 0xDE,
@@ -425,6 +719,8 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
 
   /* Coalesce with previous block if adjacent */
   if (prev_node && (char *)prev_node + prev_node->block_size == (char *)fn) {
+    if (binned)
+      bin_remove(prev_node);
     prev_node->block_size += fn->block_size;
     prev_node->next = fn->next;
 #if MALLOC_DEBUG
@@ -434,29 +730,15 @@ static void freelist_insert(struct mset *mset, void *ptr, int block_size) {
     fn = prev_node;
   }
   /* A retired pool's free space reaching its end: hand its whole pages back. */
-  if (mset != pool && (char *)fn + fn->block_size == (char *)mset + mset->len &&
+  if (mset != pool && !MS_HOLES(mset) && (char *)fn + fn->block_size == (char *)mset + mset->len &&
       fn->block_size >= PGSIZE) {
     int off = (char *)fn - (char *)mset;
-    int len = pool_trim_end(mset, off + (int)offsetof(struct free_node, next_big));
+    int len = pool_trim_end(mset, off + (int)sizeof(struct free_node));
     if (len < off + fn->block_size)
       fn->block_size = len - off;
   }
-  if (chained) {
-    /* The block that ends up here is prev_node when the two merged, and then
-       what precedes it in the chain is what preceded prev_node. */
-    struct free_node *before = fn == prev_node ? big_before : prev_was_big ? prev_node : big_before;
-    struct free_node *link = big_after;
-    if (fn->block_size >= RETIRED_FIT_MIN) {
-      fn->next_big = big_after;
-      link = fn;
-    }
-    if (before)
-      before->next_big = link;
-    else
-      mset->big = link;
-  }
-  if (fn->block_size > mset->max_free)
-    mset->max_free = fn->block_size;
+  if (binned)
+    bin_insert(fn);
 }
 
 /* Whether a free block can be handed out for `alloc_size` bytes. Blocks whose
@@ -540,145 +822,43 @@ static void *freelist_take(struct mset *ms, size_t alloc_size) {
    14 retired pools of a Zig compile's peak on the device. */
 static void retire(struct mset *ms) {
   int tail = (ms->size + 7) & ~7;
-  struct free_node *fn, **tailp = (struct free_node **)&ms->big;
   ms->size = ms->len;
-  ms->max_free = ms->len;
   if (ms->len - tail >= 2 * (int)sizeof(struct mhdr))
     freelist_insert(ms, (char *)ms + tail, ms->len - tail);
-  for (fn = ms->freelist; fn != NULL; fn = fn->next)
-    if (fn->block_size >= RETIRED_FIT_MIN) {
-      *tailp = fn;
-      tailp = &fn->next_big;
-    }
-  *tailp = NULL;
   ms->next_pool = old_pools;
   old_pools = ms;
+  /* Not between vfork and exec: __malloc_vfork_restore puts the parent's pools
+     back as they were, and a binned block would outlive that. */
+  if (!in_vfork_window)
+    retired_add(ms);
 }
 
-/* Serve `alloc_size` from a retired pool, and make that pool current again.
-   NULL when no retired pool has room.
-
-   A pool is retired when its *bump pointer* runs out, but blocks inside it go
-   on being freed long afterwards, and freelist_insert coalesces them — so a
-   long-lived process ends up owning a chain of pools that are nearly empty and
-   completely unreachable, while every replacement pool is twice the size of
-   the one before. Measured on the smoke rig: the shell had ratcheted to 188 KiB
-   of pools holding almost nothing, in the fast SRAM tier, which is exactly the
-   memory the compiler it then spawns could not have (and a compile's page
-   clears cost ~30x more against PSRAM). Reaching into those pools before
-   mapping a new one is what stops the ratchet.
-
-   The pool is promoted rather than merely borrowed from, so the next
-   allocation finds its free list on the normal path instead of walking the
-   chain again. Only reached when the current pool cannot serve the request,
-   i.e. on the path whose alternative is an mmap. */
-static void *old_pool_take(size_t alloc_size) {
-  struct mset **link = &old_pools;
-  struct mset *old;
-  if (in_vfork_window)
-    return NULL;
-  while ((old = *link) != NULL) {
-    void *m = old->max_free >= (int)alloc_size ? freelist_take(old, alloc_size) : NULL;
-    if (m == NULL) {
-      link = &old->next_pool;
-      continue;
-    }
-    *link = old->next_pool;
-    /* Retire the current pool exactly as mk_pool would. It normally still has
-       live blocks -- a drained one would have had its whole body on its free
-       list and served this request itself -- but a request too big for an
-       older, smaller-class pool can reach here with a drained one in hand, and
-       chaining that would strand it: nothing is ever freed into it again, so
-       the refs==0 check in free() would never run for it. */
-    if (pool != NULL) {
-      if (pool->refs > 0) {
-        retire(pool);
-      } else if (pool1 == NULL) {
-        pool1 = pool;
-      } else {
-        cache_unmap(pool, pool->len);
-      }
-    }
-    pool = old;
-    return m;
+/* Take the best fitting hole of a retired pool for `alloc_size`: the
+   smallest non-empty bin that can hold it, the first block there that fits
+   (bins above the request's own hold only blocks that are big enough).  The
+   pool keeps it, and stays where it is.  NULL when no hole fits. */
+static void *bin_take(size_t alloc_size, struct mset **owner) {
+  struct free_node *fn = NULL;
+  for (int b = bin_next_used(bin_of((int)alloc_size)); b < NBINS; b = bin_next_used(b + 1)) {
+    for (fn = bins[b]; fn != NULL; fn = fn->bin_next)
+      if (block_fits(fn, alloc_size))
+        goto found;
   }
   return NULL;
-}
-
-/* Serve a mid-size `alloc_size` from the best-fitting free block in any retired
-   pool, leaving that pool where it is. NULL when none fits.
-
-   old_pool_take only runs once the current pool's bump pointer is exhausted,
-   and the current pool is always the one being bumped -- so the holes a
-   retired pool accumulates sit unused while fresh pool space is spent. What
-   makes the holes is growth: a buffer grown by doubling leaves its previous
-   copy behind at every step. A Zig compile on the device had 476 KB free
-   inside 967 KB of retired pools at its peak, 371 KB of it in holes of 4 KB
-   and up, while only ~0.5 MB of small objects were live. Filling those holes
-   first took 205 KB off malloc's mapped peak there, and 197 KB off tcc
-   compiling the result;
-   a compile small enough never to retire a pool does not reach this.
-
-   Best fit rather than first fit, so a big hole is not spent on a small
-   request that a small hole could have served. Only requests of at least
-   RETIRED_FIT_MIN come here; they are the ones that fragment. Walking every
-   retired free list for each of them made tcc ~20% slower on a large file
-   (thousands of 1-4 KB requests against dozens of pools full of small
-   fragments), so a pool whose max_free rules out a fit is passed over, and a
-   full walk leaves max_free exact.
-
-   Only blocks of at least RETIRED_FIT_MIN can serve these requests, and about
-   one free block in eight is that big, so the search follows a chain of just
-   those: it picks the same block a walk of the whole list would, without
-   reading the headers of the fragments, each of them a likely cache miss in
-   PSRAM. That walk was 72% of the free blocks malloc visited compiling tinycc. */
-static void *old_pool_best_fit(size_t alloc_size, struct mset **owner) {
-  struct mset *ms;
-  struct free_node *fn, *before, *best = NULL, *best_before = NULL;
-  struct mset *best_pool = NULL;
-  if (in_vfork_window)
-    return NULL;
-  for (ms = old_pools; ms != NULL; ms = ms->next_pool) {
-    int largest = RETIRED_FIT_MIN - 1; /* what is not chained is smaller */
-    if (ms->max_free < (int)alloc_size)
-      continue;
-    for (before = NULL, fn = ms->big; fn != NULL; before = fn, fn = fn->next_big) {
-      if (fn->block_size > largest)
-        largest = fn->block_size;
-      if (block_fits(fn, alloc_size) && (best == NULL || fn->block_size < best->block_size)) {
-        best = fn;
-        best_before = before;
-        best_pool = ms;
-        if (fn->block_size == (int)alloc_size)
-          goto found;
-      }
-    }
-    ms->max_free = largest;
-  }
-  if (best == NULL)
-    return NULL;
 found:
-  *owner = best_pool;
   {
-    /* The list is singly linked: the block before this one is at most a run of
-       fragments past the chained block before it. */
-    struct free_node **prev = best_before ? &best_before->next : (struct free_node **)&best_pool->freelist;
-    struct free_node *after = best->next_big, *link = after;
-    const int remainder = best->block_size - (int)alloc_size;
-    while (*prev != best)
+    struct mset *ms = retired_owner(fn);
+    struct free_node **prev = (struct free_node **)&ms->freelist, *after;
+    bin_remove(fn);
+    while (*prev != fn)
       prev = &(*prev)->next;
+    after = fn->next;
     take_block(prev, alloc_size);
-    /* A remainder this big was split off by take_block, in the block's place. */
-    if (remainder >= RETIRED_FIT_MIN) {
-      (*prev)->next_big = after;
-      link = *prev;
-    }
-    if (best_before)
-      best_before->next_big = link;
-    else
-      best_pool->big = link;
+    if (*prev != after) /* the split-off remainder */
+      bin_insert(*prev);
+    *owner = ms;
   }
-  return best;
+  return fn;
 }
 
 /* Make `pool` a pool with room for `want` total bytes (the caller's block plus
@@ -738,7 +918,7 @@ static int mk_pool(int want) {
     pool->refs = 0;
     pool->freelist = 0;
     pool->next_pool = 0;
-    pool->max_free = 0;
+    pool->flags = 0;
   }
   if (replacing)
     widen_pool_class();
@@ -757,6 +937,7 @@ static int pool_grow(int need) {
     len = (need + PGMASK) & ~PGMASK;
   if (in_vfork_window || len > MSETLEN_MAX)
     return 0;
+  before_fresh_pages(); /* growing in place maps fresh pages as well */
   if (mremap(pool, pool->len, len, 0) != (void *)pool)
     return 0;
   pool->len = len;
@@ -785,6 +966,7 @@ void *malloc(size_t n) {
     long total = (n + LARGE_HDR + PGMASK) & ~PGMASK;
     char *lm = cache_map(&total);
     if (lm == NULL) {
+      errno = ENOMEM;
       return NULL;
     }
     /* Every one of these is a mapping. Enough of them and the pool class
@@ -803,13 +985,16 @@ void *malloc(size_t n) {
   }
   alloc_size = (n + sizeof(struct mhdr) + 7) & ~7;
   if (!pool)
-    if (mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
+    if (mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8)) {
+      errno = ENOMEM;
       return NULL;
-  if (alloc_size >= RETIRED_FIT_MIN && old_pools != NULL) {
+    }
+  if (nbinned_pools && !in_vfork_window) {
     struct mset *owner;
-    m = old_pool_best_fit(alloc_size, &owner);
+    m = bin_take(alloc_size, &owner);
     if (m != NULL) {
-      ((struct mhdr *)m)->moff = (char *)m - (char *)owner;
+      const int slack = ((struct free_node *)m)->block_size != (int)alloc_size ? MOFF_SLACK8 : 0;
+      ((struct mhdr *)m)->moff = ((char *)m - (char *)owner) | slack;
       ((struct mhdr *)m)->size = n;
       owner->refs++;
 #if MALLOC_ZEROES
@@ -821,7 +1006,8 @@ void *malloc(size_t n) {
   /* Search current pool's free list for a reusable block */
   m = freelist_take(pool, alloc_size);
   if (m != NULL) {
-    ((struct mhdr *)m)->moff = (char *)m - (char *)pool;
+    const int slack = ((struct free_node *)m)->block_size != (int)alloc_size ? MOFF_SLACK8 : 0;
+    ((struct mhdr *)m)->moff = ((char *)m - (char *)pool) | slack;
     ((struct mhdr *)m)->size = n;
     pool->refs++;
 #if MALLOC_ZEROES
@@ -836,23 +1022,11 @@ void *malloc(size_t n) {
   if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) & PGMASK))
     offset += sizeof(long);
   if (offset + alloc_size > (size_t)pool->len) {
-    /* The current pool is out of bump room. Retired pools are searched only
-       here, on the path whose alternative is mapping more memory: a walk of a
-       few free lists is cheap against an mmap, and it is what keeps a
-       long-lived process from accumulating pools it cannot reach. */
-    m = old_pool_take(alloc_size);
-    if (m != NULL) {
-      ((struct mhdr *)m)->moff = (char *)m - (char *)pool;
-      ((struct mhdr *)m)->size = n;
-      pool->refs++;
-#if MALLOC_ZEROES
-      memset((char *)m + sizeof(struct mhdr), 0, n);
-#endif
-      return (char *)m + sizeof(struct mhdr);
-    }
     if (!pool_grow(offset + (int)alloc_size + 8) &&
-        mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
+        mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8)) {
+      errno = ENOMEM;
       return NULL;
+    }
     offset = pool->size;
     if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) &
           PGMASK))
@@ -890,39 +1064,46 @@ void free(void *v) {
     return;
   }
   {
-    struct mset *mset = (void *)mhdr - mhdr->moff;
+    struct mset *mset = (void *)mhdr - MOFF_OFFSET(mhdr->moff);
 #if MALLOC_DEBUG
     if ((unsigned long)v < 0x10000000UL || ((unsigned long)mset & PGMASK) ||
-        mhdr->moff < (int)sizeof(struct mset) || mhdr->moff >= MSETLEN_MAX) {
+        MOFF_OFFSET(mhdr->moff) < (int)sizeof(struct mset) || MOFF_OFFSET(mhdr->moff) >= MSETLEN_MAX) {
       fprintf(stderr, "[malloc] WILD FREE v=%p moff=%d size=%d mset=%p ra=%p\n",
               v, mhdr->moff, mhdr->size, (void *)mset,
               __builtin_return_address(0));
       return;
     }
 #endif
+    /* Between vfork and exec the child leaves the parent's retired pools
+       alone: their blocks are binned, and restore does not undo bin changes. */
+    if (mset != pool && in_vfork_window)
+      return;
     mset->refs--;
     if (mset->refs == 0 && mset != pool) {
+      retired_remove(mset);
       /* Remove from old_pools list if present */
       struct mset **pp = &old_pools;
       while (*pp) {
         if (*pp == mset) { *pp = mset->next_pool; break; }
         pp = &(*pp)->next_pool;
       }
-      if (pool1 != NULL) {
+      if (MS_HOLES(mset)) {
+        pool_unmap_holes(mset); /* not reusable whole */
+      } else if (pool1 != NULL) {
         cache_unmap(mset, mset->len);
       } else {
         pool1 = mset;
       }
     } else if (mset != pool && mset->refs > 0) {
       /* Block freed into non-current pool - these are unreachable by malloc */
-      int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+      int block_size = mhdr_block_size(mhdr);
 #if MALLOC_DEBUG
       memset((char *)mhdr + sizeof(struct mhdr), 0xDE, block_size - sizeof(struct mhdr));
 #endif
       freelist_insert(mset, mhdr, block_size);
     } else {
       /* Add freed block to current pool's free list for reuse */
-      int block_size = ((mhdr->size + sizeof(struct mhdr) + 7) & ~7);
+      int block_size = mhdr_block_size(mhdr);
 #if MALLOC_DEBUG
       memset((char *)mhdr + sizeof(struct mhdr), 0xDE, block_size - sizeof(struct mhdr));
 #endif
@@ -932,7 +1113,12 @@ void free(void *v) {
 }
 
 void *calloc(size_t n, size_t sz) {
-  void *r = malloc(n * sz);
+  void *r;
+  if (sz != 0 && n > (size_t)-1 / sz) {
+    errno = ENOMEM;
+    return NULL;
+  }
+  r = malloc(n * sz);
   if (r)
     memset(r, 0, n * sz);
   return r;
@@ -989,12 +1175,20 @@ static void *shrink(void *v, size_t sz, long old_size) {
   if (mhdr->moff >= 0) {
     /* A pool block: split the tail off onto its pool's free list, as long as it
        is big enough to be a block of its own (freelist_take's split rule). */
-    int old_block = (old_size + sizeof(struct mhdr) + 7) & ~7;
+    int old_block = mhdr_block_size(mhdr);
     int new_block = (sz + sizeof(struct mhdr) + 7) & ~7;
+    struct mset *mset = (struct mset *)((char *)mhdr - MOFF_OFFSET(mhdr->moff));
+    (void)old_size;
     if (old_block - new_block >= 2 * (int)sizeof(struct mhdr)) {
-      struct mset *mset = (struct mset *)((char *)mhdr - mhdr->moff);
+      if (!(mset != pool && in_vfork_window)) {
+        mhdr->size = sz;
+        mhdr->moff &= ~MOFF_SLACK8;
+        freelist_insert(mset, (char *)mhdr + new_block, old_block - new_block);
+      }
+    } else {
+      /* Too little to give back: the block keeps it, the size stays exact. */
       mhdr->size = sz;
-      freelist_insert(mset, (char *)mhdr + new_block, old_block - new_block);
+      mhdr->moff = MOFF_OFFSET(mhdr->moff) | (old_block != new_block ? MOFF_SLACK8 : 0);
     }
     return v;
   }
@@ -1032,9 +1226,16 @@ void *realloc(void *v, size_t sz) {
         mhdr->size = sz;
         return v;
       }
-      /* Try kernel mremap to extend the mapping in-place. */
+      /* Try kernel mremap to extend the mapping in-place -- unless a parked
+         mapping fits: the copy below takes it, no fresh pages.  Growing maps
+         fresh pages, so the parked ones go first (cache_map does the same);
+         kept, up to 245 KB of them sat on a Zig compile's peak. */
       long new_mapped = (sz + LARGE_HDR + PGMASK) & ~PGMASK;
-      r = mremap(base, mapped, new_mapped, 0);
+      r = NULL;
+      if (in_vfork_window || cache_fit(new_mapped) < 0) {
+        before_fresh_pages();
+        r = mremap(base, mapped, new_mapped, 0);
+      }
       if (r != NULL && r != (void *)-1) {
         *(long *)r = new_mapped;
         ((struct mhdr *)((char *)r + 8))->moff = LARGE_MOFF;
@@ -1076,8 +1277,10 @@ static void *alloc_aligned(size_t alignment, size_t size) {
   /* Room for the worst-case shift plus the header and the parked pointer. */
   size_t extra = alignment + sizeof(struct mhdr) + sizeof(void *);
 
-  if (size > (size_t)-1 - extra)
+  if (size > (size_t)-1 - extra) {
+    errno = ENOMEM;
     return NULL;
+  }
   raw = malloc(size + extra);
   if (!raw)
     return NULL;
@@ -1132,6 +1335,58 @@ void *memalign(size_t alignment, size_t size) {
  * Reporting the requested size rather than the block's full capacity is the
  * safe direction: a caller uses this to decide whether something fits without
  * reallocating. */
+/* Where the pooled memory is, for profiling a process's peak (tcc's
+   TCC_LIVEPROF calls this at its snapshots).  Fills up to n of:
+     [0] pools mapped (current + spare + retired)   [1] their bytes
+     [2] free bytes on their free lists              [3] of that, in whole pages
+     [4] current pool's unused bump room             [5] spare pool bytes
+     [6] retired pools                               [7] retired pool bytes
+     [8] retired free bytes                          [9] of that, in whole pages
+     [10] parked large mappings, bytes
+     [11..18] free bytes by block size: <64 <256 <1K <2K <4K <8K <16K >=16K
+   Whole pages: the pages a free block covers entirely past its header, i.e.
+   what could go back to the kernel if a mapping could be split. */
+static long stats_hist[8]; /* free bytes by block size: <64 <256 <1K <2K <4K <8K <16K >=16K */
+static void stats_pool(struct mset *ms, long *free_b, long *free_pg) {
+  for (struct free_node *fn = ms->freelist; fn != NULL; fn = fn->next) {
+    int b = fn->block_size, k = b < 64 ? 0 : b < 256 ? 1 : b < 1024 ? 2 : b < 2048 ? 3 : b < 4096 ? 4 : b < 8192 ? 5 : b < 16384 ? 6 : 7;
+    stats_hist[k] += b;
+    unsigned long a = ((unsigned long)fn + sizeof(struct free_node) + PGMASK) & ~(unsigned long)PGMASK;
+    unsigned long e = ((unsigned long)fn + fn->block_size) & ~(unsigned long)PGMASK;
+    *free_b += fn->block_size;
+    if (e > a)
+      *free_pg += (long)(e - a);
+  }
+}
+
+void __malloc_stats(long *out, int n) {
+  long v[19] = {0};
+  for (int i = 0; i < 8; i++)
+    stats_hist[i] = 0;
+  if (pool) {
+    v[0]++, v[1] += pool->len;
+    stats_pool(pool, &v[2], &v[3]);
+    v[4] = pool->len - pool->size;
+  }
+  if (pool1) {
+    v[0]++, v[1] += pool1->len;
+    v[5] = pool1->len;
+  }
+  for (struct mset *ms = old_pools; ms != NULL; ms = ms->next_pool) {
+    long fb = 0, fp = 0;
+    const long held = ms->len - (long)__builtin_popcount(MS_HOLES(ms)) * PGSIZE;
+    v[0]++, v[1] += held;
+    v[6]++, v[7] += held;
+    stats_pool(ms, &fb, &fp);
+    v[2] += fb, v[3] += fp, v[8] += fb, v[9] += fp;
+  }
+  v[10] = large_cache_bytes;
+  for (int i = 0; i < 8; i++)
+    v[11 + i] = stats_hist[i];
+  for (int i = 0; i < n && i < 19; i++)
+    out[i] = v[i];
+}
+
 size_t malloc_usable_size(void *v) {
   if (!v)
     return 0;

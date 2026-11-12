@@ -58,6 +58,8 @@
 
 #define AT_SYMLINK_NOFOLLOW 0x1
 #define AT_NO_AUTOMOUNT 0x2
+/* unlinkat(2): remove a directory (rmdir); without it a directory is EISDIR. */
+#define AT_REMOVEDIR 0x200
 
 int open(const char *path, int flags, ...);
 int creat(const char *path, int mode);

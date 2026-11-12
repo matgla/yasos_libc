@@ -51,9 +51,13 @@ static int prof_munmap_calls;
    mapping at the lowest free run -- on the host, what follows a mapping is
    usually the previous one. */
 static size_t mmap_room;
+/* The page pool is full: every new mapping fails. */
+static int mmap_fails;
 static void *counting_mmap(void *addr, size_t len, int prot, int flags, int fd,
                            off_t off) {
   prof_mmap_calls++;
+  if (mmap_fails)
+    return MAP_FAILED;
   if (mmap_room != 0 && addr == NULL) {
     size_t mapped = (len + 4095) & ~(size_t)4095;
     char *m = mmap(NULL, mapped + mmap_room, prot, flags, fd, off);
@@ -134,12 +138,53 @@ static void reset_allocator_state(void) {
     }
   }
   large_cache_bytes = 0;
+  /* The bins point into the pools just unmapped. */
+  memset(bins, 0, sizeof bins);
+  memset(binmap, 0, sizeof binmap);
+  if (retired != NULL)
+    counting_munmap(retired, ((long)cap_retired * (long)sizeof(*retired) + PGMASK) & ~PGMASK);
+  retired = NULL;
+  nbinned_pools = cap_retired = 0;
   pool_len_next = MSETLEN_MIN;
   large_allocs = 0;
   prof_mmap_calls = 0;
   prof_munmap_calls = 0;
   mmap_room = 0;
+  mmap_fails = 0;
   mremap_refuses_growth = 0;
+}
+
+/* ---- out of memory ---- */
+
+/* A failed allocation says why: callers (a Zig program's opendir among them)
+   report errno, and 0 reads as "unexpected" instead of "out of memory". */
+UTEST(malloc_tests, failure_sets_enomem) {
+  reset_allocator_state();
+  mmap_fails = 1;
+  errno = 0;
+  ASSERT_TRUE(test_malloc(64) == NULL); /* no pool yet */
+  ASSERT_EQ(errno, ENOMEM);
+  errno = 0;
+  ASSERT_TRUE(test_malloc(1 << 20) == NULL); /* a mapping of its own */
+  ASSERT_EQ(errno, ENOMEM);
+  mmap_fails = 0;
+  void *p = test_malloc(64);
+  ASSERT_TRUE(p != NULL);
+  mmap_fails = 1;
+  errno = 0;
+  ASSERT_TRUE(test_realloc(p, 1 << 20) == NULL);
+  ASSERT_EQ(errno, ENOMEM);
+  mmap_fails = 0;
+  test_free(p);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, calloc_overflow_sets_enomem) {
+  reset_allocator_state();
+  errno = 0;
+  ASSERT_TRUE(test_calloc((size_t)-1 / 2, 4) == NULL);
+  ASSERT_EQ(errno, ENOMEM);
+  reset_allocator_state();
 }
 
 /* ---- msize correctness ---- */
@@ -253,15 +298,20 @@ UTEST(malloc_tests, realloc_shrink_pool_block_frees_its_tail) {
 }
 
 UTEST(malloc_tests, realloc_shrink_too_small_to_split_keeps_block_size) {
-  /* A tail too small to be a block stays with the block. The recorded size
-     must not drop, or free() would size the block short and strand the tail. */
+  /* A tail too small to be a block stays with the block (MOFF_SLACK8): the
+     size is the new one, and free() still gives back the whole block. */
   reset_allocator_state();
   char *p = (char *)test_malloc(100);
-  ASSERT_TRUE(p != NULL);
+  void *barrier = test_malloc(8);
+  ASSERT_TRUE(p != NULL && barrier != NULL);
   char *q = (char *)test_realloc(p, 96);
   ASSERT_TRUE(q == p);
-  ASSERT_EQ(msize(q), 100);
+  ASSERT_EQ(msize(q), 96);
   test_free(q);
+  char *r = (char *)test_malloc(100);
+  ASSERT_TRUE(r == p);
+  test_free(r);
+  test_free(barrier);
   reset_allocator_state();
 }
 
@@ -517,10 +567,11 @@ UTEST(malloc_tests, split_creates_usable_remainder) {
 
 /* ---- old pool free list reuse ---- */
 
-UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
-  /* Old pools must NOT be searched for new allocations — doing so adds refs
-     and prevents the pool from ever reaching refs=0 for reclaim.
-     Instead, old pools drain naturally as their live allocations are freed. */
+UTEST(malloc_tests, retired_pool_holes_are_reused_first) {
+  /* A hole a retired pool's freed block left serves the next request that
+     fits, before the current pool's bump room: bumping past the holes left
+     2.1 MB of a Zig compile's pools free at its peak.  (A pool still drains
+     and is reclaimed once every block in it is free; see the next test.) */
   reset_allocator_state();
   /* These pools have to run out of room and retire, which a pool that can
      grow in place does not do until MSETLEN_MAX. */
@@ -537,10 +588,9 @@ UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
     if (!p)
       break;
     ptrs[count++] = p;
-    if (prof_mmap_calls >= 2)
+    if (old_pools != NULL)
       break;
   }
-  ASSERT_GE(prof_mmap_calls, 2);
   ASSERT_TRUE(old_pools != NULL);
 
   struct mset *old = old_pools;
@@ -553,11 +603,12 @@ UTEST(malloc_tests, old_pool_drains_via_free_not_alloc) {
   }
   ASSERT_LT(old->refs, refs_after_fill);
 
-  /* New allocations should NOT come from old pool — they use current pool */
+  /* The next allocation of that size takes one of those holes */
   int old_refs_before = old->refs;
   void *new_alloc = test_malloc(FILL_SIZE);
   ASSERT_TRUE(new_alloc != NULL);
-  ASSERT_EQ(old->refs, old_refs_before); /* old pool refs unchanged */
+  ASSERT_EQ(old->refs, old_refs_before + 1);
+  ASSERT_TRUE((char *)new_alloc > (char *)old && (char *)new_alloc < (char *)old + old->len);
   test_free(new_alloc);
 
   /* Clean up */
@@ -829,6 +880,37 @@ UTEST(malloc_tests, retired_pool_hole_is_filled_before_fresh_pool_space) {
   reset_allocator_state();
 }
 
+/* A hole 8 bytes larger than a request is handed out whole (8 bytes cannot be
+   a free block).  Its header must still account for those 8 bytes: free() sizes
+   a block from its header, and a block freed 8 bytes short stranded them
+   between two blocks for good.  Repeated, the strands grew into gaps of
+   hundreds of bytes -- 367 KB of a Zig kernel compile's peak. */
+UTEST(malloc_tests, hole_taken_whole_comes_back_whole) {
+  reset_allocator_state();
+  char *a = test_malloc(40); /* a 48-byte block */
+  void *barrier = test_malloc(8);
+  ASSERT_TRUE(a != NULL && barrier != NULL);
+  test_free(a);
+  char *c = test_malloc(32); /* needs 40 of the 48 */
+  ASSERT_TRUE(c == a);
+  ASSERT_EQ(msize(c), 32);
+  memset(c, 0x5A, 32);
+  test_free(c);
+  /* the whole 48 bytes are free again: a 40-byte request fits there */
+  char *d = test_malloc(40);
+  ASSERT_TRUE(d == a);
+  /* and a shrink into the same 8 bytes of slack keeps the size exact */
+  char *e = test_realloc(d, 32);
+  ASSERT_TRUE(e == d);
+  ASSERT_EQ(msize(e), 32);
+  test_free(e);
+  char *f = test_malloc(40);
+  ASSERT_TRUE(f == a);
+  test_free(f);
+  test_free(barrier);
+  reset_allocator_state();
+}
+
 UTEST(malloc_tests, retired_pool_bump_tail_goes_on_its_free_list) {
   reset_allocator_state();
   /* These pools have to run out of room and retire, which a pool that can
@@ -979,13 +1061,14 @@ UTEST(malloc_tests, pool_growth_stops_at_the_largest_pool) {
   mmap_room = 256 * 1024;
   void *p[400];
   int n = 0;
-  while (prof_mmap_calls < 2 && n < 400) {
+  /* Until the first pool retires (retiring maps the bins' pool index too, so
+     the mappings are not counted here). */
+  while (old_pools == NULL && n < 400) {
     p[n] = test_malloc(400);
     ASSERT_TRUE(p[n] != NULL);
     ASSERT_TRUE(block_inside_its_pool(p[n]));
     n++;
   }
-  ASSERT_EQ(prof_mmap_calls, 2);
   /* The first pool stopped at MSETLEN_MAX and retired; the new one starts
      small again. */
   ASSERT_TRUE(old_pools != NULL);
