@@ -51,9 +51,13 @@ static int prof_munmap_calls;
    mapping at the lowest free run -- on the host, what follows a mapping is
    usually the previous one. */
 static size_t mmap_room;
+/* The page pool is full: every new mapping fails. */
+static int mmap_fails;
 static void *counting_mmap(void *addr, size_t len, int prot, int flags, int fd,
                            off_t off) {
   prof_mmap_calls++;
+  if (mmap_fails)
+    return MAP_FAILED;
   if (mmap_room != 0 && addr == NULL) {
     size_t mapped = (len + 4095) & ~(size_t)4095;
     char *m = mmap(NULL, mapped + mmap_room, prot, flags, fd, off);
@@ -146,7 +150,41 @@ static void reset_allocator_state(void) {
   prof_mmap_calls = 0;
   prof_munmap_calls = 0;
   mmap_room = 0;
+  mmap_fails = 0;
   mremap_refuses_growth = 0;
+}
+
+/* ---- out of memory ---- */
+
+/* A failed allocation says why: callers (a Zig program's opendir among them)
+   report errno, and 0 reads as "unexpected" instead of "out of memory". */
+UTEST(malloc_tests, failure_sets_enomem) {
+  reset_allocator_state();
+  mmap_fails = 1;
+  errno = 0;
+  ASSERT_TRUE(test_malloc(64) == NULL); /* no pool yet */
+  ASSERT_EQ(errno, ENOMEM);
+  errno = 0;
+  ASSERT_TRUE(test_malloc(1 << 20) == NULL); /* a mapping of its own */
+  ASSERT_EQ(errno, ENOMEM);
+  mmap_fails = 0;
+  void *p = test_malloc(64);
+  ASSERT_TRUE(p != NULL);
+  mmap_fails = 1;
+  errno = 0;
+  ASSERT_TRUE(test_realloc(p, 1 << 20) == NULL);
+  ASSERT_EQ(errno, ENOMEM);
+  mmap_fails = 0;
+  test_free(p);
+  reset_allocator_state();
+}
+
+UTEST(malloc_tests, calloc_overflow_sets_enomem) {
+  reset_allocator_state();
+  errno = 0;
+  ASSERT_TRUE(test_calloc((size_t)-1 / 2, 4) == NULL);
+  ASSERT_EQ(errno, ENOMEM);
+  reset_allocator_state();
 }
 
 /* ---- msize correctness ---- */

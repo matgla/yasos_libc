@@ -966,6 +966,7 @@ void *malloc(size_t n) {
     long total = (n + LARGE_HDR + PGMASK) & ~PGMASK;
     char *lm = cache_map(&total);
     if (lm == NULL) {
+      errno = ENOMEM;
       return NULL;
     }
     /* Every one of these is a mapping. Enough of them and the pool class
@@ -984,8 +985,10 @@ void *malloc(size_t n) {
   }
   alloc_size = (n + sizeof(struct mhdr) + 7) & ~7;
   if (!pool)
-    if (mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
+    if (mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8)) {
+      errno = ENOMEM;
       return NULL;
+    }
   if (nbinned_pools && !in_vfork_window) {
     struct mset *owner;
     m = bin_take(alloc_size, &owner);
@@ -1020,8 +1023,10 @@ void *malloc(size_t n) {
     offset += sizeof(long);
   if (offset + alloc_size > (size_t)pool->len) {
     if (!pool_grow(offset + (int)alloc_size + 8) &&
-        mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8))
+        mk_pool((int)alloc_size + (int)sizeof(struct mset) + 8)) {
+      errno = ENOMEM;
       return NULL;
+    }
     offset = pool->size;
     if (!((unsigned long)((char *)pool + offset + sizeof(struct mhdr)) &
           PGMASK))
@@ -1108,7 +1113,12 @@ void free(void *v) {
 }
 
 void *calloc(size_t n, size_t sz) {
-  void *r = malloc(n * sz);
+  void *r;
+  if (sz != 0 && n > (size_t)-1 / sz) {
+    errno = ENOMEM;
+    return NULL;
+  }
+  r = malloc(n * sz);
   if (r)
     memset(r, 0, n * sz);
   return r;
@@ -1267,8 +1277,10 @@ static void *alloc_aligned(size_t alignment, size_t size) {
   /* Room for the worst-case shift plus the header and the parked pointer. */
   size_t extra = alignment + sizeof(struct mhdr) + sizeof(void *);
 
-  if (size > (size_t)-1 - extra)
+  if (size > (size_t)-1 - extra) {
+    errno = ENOMEM;
     return NULL;
+  }
   raw = malloc(size + extra);
   if (!raw)
     return NULL;

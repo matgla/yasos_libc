@@ -294,26 +294,28 @@ int isatty(int fd) {
   return trigger_syscall(sys_isatty, &fd);
 }
 
+/* rmdir(2): unlinkat with AT_REMOVEDIR; the kernel refuses anything that is
+   not a directory (ENOTDIR) and a directory that is not empty (ENOTEMPTY). */
+int rmdir(const char *pathname) {
+  unlink_context context = {
+      .dirfd = AT_FDCWD,
+      .pathname = pathname,
+      .flags = AT_REMOVEDIR,
+  };
+  return trigger_syscall(sys_unlink, &context);
+}
+
+/* remove(3): a file, or else an empty directory. */
 int remove(const char *pathname) {
   unlink_context context = {
       .dirfd = AT_FDCWD,
       .pathname = pathname,
       .flags = 0,
   };
-  return trigger_syscall(sys_unlink, &context);
-}
-
-/* rmdir(2): the kernel's unlink removes an empty directory (a non-empty one is
-   refused); what rmdir adds is refusing anything that is not a directory. */
-int rmdir(const char *pathname) {
-  struct stat st;
-  if (stat(pathname, &st) != 0)
-    return -1;
-  if (!S_ISDIR(st.st_mode)) {
-    errno = ENOTDIR;
-    return -1;
-  }
-  return remove(pathname);
+  int rc = trigger_syscall(sys_unlink, &context);
+  if (rc != 0 && errno == EISDIR)
+    return rmdir(pathname);
+  return rc;
 }
 
 // pid_t _wait(int *_Nullable wstatus) {
