@@ -316,6 +316,26 @@ typedef struct chmod_context {
 
 /* fchownat(2); fchown(2) is path NULL with fd the open file. -1 leaves an id
  * unchanged. */
+/* sigaction(2), as much of it as the kernel keeps: what a signal does to the
+ * process -- 0 its default action, 1 nothing (SIG_IGN), 2 run a handler, which
+ * on YasOS means nothing either: there are no handlers to deliver to.  The
+ * previous disposition comes back through `old` when it is not NULL; a
+ * negative `disposition` only asks. */
+typedef struct sigaction_context {
+  int sig;
+  int disposition;
+  int *old;
+} sigaction_context;
+
+/* ptrace(2): the request and its three arguments, unused ones whatever the
+ * caller passed (PTRACE_TRACEME takes none). */
+typedef struct ptrace_context {
+  int request;
+  pid_t pid;
+  void *addr;
+  void *data;
+} ptrace_context;
+
 typedef struct chown_context {
   const char *path;
   int fd;
@@ -438,6 +458,8 @@ typedef enum SystemCall {
   sys_symlink,
   sys_chmod,
   sys_chown,
+  sys_ptrace,
+  sys_sigaction,
   SYSCALL_COUNT,
 } SystemCall;
 
