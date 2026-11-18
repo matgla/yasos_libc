@@ -5,6 +5,8 @@
 
 #include <stdio.h>
 
+#include "sys/syscall.h"
+
 int sigreturn(unsigned long n);
 
 const char *const sys_siglist[] = {
@@ -22,19 +24,36 @@ struct ksa {
   sigset_t mask;
 };
 
-/* YasOS delivers no signals, so the honest answer to "install this handler" is
- * that it is recorded and will never fire -- not a failure. Refusing instead
- * breaks every runtime that arms a handler on startup as a matter of course
- * (Zig's does, and so does anything with a crash reporter), and a stub that
- * returned -1 without setting errno made it worse: the caller then read
- * whatever the previous failing call had left there and reported that. */
+/* The kernel delivers SIGINT (Ctrl-C on the console) and the signals kill()
+ * sends, with their default action -- end the process -- unless the process
+ * ignores them.  It runs no handlers: a handler installed here is recorded,
+ * never called, and keeps the signal from ending the process, which is what a
+ * program that installs one is counting on.  SIG_IGN stays across exec, a
+ * handler does not (POSIX).  Refusing instead would break every runtime that
+ * arms a handler on startup as a matter of course (Zig's does).
+ *
+ * The handler itself only libc remembers, for `old`; vfork children share this
+ * table with their parent, so what they set shows in the parent's answers. */
+static void (*installed[32])(int);
+
 int __sigaction(int sig, const struct sigaction *sa, struct sigaction *old) {
-  (void)sig;
-  (void)sa;
+  int previous = 0;
+  sigaction_context context = {.sig = sig, .disposition = -1, .old = &previous};
+  if (sig < 1 || sig > 31) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (sa)
+    context.disposition = sa->sa_handler == SIG_DFL ? 0 : sa->sa_handler == SIG_IGN ? 1 : 2;
+  if (trigger_syscall(sys_sigaction, &context) < 0)
+    return -1;
   if (old) {
     struct sigaction none = {0};
     *old = none;
+    old->sa_handler = previous == 1 ? SIG_IGN : previous == 2 && installed[sig] ? installed[sig] : SIG_DFL;
   }
+  if (sa)
+    installed[sig] = sa->sa_handler;
   return 0;
 }
 

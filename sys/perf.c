@@ -85,6 +85,8 @@ static const char *syscall_name(unsigned int id) {
     case sys_symlink: return "symlink";
     case sys_chmod: return "chmod";
     case sys_chown: return "chown";
+    case sys_ptrace: return "ptrace";
+    case sys_sigaction: return "sigaction";
     case sys_nanosleep: return "nanosleep";
     case sys_chdir: return "chdir";
     case sys_time: return "time";
