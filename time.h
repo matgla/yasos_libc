@@ -29,11 +29,20 @@ time_t time(time_t *timep);
 long strftime(char *s, size_t len, const char *fmt, struct tm *tm);
 struct tm *localtime(const time_t *timep);
 struct tm *localtime_r(const time_t *timer, struct tm *result);
-
 struct tm *gmtime(const time_t *timep);
+struct tm *gmtime_r(const time_t *timer, struct tm *result);
 
-extern long timezone;
+/* Time zones: $TZ (an IANA name or a POSIX TZ string), else /etc/localtime,
+ * else UTC. tzset() sets these; localtime() and mktime() call it. */
+extern long timezone; /* standard time, seconds WEST of UTC */
+extern int daylight;  /* the zone has daylight saving time */
+extern char *tzname[2];
 void tzset(void);
 
 time_t mktime(struct tm *tm);
+time_t timegm(struct tm *tm);
+char *asctime(const struct tm *tm);
+char *asctime_r(const struct tm *tm, char *buf);
+char *ctime(const time_t *timep);
+char *ctime_r(const time_t *timep, char *buf);
 char *strptime(const char *s, const char *fmt, struct tm *tm);

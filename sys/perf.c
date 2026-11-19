@@ -87,6 +87,8 @@ static const char *syscall_name(unsigned int id) {
     case sys_chown: return "chown";
     case sys_ptrace: return "ptrace";
     case sys_sigaction: return "sigaction";
+    case sys_sync: return "sync";
+    case sys_reboot: return "reboot";
     case sys_nanosleep: return "nanosleep";
     case sys_chdir: return "chdir";
     case sys_time: return "time";

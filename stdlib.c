@@ -49,19 +49,190 @@ long long int llabs(long long int n) {
   return n >= 0 ? n : -n;
 }
 
+/* The environment. `environ` is whatever the start code handed over, or
+ * whatever the program put there itself; setenv/putenv/unsetenv change it in
+ * place while it is the array they allocated, and copy it into a new one the
+ * first time they meet an array they did not.
+ *
+ * The strings setenv builds are remembered, so replacing or removing one frees
+ * it; the ones putenv was given and those inherited from exec belong to
+ * someone else and are left alone. */
+static char **env_array;
+static size_t env_capacity;
+static char **env_owned;
+static size_t env_owned_count;
+static size_t env_owned_capacity;
+
+/* Length of a variable name: up to '=', or the whole string. */
+static size_t env_name_length(const char *s) {
+  size_t n = 0;
+  while (s[n] && s[n] != '=')
+    n++;
+  return n;
+}
+
+static int env_matches(const char *entry, const char *name, size_t len) {
+  return !memcmp(entry, name, len) && entry[len] == '=';
+}
+
+static size_t env_count(void) {
+  size_t n = 0;
+  if (environ)
+    while (environ[n])
+      n++;
+  return n;
+}
+
+static int env_remember(char *s) {
+  if (env_owned_count == env_owned_capacity) {
+    size_t capacity = env_owned_capacity ? env_owned_capacity * 2 : 8;
+    char **grown = realloc(env_owned, capacity * sizeof(*grown));
+    if (!grown)
+      return -1;
+    env_owned = grown;
+    env_owned_capacity = capacity;
+  }
+  env_owned[env_owned_count++] = s;
+  return 0;
+}
+
+/* Free `s` if setenv built it; leave it alone otherwise. */
+static void env_release(char *s) {
+  for (size_t i = 0; i < env_owned_count; i++) {
+    if (env_owned[i] == s) {
+      env_owned[i] = env_owned[--env_owned_count];
+      free(s);
+      return;
+    }
+  }
+}
+
+/* Make room for `count` entries plus the terminator in an array this file
+ * owns, copying the current one over when it is someone else's. */
+static int env_reserve(size_t count) {
+  size_t needed = count + 1;
+  if (environ == env_array && env_array && needed <= env_capacity)
+    return 0;
+  size_t capacity = needed < 8 ? 8 : needed + needed / 2;
+  char **grown;
+  if (environ == env_array && env_array) {
+    grown = realloc(env_array, capacity * sizeof(*grown));
+    if (!grown)
+      return -1;
+  } else {
+    /* Someone else's array (the start code's, or one the program set): copy
+     * it and never free it. An array of ours the program swapped out is not
+     * freed either -- it may still hold it. */
+    grown = malloc(capacity * sizeof(*grown));
+    if (!grown)
+      return -1;
+    for (size_t i = 0; i < count; i++)
+      grown[i] = environ[i];
+    grown[count] = NULL;
+  }
+  env_array = grown;
+  env_capacity = capacity;
+  environ = grown;
+  return 0;
+}
+
+/* Put "name=value" `entry` (name `len` bytes long) in the environment,
+ * replacing a variable of that name. */
+static int env_put(char *entry, size_t len) {
+  size_t n = env_count();
+  for (size_t i = 0; i < n; i++) {
+    if (env_matches(environ[i], entry, len)) {
+      char *old = environ[i];
+      environ[i] = entry;
+      if (old != entry)
+        env_release(old);
+      return 0;
+    }
+  }
+  if (env_reserve(n + 1) < 0) {
+    errno = ENOMEM;
+    return -1;
+  }
+  environ[n] = entry;
+  environ[n + 1] = NULL;
+  return 0;
+}
+
+static int env_valid_name(const char *name) {
+  return name && *name && !strchr(name, '=');
+}
+
 char *getenv(const char *name) {
-  char **p = environ;
-  int len = strlen(name);
-  for (; *p; p++)
-    if (!memcmp(name, *p, len) && (*p)[len] == '=')
+  if (!environ || !name)
+    return NULL;
+  size_t len = strlen(name);
+  for (char **p = environ; *p; p++)
+    if (env_matches(*p, name, len))
       return *p + len + 1;
   return NULL;
 }
 
+int setenv(const char *name, const char *value, int overwrite) {
+  if (!env_valid_name(name)) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (!overwrite && getenv(name))
+    return 0;
+  if (!value)
+    value = "";
+  size_t len = strlen(name);
+  size_t value_len = strlen(value);
+  char *entry = malloc(len + value_len + 2);
+  if (!entry) {
+    errno = ENOMEM;
+    return -1;
+  }
+  memcpy(entry, name, len);
+  entry[len] = '=';
+  memcpy(entry + len + 1, value, value_len + 1);
+  if (env_remember(entry) < 0) {
+    free(entry);
+    errno = ENOMEM;
+    return -1;
+  }
+  if (env_put(entry, len) < 0) {
+    env_release(entry);
+    return -1;
+  }
+  return 0;
+}
+
+int unsetenv(const char *name) {
+  if (!env_valid_name(name)) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (!environ)
+    return 0;
+  size_t len = strlen(name);
+  char **out = environ;
+  for (char **in = environ; *in; in++) {
+    if (env_matches(*in, name, len))
+      env_release(*in);
+    else
+      *out++ = *in;
+  }
+  *out = NULL;
+  return 0;
+}
+
+/* `string` itself goes into the environment, so later changes to it show
+ * there. Without an '=' it removes the variable, as glibc and musl do. */
 int putenv(char *string) {
-  printf("TODO: Implement putenv\n");
-  errno = ENOSYS;
-  return -1; // Not implemented
+  size_t len = env_name_length(string);
+  if (!string[len])
+    return unsetenv(string);
+  if (len == 0) {
+    errno = EINVAL;
+    return -1;
+  }
+  return env_put(string, len);
 }
 
 /* The no-OS build has no processes to run a shell in. */
@@ -282,13 +453,3 @@ void srandom(unsigned int seed) {
   seed = (unsigned long)s;
 }
 
-int setenv(const char *name, const char *value, int overwrite) {
-  printf("TODO: Implement setenv\n");
-  errno = ENOSYS;
-  return -1; // Not implemented
-}
-
-int unsetenv(const char *name) {
-  printf("TODO: Implement unsetenv\n");
-  return 0; // Not implemented
-}

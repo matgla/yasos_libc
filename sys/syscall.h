@@ -327,6 +327,12 @@ typedef struct sigaction_context {
   int *old;
 } sigaction_context;
 
+/* reboot(2): one of the RB_* commands from sys/reboot.h. sync(2) takes no
+ * argument. */
+typedef struct reboot_context {
+  int cmd;
+} reboot_context;
+
 /* ptrace(2): the request and its three arguments, unused ones whatever the
  * caller passed (PTRACE_TRACEME takes none). */
 typedef struct ptrace_context {
@@ -460,6 +466,8 @@ typedef enum SystemCall {
   sys_chown,
   sys_ptrace,
   sys_sigaction,
+  sys_sync,
+  sys_reboot,
   SYSCALL_COUNT,
 } SystemCall;
 
