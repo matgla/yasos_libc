@@ -21,6 +21,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <sys/_attrs.h>
 
 #define MNTTAB "/etc/fstab"
 #define MOUNTED "/proc/mounts"
@@ -42,8 +43,12 @@ struct mntent {
   int mnt_passno;   /* Pass number for fsck */
 };
 
-FILE *setmntent(const char *filename, const char *type);
-struct mntent *getmntent(FILE *stream);
-int addmntent(FILE *stream, const struct mntent *mnt);
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/mntent.h>
+
+/* endmntent first: setmntent names it as its deallocator (sys/_attrs.h) */
 int endmntent(FILE *streamp);
-char *hasmntopt(const struct mntent *mnt, const char *opt);
+FILE *setmntent(const char *filename, const char *type) __yl_dealloc(endmntent, 1) __yl_nonnull(1, 2);
+struct mntent *getmntent(FILE *stream) __yl_nonnull(1);
+int addmntent(FILE *stream, const struct mntent *mnt) __yl_nonnull(1, 2);
+char *hasmntopt(const struct mntent *mnt, const char *opt) __yl_nonnull(1, 2);

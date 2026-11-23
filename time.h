@@ -2,8 +2,9 @@
 
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/_attrs.h>
 
-int nanosleep(struct timespec *req, struct timespec *rem);
+int nanosleep(struct timespec *req, struct timespec *rem) __yl_nonnull(1);
 
 /* Processor time. There is no per-process CPU clock, so clock() measures
  * wall time since its first call; only differences are meaningful anyway. */
@@ -25,12 +26,15 @@ struct tm {
   char *tm_zone;
 };
 
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/time.h>
+
 time_t time(time_t *timep);
-long strftime(char *s, size_t len, const char *fmt, struct tm *tm);
-struct tm *localtime(const time_t *timep);
-struct tm *localtime_r(const time_t *timer, struct tm *result);
-struct tm *gmtime(const time_t *timep);
-struct tm *gmtime_r(const time_t *timer, struct tm *result);
+long strftime(char *s, size_t len, const char *fmt, struct tm *tm) __yl_nonnull(3, 4);
+struct tm *localtime(const time_t *timep) __yl_nonnull(1);
+struct tm *localtime_r(const time_t *timer, struct tm *result) __yl_nonnull(1, 2);
+struct tm *gmtime(const time_t *timep) __yl_nonnull(1);
+struct tm *gmtime_r(const time_t *timer, struct tm *result) __yl_nonnull(1, 2);
 
 /* Time zones: $TZ (an IANA name or a POSIX TZ string), else /etc/localtime,
  * else UTC. tzset() sets these; localtime() and mktime() call it. */
@@ -39,10 +43,10 @@ extern int daylight;  /* the zone has daylight saving time */
 extern char *tzname[2];
 void tzset(void);
 
-time_t mktime(struct tm *tm);
-time_t timegm(struct tm *tm);
-char *asctime(const struct tm *tm);
-char *asctime_r(const struct tm *tm, char *buf);
-char *ctime(const time_t *timep);
-char *ctime_r(const time_t *timep, char *buf);
-char *strptime(const char *s, const char *fmt, struct tm *tm);
+time_t mktime(struct tm *tm) __yl_nonnull(1);
+time_t timegm(struct tm *tm) __yl_nonnull(1);
+char *asctime(const struct tm *tm) __yl_nonnull(1);
+char *asctime_r(const struct tm *tm, char *buf) __yl_nonnull(1, 2);
+char *ctime(const time_t *timep) __yl_nonnull(1);
+char *ctime_r(const time_t *timep, char *buf) __yl_nonnull(1, 2);
+char *strptime(const char *s, const char *fmt, struct tm *tm) __yl_nonnull(1, 2, 3);

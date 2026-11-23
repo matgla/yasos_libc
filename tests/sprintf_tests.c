@@ -17,10 +17,13 @@
 
 #include "utest.h"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <sys/types.h>
 
 #include "syscalls_stub.h"
 
@@ -34,6 +37,28 @@ UTEST(sprintf, basic_formats) {
 
   sut_sprintf(buf, "%u %o %X", 255u, 255, 255);
   ASSERT_STREQ(buf, "255 377 FF");
+}
+
+UTEST(sprintf, size_intmax_ptrdiff_modifiers) {
+  char buf[128];
+
+  sut_sprintf(buf, "%zu %zd %zx %zX %zo", (size_t)4096, (ssize_t)-7,
+              (size_t)0xbeef, (size_t)0xbeef, (size_t)8);
+  ASSERT_STREQ(buf, "4096 -7 beef BEEF 10");
+
+  sut_sprintf(buf, "[%5zu|%-5zu|%05zu]", (size_t)42, (size_t)42, (size_t)42);
+  ASSERT_STREQ(buf, "[   42|42   |00042]");
+
+  /* the argument after a z conversion is read from the right slot */
+  sut_sprintf(buf, "%zu,%d", (size_t)3, 9);
+  ASSERT_STREQ(buf, "3,9");
+
+  sut_sprintf(buf, "%jd %ju %jx", (intmax_t)-5000000000LL,
+              (uintmax_t)5000000000ULL, (uintmax_t)0x123456789aULL);
+  ASSERT_STREQ(buf, "-5000000000 5000000000 123456789a");
+
+  sut_sprintf(buf, "%td %tu,%d", (ptrdiff_t)-12, (ptrdiff_t)12, 1);
+  ASSERT_STREQ(buf, "-12 12,1");
 }
 
 UTEST(sprintf, floating_point_fixed_format) {

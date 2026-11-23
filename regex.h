@@ -46,6 +46,9 @@ typedef struct {
 
 #define REG_ENOSYS -1
 
+/* yasc's reading: a compiled pattern is an owned object (sys/_attrs.h) */
+#include <sys/yasc/regex.h>
+
 int regcomp(regex_t *__restrict preg, const char *__restrict regex, int cflags);
 int regexec(const regex_t *__restrict preg, const char *__restrict string, size_t nmatch,
             regmatch_t *__restrict pmatch, int eflags);

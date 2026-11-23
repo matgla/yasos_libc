@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <sys/_attrs.h>
 
 #define O_RDONLY 00000
 #define O_WRONLY 00001
@@ -61,12 +62,15 @@
 /* unlinkat(2): remove a directory (rmdir); without it a directory is EISDIR. */
 #define AT_REMOVEDIR 0x200
 
-int open(const char *path, int flags, ...);
-int creat(const char *path, int mode);
+/* yasc's reading: owned handles (sys/_attrs.h) */
+#include <sys/yasc/fcntl.h>
+
+int open(const char *path, int flags, ...) __yl_nonnull(1);
+int creat(const char *path, int mode) __yl_nonnull(1);
 
 int fcntl(int fd, int cmd, ...);
 
-int openat(int dirfd, const char *pathname, int flags, ...);
+int openat(int dirfd, const char *pathname, int flags, ...) __yl_nonnull(2);
 
 /* pid_t / off_t now live in <sys/types.h> (included above). */
 struct flock {

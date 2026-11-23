@@ -34,7 +34,9 @@ void freeaddrinfo(struct addrinfo *res) {
   printf("TODO: Implement freeaddrinfo\n");
 }
 
+/* getaddrinfo resolves nothing yet, so there is one message: never null, as
+   POSIX promises. */
 const char *gai_strerror(int errcode) {
-  printf("TODO: Implement gai_strerror\n");
-  return NULL;
+  (void)errcode;
+  return "Name resolution is not supported";
 }

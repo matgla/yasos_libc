@@ -21,6 +21,7 @@
 #pragma once
 
 #include <sys/types.h>
+#include <sys/_attrs.h>
 
 struct group {
   char *gr_name;   /* group name */
@@ -30,12 +31,15 @@ struct group {
                       to names of group members */
 };
 
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/grp.h>
+
 struct group *getgrgid(gid_t gid);
 int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
                struct group **result);
 
-struct group *getgrnam(const char *name);
+struct group *getgrnam(const char *name) __yl_nonnull(1);
 int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
                struct group **result);
 
-int initgroups(const char *user, gid_t group);
+int initgroups(const char *user, gid_t group) __yl_nonnull(1);

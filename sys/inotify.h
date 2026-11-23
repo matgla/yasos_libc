@@ -23,10 +23,14 @@
 #include <stdint.h>
 
 #include <sys/xattr.h>
+#include <sys/_attrs.h>
+
+/* yasc's reading: an owned handle (sys/_attrs.h) */
+#include <sys/yasc/inotify.h>
 
 int inotify_init(void);
 int inotify_init1(int flags);
-int inotify_add_watch(int fd, const char *pathname, uint32_t mask);
+int inotify_add_watch(int fd, const char *pathname, uint32_t mask) __yl_nonnull(2);
 
 #define IN_ACCESS 0x00000001
 #define IN_ATTRIB 0x00000002

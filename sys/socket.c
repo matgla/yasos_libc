@@ -20,10 +20,27 @@
 
 #include <sys/socket.h>
 
+#include <errno.h>
 #include <stdio.h>
 
 int socket(int domain, int type, int protocol) {
   printf("TODO: Implement socket\n");
+  return -1;
+}
+
+/* No network stack yet: nothing listens, nothing is accepted. */
+int listen(int sockfd, int backlog) {
+  (void)sockfd;
+  (void)backlog;
+  errno = ENOSYS;
+  return -1;
+}
+
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+  (void)sockfd;
+  (void)addr;
+  (void)addrlen;
+  errno = ENOSYS;
   return -1;
 }
 

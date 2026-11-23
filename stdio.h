@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <sys/types.h>
+#include <sys/_attrs.h>
 
 /* C requires these in <stdio.h> as well as POSIX's <unistd.h>. */
 #ifndef SEEK_SET
@@ -60,70 +61,76 @@ extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 
-FILE *fopen(const char *path, const char *mode);
-FILE *freopen(const char *path, const char *mode, FILE *fp);
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/stdio.h>
+
+/* fclose first: fopen names it as its deallocator (sys/_attrs.h) */
 int fclose(FILE *fp);
+FILE *fopen(const char *path, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(1, 2);
+/* not an allocator: it hands back FP itself (or NULL, FP closed), and the usual
+   freopen(path, mode, stdin) ignores the result */
+FILE *freopen(const char *path, const char *mode, FILE *fp) __yl_nonnull(2, 3);
 int fflush(FILE *fp);
-void setbuf(FILE *fp, char *buf);
+void setbuf(FILE *fp, char *buf) __yl_nonnull(1);
 
-FILE *tmpfile(void);
+FILE *tmpfile(void) __yl_dealloc(fclose, 1);
 char *tmpnam(char *buffer);
-int fputc(int c, FILE *fp);
+int fputc(int c, FILE *fp) __yl_nonnull(2);
 int putchar(int c);
-int printf(const char *fmt, ...);
-int vprintf(const char *fmt, va_list ap);
-int fprintf(FILE *fp, const char *fmt, ...);
-int sprintf(char *dst, const char *fmt, ...);
-int vsprintf(char *dst, const char *fmt, va_list ap);
-int vfprintf(FILE *fp, const char *fmt, va_list ap);
-int snprintf(char *dst, size_t sz, const char *fmt, ...);
-int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap);
-int fputs(const char *s, FILE *fp);
-int ferror(FILE *stream);
-int puts(const char *s);
+int printf(const char *fmt, ...) __yl_nonnull(1);
+int vprintf(const char *fmt, va_list ap) __yl_nonnull(1);
+int fprintf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
+int sprintf(char *dst, const char *fmt, ...) __yl_nonnull(1, 2);
+int vsprintf(char *dst, const char *fmt, va_list ap) __yl_nonnull(1, 2);
+int vfprintf(FILE *fp, const char *fmt, va_list ap) __yl_nonnull(1, 2);
+int snprintf(char *dst, size_t sz, const char *fmt, ...) __yl_nonnull(3);
+int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) __yl_nonnull(3);
+int fputs(const char *s, FILE *fp) __yl_nonnull(1, 2);
+int ferror(FILE *stream) __yl_nonnull(1);
+int puts(const char *s) __yl_nonnull(1);
 int pclose(FILE *stream);
-int fseek(FILE *fp, long offset, int whence);
-long ftell(FILE *fp);
+int fseek(FILE *fp, long offset, int whence) __yl_nonnull(1);
+long ftell(FILE *fp) __yl_nonnull(1);
 typedef long fpos_t;
-void rewind(FILE *fp);
-int fgetpos(FILE *fp, fpos_t *pos);
-int fsetpos(FILE *fp, const fpos_t *pos);
-FILE *popen(const char *command, const char *type);
+void rewind(FILE *fp) __yl_nonnull(1);
+int fgetpos(FILE *fp, fpos_t *pos) __yl_nonnull(1, 2);
+int fsetpos(FILE *fp, const fpos_t *pos) __yl_nonnull(1, 2);
+FILE *popen(const char *command, const char *type) __yl_dealloc(pclose, 1) __yl_nonnull(1, 2);
 
-int fgetc(FILE *fp);
-char *fgets(char *s, int sz, FILE *fp);
-int scanf(const char *fmt, ...);
-int fscanf(FILE *fp, const char *fmt, ...);
-int sscanf(const char *s, const char *fmt, ...);
-int vsscanf(const char *s, const char *fmt, va_list ap);
-int vfscanf(FILE *fp, const char *fmt, va_list ap);
+int fgetc(FILE *fp) __yl_nonnull(1);
+char *fgets(char *s, int sz, FILE *fp) __yl_nonnull(1, 3);
+int scanf(const char *fmt, ...) __yl_nonnull(1);
+int fscanf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
+int sscanf(const char *s, const char *fmt, ...) __yl_nonnull(1, 2);
+int vsscanf(const char *s, const char *fmt, va_list ap) __yl_nonnull(1, 2);
+int vfscanf(FILE *fp, const char *fmt, va_list ap) __yl_nonnull(1, 2);
 int getchar(void);
-int ungetc(int c, FILE *fp);
-long fwrite(void *s, long sz, long n, FILE *fp);
-long fread(void *s, long sz, long n, FILE *fp);
-int feof(FILE *fp);
+int ungetc(int c, FILE *fp) __yl_nonnull(2);
+long fwrite(void *s, long sz, long n, FILE *fp) __yl_nonnull(4);
+long fread(void *s, long sz, long n, FILE *fp) __yl_nonnull(4);
+int feof(FILE *fp) __yl_nonnull(1);
 
 void perror(const char *s);
 
-ssize_t getline(char **lineptr, size_t *n, FILE *fp);
-int setvbuf(FILE *fp, char *buf, int mode, size_t size);
-int dprintf(int fildes, const char *format, ...);
-int vdprintf(int fildes, const char *format, va_list ap);
+ssize_t getline(char **lineptr, size_t *n, FILE *fp) __yl_nonnull(3);
+int setvbuf(FILE *fp, char *buf, int mode, size_t size) __yl_nonnull(1);
+int dprintf(int fildes, const char *format, ...) __yl_nonnull(2);
+int vdprintf(int fildes, const char *format, va_list ap) __yl_nonnull(2);
 
-int fileno(FILE *fp);
+int fileno(FILE *fp) __yl_nonnull(1);
 
-int rename(const char *oldpath, const char *newpath);
-int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
+int rename(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
+int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath) __yl_nonnull(2, 4);
 int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
-              unsigned int flags);
+              unsigned int flags) __yl_nonnull(2, 4);
 
 /* renameat2 flags, same values as Linux. Only NOREPLACE is honoured. */
 #define RENAME_NOREPLACE (1 << 0)
 #define RENAME_EXCHANGE (1 << 1)
 #define RENAME_WHITEOUT (1 << 2)
-FILE *fdopen(int fd, const char *mode);
-FILE *fmemopen(void *buf, size_t size, const char *mode);
-ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream);
-void clearerr(FILE *fp);
+FILE *fdopen(int fd, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(2);
+FILE *fmemopen(void *buf, size_t size, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(3);
+ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) __yl_nonnull(4);
+void clearerr(FILE *fp) __yl_nonnull(1);
 
-int remove(const char *pathname);
+int remove(const char *pathname) __yl_nonnull(1);

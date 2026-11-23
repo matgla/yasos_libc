@@ -38,6 +38,9 @@ extern void *__yasos_fini_got;
  * instead of whatever register r2 happened to hold. */
 int main(int argc, char *argv[], char *envp[]);
 
+/* ssp.c: tcc -fstack-protector's guard, mixed before anything runs */
+void __stack_chk_init(void *seed);
+
 /* Pure-assembly _start: capture R9 (GOT base) into R2 before any
  * GOT-relative C code runs, then tail-call __crt1_main. */
 __attribute__((naked, used))
@@ -59,9 +62,11 @@ void __crt1_main(int argc, char *argv[], void *r9_value) {
 
   __yasos_fini_got = r9_value;
 
+  /* before the first protected frame: a constructor's */
+  __stack_chk_init(argv);
+
   if (__yaff_initfini) {
     unsigned int init_count = __yaff_initfini[0];
-    unsigned int fini_count = __yaff_initfini[1];
     void (**init_funcs)(void) = (void (**)(void))&__yaff_initfini[2];
 
     /* Run constructors (forward order) */

@@ -20,5 +20,8 @@
 
 #pragma once
 
+/* yasc's reading: where the result points (sys/_attrs.h) */
+#include <sys/yasc/libgen.h>
+
 char *dirname(char *path);
 char *basename(char *path);

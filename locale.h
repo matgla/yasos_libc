@@ -22,6 +22,9 @@
 
 typedef unsigned char locale_t;
 
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/locale.h>
+
 char *setlocale(int category, const char *locale);
 locale_t uselocale(locale_t locale);
 locale_t newlocale(int category_mask, const char *locale, locale_t base);

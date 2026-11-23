@@ -603,18 +603,6 @@ char *realpath(const char *path, char *resolved_path) {
   return resolved_path;
 }
 
-char *basename(const char *path) {
-  if (path == NULL) {
-    return NULL;
-  }
-
-  char *last_slash = strrchr(path, '/');
-  if (last_slash != NULL) {
-    return (char *)(last_slash + 1);
-  }
-  return (char *)path;
-}
-
 int fsync(int fd) {
   // TODO: implement me
   return 0;

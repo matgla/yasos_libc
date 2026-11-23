@@ -54,10 +54,24 @@
 #define __noinline __attribute__((__noinline__))
 #define __dead2 __attribute__((__noreturn__))
 #define __pure2 __attribute__((__const__))
+/* Only where the compiler checks formats: tcc does not yet, says so
+ * (-Wignored-attributes) for a format attribute it meets, and answers
+ * __has_attribute only for what it implements. */
+#if defined(__has_attribute)
+#if __has_attribute(__format__)
+#define __yl_has_format 1
+#endif
+#endif
+#ifdef __yl_has_format
 #define __printflike(fmtarg, firstvararg)                                      \
   __attribute__((__format__(__printf__, fmtarg, firstvararg)))
 #define __scanflike(fmtarg, firstvararg)                                       \
   __attribute__((__format__(__scanf__, fmtarg, firstvararg)))
+#else
+#define __printflike(fmtarg, firstvararg)
+#define __scanflike(fmtarg, firstvararg)
+#endif
+#undef __yl_has_format
 
 #define __predict_true(exp) __builtin_expect(!!(exp), 1)
 #define __predict_false(exp) __builtin_expect(!!(exp), 0)

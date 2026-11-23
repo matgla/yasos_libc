@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include <sys/types.h>
+#include <sys/_attrs.h>
 
 /* access() flags */
 #define R_OK 4
@@ -36,12 +37,15 @@
 #define TRUE 1
 #define FALSE 0
 
-int access(char *name, int type);
-int unlink(const char *path);
+int access(char *name, int type) __yl_nonnull(1);
+int unlink(const char *path) __yl_nonnull(1);
 
 extern char **environ;
 
 int isatty(int fd);
+/* yasc's reading: owned and borrowed handles (sys/_attrs.h) */
+#include <sys/yasc/unistd.h>
+
 int close(int fd);
 
 ssize_t write(int fd, const void *buf, size_t n);
@@ -59,8 +63,8 @@ void sync(void);
 long lseek(int fd, long offset, int whence);
 off64_t lseek64(int fd, off64_t offset, int whence);
 
-int pipe(int fds[2]);
-int pipe2(int fds[2], int flags);
+int pipe(int fds[2]) __yl_nonnull(1);
+int pipe2(int fds[2], int flags) __yl_nonnull(1);
 int dup(int fd);
 int dup2(int fd, int fd2);
 
@@ -69,10 +73,10 @@ int fork(void);
 int getpid(void);
 int getppid(void);
 
-int execve(const char *path, char *const argv[], char *const envp[]);
-int execle(const char *path, ...);
-int execvp(const char *file, char *argv[]);
-int execv(const char *path, char *argv[]);
+int execve(const char *path, char *const argv[], char *const envp[]) __yl_nonnull(1, 2);
+int execle(const char *path, ...) __yl_nonnull(1);
+int execvp(const char *file, char *argv[]) __yl_nonnull(1, 2);
+int execv(const char *path, char *argv[]) __yl_nonnull(1, 2);
 
 void *sbrk(intptr_t increment);
 
@@ -81,12 +85,12 @@ __attribute__((noreturn)) void _exit(int status);
 int sleep(int n);
 
 char *getcwd(char *buf, size_t size);
-int chdir(const char *path);
-int rmdir(const char *path);
+int chdir(const char *path) __yl_nonnull(1);
+int rmdir(const char *path) __yl_nonnull(1);
 int fchdir(int fd);
 
-ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
-ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
+ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(2);
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(1);
 
 uid_t getuid(void);
 uid_t geteuid(void);
@@ -94,25 +98,25 @@ int setuid(uid_t uid);
 pid_t setsid(void);
 int setgid(gid_t gid);
 
-int chown(const char *path, uid_t owner, gid_t group);
+int chown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int fchown(int fd, uid_t owner, gid_t group);
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
              int flags);
-int lchown(const char *path, uid_t owner, gid_t group);
-int link(const char *oldpath, const char *newpath);
-int chroot(const char *path);
-int faccessat(int dirfd, const char *pathname, int mode, int flags);
+int lchown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
+int link(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
+int chroot(const char *path) __yl_nonnull(1);
+int faccessat(int dirfd, const char *pathname, int mode, int flags) __yl_nonnull(2);
 int gethostname(char *name, size_t size);
 int sethostname(const char *name, size_t size);
 
 long sysconf(int name);
 pid_t getsid(pid_t pid);
 
-int unlinkat(int dirfd, const char *pathname, int flags);
+int unlinkat(int dirfd, const char *pathname, int flags) __yl_nonnull(2);
 int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
-           int flags);
-int symlinkat(const char *target, int newdirfd, const char *linkpath);
-int symlink(const char *target, const char *linkpath);
+           int flags) __yl_nonnull(2, 4);
+int symlinkat(const char *target, int newdirfd, const char *linkpath) __yl_nonnull(1, 3);
+int symlink(const char *target, const char *linkpath) __yl_nonnull(1, 2);
 
 int ftruncate(int fd, off_t length);
 
