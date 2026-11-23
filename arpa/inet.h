@@ -26,4 +26,7 @@ unsigned int htonl(unsigned int n);
 unsigned int ntohl(unsigned int n);
 unsigned short htons(unsigned short n);
 unsigned short ntohs(unsigned short n);
+/* yasc's reading: where the result points (sys/_attrs.h) */
+#include <sys/yasc/inet.h>
+
 const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);

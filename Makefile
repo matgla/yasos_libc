@@ -25,6 +25,13 @@ EXTERNAL_LIBS += ../tinycc/armv8m-libtcc1.a
 # is being built its own libc.so may not be installed yet: without this, exit
 # is taken for a module-local call and every program link is refused.
 CRT_CFLAGS = -fno-module-local-calls
+# Each object's call graph and frames (<object>.ci, tinycc's -fcallgraph-info),
+# gathered into build/libc.ci for tinycc's scripts/stack_usage.py: a
+# program's worst stack path through libc.  Host-side data: not installed, so
+# it never reaches a target image.  The objects are the same with and
+# without it.  CALLGRAPH_INFO= turns it off.
+CALLGRAPH_INFO ?= -fcallgraph-info=su
+CFLAGS += $(CALLGRAPH_INFO)
 else
 CFLAGS += -Wno-pointer-arith -Wno-builtin-declaration-mismatch
 LDFLAGS_STATIC += -Wl,--build-id=none -Wl,--no-eh-frame-hdr
@@ -58,19 +65,20 @@ OBJS = $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
 # the default goal, and a plain `make` would build one object and stop.
 .DEFAULT_GOAL := all
 
-HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(wildcard arpa/*.h) \
+HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(wildcard sys/yasc/*.h) $(wildcard arpa/*.h) \
            $(wildcard arm/*.h) $(wildcard libs/*.h)
 $(filter %.o, $(OBJS)): $(HEADERS)
 
 TARGET_SHARED = $(BUILD)/libc.so
 TARGET_STATIC = $(BUILD)/libc.a
+TARGET_CI = $(if $(and $(ARM_BUILD),$(CALLGRAPH_INFO)),$(BUILD)/libc.ci)
 
 PREFIX ?= /usr/local
 LIBDIR ?= $(PREFIX)/lib
 INCLUDEDIR ?= $(PREFIX)/include
 
 # Rules
-all: $(TARGET_SHARED) $(TARGET_STATIC) $(TARGET_SHARED).elf
+all: $(TARGET_SHARED) $(TARGET_STATIC) $(TARGET_SHARED).elf $(TARGET_CI)
 
 prepare:
 	mkdir -p $(BUILD)
@@ -89,6 +97,10 @@ $(TARGET_SHARED).elf: $(OBJS)
 
 $(TARGET_STATIC): $(OBJS)
 	ar rcs $@ $^ $(EXTERNAL_LIBS)
+
+# one `object NAME` section per member, as tinycc's armv8m-libtcc1.ci
+$(BUILD)/libc.ci: $(OBJS)
+	for o in $(patsubst %.o,%.ci,$(filter %.o,$(OBJS))); do m=$${o#$(BUILD)/}; echo "object $${m%.ci}.o"; cat $$o; done > $@
 
 $(BUILD)/arm/crt1.o $(BUILD)/arm/crti.o $(BUILD)/arm/crtn.o: $(HEADERS)
 

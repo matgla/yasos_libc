@@ -35,6 +35,9 @@ struct addrinfo {
 
 #define AI_PASSIVE 0x0001
 
+/* yasc's reading: where the result points (sys/_attrs.h) */
+#include <sys/yasc/netdb.h>
+
 int getaddrinfo(const char *node, const char *service,
                 const struct addrinfo *hints, struct addrinfo **res);
 

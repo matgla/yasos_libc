@@ -18,13 +18,20 @@
  * <https://www.gnu.org/licenses/>.
  */
 
+#include <sys/_attrs.h>
+
 #define RTLD_GLOBAL 0x00100
 #define RTLD_LOCAL 0
 #define RTLD_LAZY 0x00001
 #define RTLD_NOW 0x00002
 #define RTLD_DEFAULT ((void *)0)
 
-void *dlopen(const char *, int);
-void *dlsym(void *, const char *);
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/dlfcn.h>
+
+/* dlclose first: dlopen names it as its deallocator (sys/_attrs.h); every
+   handle dlopen returns is given back with one dlclose. */
 int dlclose(void *);
+void *dlopen(const char *, int) __yl_dealloc(dlclose, 1);
+void *dlsym(void *, const char *) __yl_nonnull(2);
 char *dlerror(void);

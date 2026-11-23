@@ -7,6 +7,7 @@
 
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/_attrs.h>
 
 #define S_IRWXU 00700
 #define S_IRUSR 00400
@@ -68,22 +69,22 @@ struct stat {
 #define st_ctime st_ctim.tv_sec
 };
 
-int stat(const char *file, struct stat *buf);
-int fstat(int fd, struct stat *buf);
-int lstat(const char *file, struct stat *buf);
+int stat(const char *file, struct stat *buf) __yl_nonnull(1, 2);
+int fstat(int fd, struct stat *buf) __yl_nonnull(2);
+int lstat(const char *file, struct stat *buf) __yl_nonnull(1, 2);
 
-int chmod(char *file, int mode);
+int chmod(char *file, int mode) __yl_nonnull(1);
 int fchmod(int fd, int mode);
 int fchmodat(int dirfd, const char *pathname, int mode, int flags);
 int umask(int mask);
-int mkdir(char *path, int mode);
-int mknod(char *path, int mode, int dev);
-int mkfifo(char *path, int mode);
+int mkdir(char *path, int mode) __yl_nonnull(1);
+int mknod(char *path, int mode, int dev) __yl_nonnull(1);
+int mkfifo(char *path, int mode) __yl_nonnull(1);
 
-int fstatat(int fd, const char *path, struct stat *buf, int flag);
-int mkdirat(int dirfd, const char *pathname, mode_t mode);
+int fstatat(int fd, const char *path, struct stat *buf, int flag) __yl_nonnull(2, 3);
+int mkdirat(int dirfd, const char *pathname, mode_t mode) __yl_nonnull(2);
 
-int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);
+int mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev) __yl_nonnull(2);
 
 int utimensat(int dirfd, const char *pathname, const struct timespec times[2],
               int flags);

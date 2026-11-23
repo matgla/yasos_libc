@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/_attrs.h>
+
 typedef struct __dirent_dir DIR;
 
 #define DT_BLK 1
@@ -19,8 +21,12 @@ struct dirent {
   char d_name[256];
 };
 
-DIR *opendir(const char *path);
-int closedir(DIR *dir);
-struct dirent *readdir(DIR *dir);
+/* yasc's reading of the results that may be null (sys/_attrs.h) */
+#include <sys/yasc/dirent.h>
 
-DIR *fdopendir(int fd);
+/* closedir first: opendir names it as its deallocator (sys/_attrs.h) */
+int closedir(DIR *dir);
+DIR *opendir(const char *path) __yl_dealloc(closedir, 1) __yl_nonnull(1);
+struct dirent *readdir(DIR *dir) __yl_nonnull(1);
+
+DIR *fdopendir(int fd) __yl_dealloc(closedir, 1);

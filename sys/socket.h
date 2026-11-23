@@ -32,9 +32,15 @@ struct sockaddr_storage {
   sa_family_t ss_family; /* Address family */
 };
 
-int socket(int domain, int type, int protocol);
-
 typedef unsigned int socklen_t;
+
+/* yasc's reading: an owned handle (sys/_attrs.h) */
+#include <sys/yasc/socket.h>
+
+int socket(int domain, int type, int protocol);
+int listen(int sockfd, int backlog);
+/* the connection's own descriptor; ADDR and ADDRLEN may be null together */
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 int setsockopt(int socket, int level, int option_name, const void *option_value,
                socklen_t option_len);
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);

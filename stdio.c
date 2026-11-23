@@ -786,6 +786,16 @@ int vfprintf(FILE *fp, const char *fmt, va_list ap) {
       bytes = bytes < sizeof(int) ? sizeof(char) : sizeof(short);
       s++;
     }
+    if (*s == 'z') {
+      bytes = sizeof(size_t);
+      s++;
+    } else if (*s == 'j') {
+      bytes = sizeof(intmax_t);
+      s++;
+    } else if (*s == 't') {
+      bytes = sizeof(ptrdiff_t);
+      s++;
+    }
     if (*s == 'L') {
       float_long = 1;
       s++;

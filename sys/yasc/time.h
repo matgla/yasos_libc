@@ -1,0 +1,45 @@
+// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+/* yasc declarations for <time.h> (how and why: sys/_attrs.h): the conversions that
+ * fail (null) when the year does not fit. asctime and asctime_r always
+ * return their buffer here. */
+
+#ifndef _SYS_YASC_TIME_H
+#define _SYS_YASC_TIME_H
+
+#include <sys/_attrs.h>
+
+#ifdef __YASC__
+#pragma yasc
+
+struct tm * borrows(static) maybe localtime(const time_t * view timep) __yl_nonnull(1);
+struct tm * borrows(result) maybe localtime_r(const time_t * view timer, struct tm * view result) __yl_nonnull(1, 2);
+struct tm * borrows(static) maybe gmtime(const time_t * view timep) __yl_nonnull(1);
+struct tm * borrows(result) maybe gmtime_r(const time_t * view timer, struct tm * view result) __yl_nonnull(1, 2);
+char * borrows(static) maybe ctime(const time_t * view timep) __yl_nonnull(1);
+char * borrows(buf) maybe ctime_r(const time_t * view timep, char * view buf) __yl_nonnull(1, 2);
+char * borrows(static) asctime(const struct tm * view tm) __yl_nonnull(1);
+char * borrows(buf) asctime_r(const struct tm * view tm, char * view buf) __yl_nonnull(1, 2);
+/* past the parsed text in S, or null when it does not match FMT */
+char * borrows(s) maybe strptime(const char * view s, const char * view fmt, struct tm * view tm) __yl_nonnull(1, 2, 3);
+#endif /* __YASC__ */
+
+#endif /* _SYS_YASC_TIME_H */

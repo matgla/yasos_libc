@@ -81,5 +81,8 @@
 #define ERA_D_T_FMT 54
 #define ERA_T_FMT 55
 
+/* yasc's reading: where the result points (sys/_attrs.h) */
+#include <sys/yasc/langinfo.h>
+
 char *nl_langinfo(nl_item item);
 char *nl_langinfo_l(nl_item item, locale_t locale);
