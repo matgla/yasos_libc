@@ -76,8 +76,9 @@ harness_cflags="-$o -D_DEFAULT_SOURCE -DLIBC_TESTS_QEMU -I$out/inc"
 
 # The tests of libc's yasc sources (NAME_tests.c for NAME.c in YASC_SRCS) are
 # yasc too: tcc's safe default (no -ccompat), every warning an error -- with
-# the harness's own flags otherwise, which it prints.
-yasc_cflags=$(make -s -C "$QEMU_HARNESS" CC="$QEMU_CC" USE_NEWLIB_BUILD="$QEMU_NEWLIB_BUILD" \
+# the harness's own flags otherwise, which it prints (no "Entering directory"
+# lines: a make -C above puts w in MAKEFLAGS, and they would become files).
+yasc_cflags=$(make -s --no-print-directory -C "$QEMU_HARNESS" CC="$QEMU_CC" USE_NEWLIB_BUILD="$QEMU_NEWLIB_BUILD" \
   CCOMPAT= EXTRA_CFLAGS="$harness_cflags -Wall -Werror" \
   --eval 'print-cflags: ; @echo $(CFLAGS) $(TCC_FLAGS)' print-cflags)
 
