@@ -29,7 +29,7 @@
 #ifdef __YASC__
 #pragma yasc
 
-struct passwd * borrows(static) maybe getpwnam(const char * view name) __yl_nonnull(1);
+struct passwd * borrows(static) maybe getpwnam(const char * view name);
 struct passwd * borrows(static) maybe getpwuid(uid_t uid);
 #endif /* __YASC__ */
 

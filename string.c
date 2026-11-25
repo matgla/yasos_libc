@@ -408,14 +408,20 @@ char *strerror(int errnum) {
   }
 }
 
+/* the end of the copy: its nul */
 char *stpcpy(char *dst, const char *src) {
-  printf("TODO: Implement stpcpy\n");
-  return NULL;
+  size_t len = strlen(src);
+  memcpy(dst, src, len + 1);
+  return dst + len;
 }
 
+/* N bytes, the rest after SRC's end zeroed; the first nul written (DST + N
+   when SRC was too long to have one) */
 char *stpncpy(char *dst, const char *src, size_t n) {
-  printf("TODO: Implement stpncpy\n");
-  return NULL;
+  size_t len = strnlen(src, n);
+  memcpy(dst, src, len);
+  memset(dst + len, 0, n - len);
+  return dst + len;
 }
 
 char *strndup(const char *s, size_t n) {

@@ -29,7 +29,7 @@
 #pragma yasc
 
 /* DST, or null when AF is unknown or SIZE too small */
-const char * borrows(dst) maybe inet_ntop(int af, const void * view src, char * view dst, socklen_t size);
+const char * borrows(dst) maybe inet_ntop(int af, const void * view src, out char * view dst, socklen_t size);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_INET_H */

@@ -29,10 +29,10 @@
 #ifdef __YASC__
 #pragma yasc
 
-int owned(close) maybe open(const char * view path, int flags, ...) __yl_nonnull(1);
-int owned(close) maybe creat(const char * view path, int mode) __yl_nonnull(1);
+int owned(close) maybe open(const char * view path, int flags, ...);
+int owned(close) maybe creat(const char * view path, int mode);
 /* dirfd may be AT_FDCWD */
-int owned(close) maybe openat(int view maybe dirfd, const char * view pathname, int flags, ...) __yl_nonnull(2);
+int owned(close) maybe openat(int view maybe dirfd, const char * view pathname, int flags, ...);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_FCNTL_H */

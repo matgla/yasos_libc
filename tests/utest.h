@@ -99,6 +99,15 @@ typedef uint32_t utest_uint32_t;
 #include <string.h>
 #include <errno.h>
 
+/* nullptr is a keyword in C23 and in yasc (tcc defines __YASC__ there, also
+   under -ccompat): the macros below spell the null pointer that way so yasc
+   tests build in tcc's safe default.  The C11 tests (gcc -std=c11, tcc
+   -ccompat) get it here. */
+#if !defined(__cplusplus) && !defined(__YASC__) && !defined(nullptr) &&       \
+    (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
+#define nullptr NULL
+#endif
+
 #if defined(__cplusplus)
 #if defined(_MSC_VER) && !defined(_CPPUNWIND)
 /* We're on MSVC and the compiler is compiling without exception support! */
@@ -702,6 +711,9 @@ utest_type_printer(long long unsigned int i) {
       _Pragma("clang diagnostic ignored \"-Wgnu-auto-type\"") __auto_type      \
           _Pragma("clang diagnostic pop")
 /* clang-format on */
+#elif defined(__TINYC__)
+/* the value's whole type: in yasc `p + 0` drops a pointer's `maybe` */
+#define UTEST_AUTO(x) __auto_type
 #else
 #define UTEST_AUTO(x) __typeof__(x + 0)
 #endif
@@ -1178,7 +1190,7 @@ utest_strncpy_gcc(char *const dst, const char *const src, const size_t size) {
     } else {                                                                   \
       if (utest_state.tests) {                                                 \
         free(utest_state.tests);                                               \
-        utest_state.tests = NULL;                                              \
+        utest_state.tests = nullptr;                                              \
       }                                                                        \
       if (name) {                                                              \
         free(name);                                                            \

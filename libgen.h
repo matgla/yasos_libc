@@ -23,5 +23,8 @@
 /* yasc's reading: where the result points (sys/_attrs.h) */
 #include <sys/yasc/libgen.h>
 
-char *dirname(char *path);
-char *basename(char *path);
+/* PATH is read up to its NUL, however long (POSIX).  tcc checks each call
+   (sys/_attrs.h): a buffer the caller names with no NUL inside it ends the
+   program instead of being read past its end. */
+char *dirname(char *path) __yl_cstr(1);
+char *basename(char *path) __yl_cstr(1);

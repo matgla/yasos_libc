@@ -29,7 +29,15 @@
 
 #include <stdint.h>
 
+#include "_attrs.h"
+
 #include "syscall_ids.h"
+
+/* The contexts' pointers, in yasc code (sys/_attrs.h): __yl_view where libc
+ * always points it at an object of its own (a result), __yl_view_maybe where it
+ * passes on the caller's pointer, which may be null -- the kernel checks every
+ * one.  Raw addresses and handles (mmap's addr, dlsym's handle, vfork's
+ * registers) say nothing: they are not objects to dereference. */
 
 typedef struct syscall_result {
   int err; // errno returned by OS
@@ -38,9 +46,9 @@ typedef struct syscall_result {
 
 typedef struct read_context {
   int fd;
-  void *buf;
+  void *buf __yl_view_maybe;
   size_t count;
-  ssize_t *result;
+  ssize_t *result __yl_view;
 } read_context;
 
 typedef struct kill_context {
@@ -50,16 +58,16 @@ typedef struct kill_context {
 
 typedef struct write_context {
   int fd;
-  const void *buf;
+  const void *buf __yl_view_maybe;
   size_t count;
-  ssize_t *result;
+  ssize_t *result __yl_view;
 } write_context;
 
 typedef struct link_context {
   int olddirfd;
-  const char *oldpath;
+  const char *oldpath __yl_view_maybe;
   int newdirfd;
-  const char *newpath;
+  const char *newpath __yl_view_maybe;
   int flags;
 } link_context;
 
@@ -72,14 +80,14 @@ typedef struct link_context {
 /* renameat2(2) arguments. */
 typedef struct rename_context {
   int olddirfd;
-  const char *oldpath;
+  const char *oldpath __yl_view_maybe;
   int newdirfd;
-  const char *newpath;
+  const char *newpath __yl_view_maybe;
   unsigned int flags;
 } rename_context;
 
 typedef struct mkdir_context {
-  const char *path;
+  const char *path __yl_view_maybe;
   mode_t mode;
   int fd;
 } mkdir_context;
@@ -88,23 +96,23 @@ typedef struct lseek_context {
   int fd;
   off_t offset;
   int whence;
-  off_t *result;
+  off_t *result __yl_view;
 } lseek_context;
 
 typedef struct getentropy_context {
-  void *buffer;
+  void *buffer __yl_view_maybe;
   size_t length;
 } getentropy_context;
 
 typedef struct stat_context {
-  const char *pathname;
-  struct stat *statbuf;
+  const char *pathname __yl_view_maybe;
+  struct stat *statbuf __yl_view_maybe;
   int fd;
   uint8_t follow_links;
 } stat_context;
 
 typedef struct open_context {
-  const char *path;
+  const char *path __yl_view_maybe;
   int flags;
   int mode;
   int fd;
@@ -112,14 +120,14 @@ typedef struct open_context {
 
 typedef struct fstat_context {
   int fd;
-  struct stat *buf;
+  struct stat *buf __yl_view_maybe;
 } fstat_context;
 
 typedef struct getdents_context {
   int fd;
-  struct dirent *dirp;
+  struct dirent *dirp __yl_view_maybe;
   size_t count;
-  ssize_t *result;
+  ssize_t *result __yl_view;
 } getdents_context;
 
 typedef struct ioctl_context {
@@ -131,28 +139,28 @@ typedef struct ioctl_context {
 /* `fds` stays in user memory: the kernel validates it and writes `revents`
  * back through it in place, the same shape `sys_read` uses for its buffer. */
 typedef struct poll_context {
-  struct pollfd *fds;
+  struct pollfd *fds __yl_view_maybe;
   nfds_t nfds;
   int timeout;
 } poll_context;
 
 typedef struct gettimeofday_context {
-  struct timeval *tv;
-  struct timezone *tz;
+  struct timeval *tv __yl_view_maybe;
+  struct timezone *tz __yl_view_maybe;
 } gettimeofday_context;
 
 /* readlink(2)/readlinkat(2). `buf` is not NUL-terminated on return, and a
  * target longer than `bufsiz` is silently truncated -- both as POSIX has it. */
 typedef struct readlink_context {
-  const char *pathname;
-  char *buf;
+  const char *pathname __yl_view_maybe;
+  char *buf __yl_view_maybe;
   size_t bufsiz;
   int fd;
 } readlink_context;
 
 typedef struct settimeofday_context {
-  const struct timeval *tv;
-  const struct timezone *tz;
+  const struct timeval *tv __yl_view_maybe;
+  const struct timezone *tz __yl_view_maybe;
 } settimeofday_context;
 
 /* `times` is NULL for "now", otherwise two timespecs: [0] access, [1]
@@ -162,27 +170,27 @@ typedef struct settimeofday_context {
  * (futimens), and otherwise `fd` is the directory a relative path resolves
  * against. */
 typedef struct utimensat_context {
-  const char *pathname;
-  const struct timespec *times;
+  const char *pathname __yl_view_maybe;
+  const struct timespec *times __yl_view_maybe;
   int fd;
   int flags;
 } utimensat_context;
 
 typedef struct waitpid_context {
   pid_t pid;
-  int *status;
+  int *status __yl_view_maybe;
   int options;
 } waitpid_context;
 
 typedef struct nanosleep_context {
-  const struct timespec *req;
-  struct timespec *rem;
+  const struct timespec *req __yl_view_maybe;
+  struct timespec *rem __yl_view_maybe;
 } nanosleep_context;
 
 typedef struct execve_context {
-  const char *filename;
-  char **const argv;
-  char **const envp;
+  const char *filename __yl_view_maybe;
+  char **const argv __yl_view_maybe;
+  char **const envp __yl_view_maybe;
 } execve_context;
 
 typedef struct mmap_context {
@@ -192,7 +200,7 @@ typedef struct mmap_context {
   int flags;
   int fd;
   int offset;
-  void **result;
+  void **result __yl_view;
 } mmap_context;
 
 typedef struct munmap_context {
@@ -205,22 +213,22 @@ typedef struct mremap_context {
   int old_length;
   int new_length;
   int flags;
-  void **result;
+  void **result __yl_view;
 } mremap_context;
 
 typedef struct getcwd_context {
-  char *buf;
+  char *buf __yl_view_maybe;
   size_t size;
-  char **result;
+  char **result __yl_view;
 } getcwd_context;
 
 typedef struct chdir_context {
-  const char *path;
+  const char *path __yl_view_maybe;
 } chdir_context;
 
 typedef struct time_context {
-  time_t *timep;
-  time_t *result;
+  time_t *timep __yl_view_maybe;
+  time_t *result __yl_view;
 } time_context;
 
 typedef struct fcntl_context {
@@ -230,12 +238,12 @@ typedef struct fcntl_context {
 } fcntl_context;
 
 typedef struct remove_context {
-  const char *pathname;
+  const char *pathname __yl_view_maybe;
 } remove_context;
 
 typedef struct realpath_context {
-  const char *path;
-  char *resolved_path;
+  const char *path __yl_view_maybe;
+  char *resolved_path __yl_view_maybe;
 } realpath_context;
 
 typedef struct mprotect_context {
@@ -245,9 +253,9 @@ typedef struct mprotect_context {
 } mprotect_context;
 
 typedef struct dlopen_context {
-  const char *path;
+  const char *path __yl_view_maybe;
   int flags;
-  void **result;
+  void **result __yl_view;
 } dlopen_context;
 
 typedef struct dlclose_context {
@@ -256,12 +264,12 @@ typedef struct dlclose_context {
 
 typedef struct dlsym_context {
   void *handle;
-  const char *symbol;
-  void **result;
+  const char *symbol __yl_view_maybe;
+  void **result __yl_view;
 } dlsym_context;
 
 typedef struct vfork_context {
-  pid_t *pid;
+  pid_t *pid __yl_view;
   void *lr;
   void *r9;
   void *sp;
@@ -274,12 +282,12 @@ typedef struct dup_context {
 } dup_context;
 
 typedef struct sysinfo_context {
-  struct sysinfo *info;
+  struct sysinfo *info __yl_view_maybe;
 } sysinfo_context;
 
 /* uname(2). The kernel writes the whole struct through `buf`. */
 typedef struct uname_context {
-  struct utsname *buf;
+  struct utsname *buf __yl_view_maybe;
 } uname_context;
 
 typedef struct fchdir_context {
@@ -287,28 +295,28 @@ typedef struct fchdir_context {
 } fchdir_context;
 
 typedef struct mount_context {
-  const char *source;
-  const char *target;
-  const char *filesystemtype;
+  const char *source __yl_view_maybe;
+  const char *target __yl_view_maybe;
+  const char *filesystemtype __yl_view_maybe;
   unsigned long mountflags;
   /* The option string ("nofail,spill=/var/tmp"), or NULL. */
-  const void *data;
+  const void *data __yl_view_maybe;
 } mount_context;
 
 typedef struct umount_context {
-  const char *target;
+  const char *target __yl_view_maybe;
   int flags;
 } umount_context;
 
 typedef struct symlink_context {
-  const char *target;
+  const char *target __yl_view_maybe;
   int dirfd;
-  const char *linkpath;
+  const char *linkpath __yl_view_maybe;
 } symlink_context;
 
 /* fchmodat(2); fchmod(2) is path NULL with fd the open file. */
 typedef struct chmod_context {
-  const char *path;
+  const char *path __yl_view_maybe;
   int fd;
   mode_t mode;
   int flags; /* AT_SYMLINK_NOFOLLOW */
@@ -324,7 +332,7 @@ typedef struct chmod_context {
 typedef struct sigaction_context {
   int sig;
   int disposition;
-  int *old;
+  int *old __yl_view;
 } sigaction_context;
 
 /* reboot(2): one of the RB_* commands from sys/reboot.h. sync(2) takes no
@@ -343,7 +351,7 @@ typedef struct ptrace_context {
 } ptrace_context;
 
 typedef struct chown_context {
-  const char *path;
+  const char *path __yl_view_maybe;
   int fd;
   uid_t uid;
   gid_t gid;
@@ -354,43 +362,43 @@ typedef struct lseek64_context {
   int fd;
   long long offset;
   int whence;
-  long long *result;
+  long long *result __yl_view;
 } lseek64_context;
 
 struct statvfs;
 typedef struct statvfs_context {
   /* Path to describe, or NULL to describe the file `fd` is open on. */
-  const char *path;
+  const char *path __yl_view_maybe;
   int fd;
-  struct statvfs *buf;
+  struct statvfs *buf __yl_view_maybe;
 } statvfs_context;
 
 typedef struct sysconf_context {
   int name;
-  long *result;
+  long *result __yl_view;
 } sysconf_context;
 
 typedef struct prlimit_context {
   pid_t pid;
   int resource;
-  const struct rlimit *new_limit;
-  struct rlimit *old_limit;
+  const struct rlimit *new_limit __yl_view_maybe;
+  struct rlimit *old_limit __yl_view_maybe;
 } prlimit_context;
 
 typedef struct unlink_context {
   int dirfd;
-  const char *pathname;
+  const char *pathname __yl_view_maybe;
   int flags;
 } unlink_context;
 
 typedef struct pipe_context {
   /* Where the kernel puts the two descriptors: [0] read end, [1] write end. */
-  int *fds;
+  int *fds __yl_view_maybe;
   int flags;
 } pipe_context;
 
 typedef struct access_context {
-  const char *pathname;
+  const char *pathname __yl_view_maybe;
   int mode;
   int dirfd;
   int flags;
@@ -509,9 +517,9 @@ typedef struct perf_syscall_entry {
 
 typedef struct perf_dump_context {
   /* in */
-  perf_syscall_entry *entries;
+  perf_syscall_entry *entries __yl_view_maybe;
   int max_entries;
-  int *num_entries;
+  int *num_entries __yl_view_maybe;
   int reset;
   /* out, filled by the kernel */
   unsigned int cycles_per_us;

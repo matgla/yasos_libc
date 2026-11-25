@@ -31,16 +31,16 @@
 #pragma yasc
 
 /* S, or null at the end of the input or on an error */
-char * borrows(s) maybe fgets(char * view s, int sz, FILE * view fp) __yl_nonnull(1, 3);
+char * borrows(s) maybe fgets(out char * view s, int sz, inout FILE * view fp);
 /* BUFFER or a static one; null when no name is left */
-char * borrows(static, buffer) maybe tmpnam(char * view maybe buffer);
+char * borrows(static, buffer) maybe tmpnam(out char * view maybe buffer);
 /* the line buffer is the caller's before and after (the callee may replace
    it), and must be freed even after -1 */
-ssize_t getline(char * owned(free) maybe * view lineptr, size_t * view n, FILE * view fp) __yl_nonnull(3);
-ssize_t getdelim(char * owned(free) maybe * view lineptr, size_t * view n, int delimiter, FILE * view stream)
-    __yl_nonnull(4);
+ssize_t getline(inout char * owned(free) maybe * view lineptr, inout size_t * view n, inout FILE * view fp);
+ssize_t getdelim(inout char * owned(free) maybe * view lineptr, inout size_t * view n, int delimiter,
+                 inout FILE * view stream);
 /* the stream takes the descriptor over; null: fd is still the caller's */
-FILE * owned(fclose) maybe takes(fd) fdopen(int owned(close) fd, const char * view mode) __yl_nonnull(2);
+FILE * owned(fclose) maybe takes(fd) fdopen(int owned(close) fd, const char * view mode);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_STDIO_H */

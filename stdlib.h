@@ -1,3 +1,6 @@
+#ifndef _STDLIB_H
+#define _STDLIB_H
+
 #include <stddef.h>
 #include <sys/_attrs.h>
 
@@ -10,20 +13,20 @@
 
 /* free first: the allocators name it as their deallocator (sys/_attrs.h) */
 void free(void *m);
-void *malloc(size_t n) __yl_malloc __yl_dealloc(free, 1);
+void *malloc(size_t n) __yl_malloc __yl_alloc_size(1) __yl_dealloc(free, 1);
 /* Over-aligned allocation. malloc itself only promises 8-byte alignment; these
    take an explicit one (a power of two, and for posix_memalign a multiple of
    sizeof(void *)). Blocks from either are released with plain free(). */
 int posix_memalign(void **memptr, size_t alignment, size_t size);
-void *aligned_alloc(size_t alignment, size_t size) __yl_malloc __yl_dealloc(free, 1);
-void *memalign(size_t alignment, size_t size) __yl_malloc __yl_dealloc(free, 1);
+void *aligned_alloc(size_t alignment, size_t size) __yl_malloc __yl_alloc_size(2) __yl_dealloc(free, 1);
+void *memalign(size_t alignment, size_t size) __yl_malloc __yl_alloc_size(2) __yl_dealloc(free, 1);
 /* Bytes usable through a malloc'd pointer: the size it was asked for. */
 size_t malloc_usable_size(void *ptr);
-void *calloc(size_t n, size_t sz) __yl_malloc __yl_dealloc(free, 1);
+void *calloc(size_t n, size_t sz) __yl_malloc __yl_alloc_size(1, 2) __yl_dealloc(free, 1);
 /* may return the block it was given: an allocator, but not `malloc` */
-void *realloc(void *v, size_t sz) __yl_dealloc(free, 1);
+void *realloc(void *v, size_t sz) __yl_alloc_size(2) __yl_dealloc(free, 1);
 /* realloc(p, n * m), but null (ENOMEM) when n * m overflows */
-void *reallocarray(void *p, size_t n, size_t m) __yl_dealloc(free, 1);
+void *reallocarray(void *p, size_t n, size_t m) __yl_alloc_size(2, 3) __yl_dealloc(free, 1);
 
 #define alloca(sz) __builtin_alloca(sz)
 
@@ -86,3 +89,9 @@ long random(void);
 void srandom(unsigned int seed);
 
 char *realpath(const char *path, char *resolved_path);
+
+/* C23-style const kept through the strto* ENDPTR: after every declaration
+   above, which its macros would otherwise rewrite */
+#include <sys/_strto_const.h>
+
+#endif /* _STDLIB_H */

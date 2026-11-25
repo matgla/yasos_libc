@@ -41,12 +41,15 @@
 #include "utest.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 
 long long sut_strtoll(const char *str, char **endptr, int base);
 unsigned long long sut_strtoull(const char *str, char **endptr, int base);
 long sut_strtol(const char *str, char **endptr, int base);
 unsigned long sut_strtoul(const char *str, char **endptr, int base);
+int sut_atoi(const char *str);
+long sut_atol(const char *str);
 
 /*
  * The library under test carries its own `errno` -- rename_symbols.sh renames
@@ -84,6 +87,10 @@ static const int BASES[] = {0, 2, 8, 10, 16, 36};
  * assertion of its own below.
  */
 
+/* glibc is the oracle: `make qemu` (LIBC_TESTS_QEMU) has bare-metal newlib
+   instead, which reads "0x" as no number at all where C (and glibc, and this
+   libc) convert its 0 -- so there only the cases below run. */
+#ifndef LIBC_TESTS_QEMU
 UTEST(strto, strtoll_matches_host) {
   for (size_t c = 0; c < sizeof(CASES) / sizeof(*CASES); ++c) {
     for (size_t b = 0; b < sizeof(BASES) / sizeof(*BASES); ++b) {
@@ -158,6 +165,8 @@ UTEST(strto, strtol_and_strtoul_match_host) {
   }
 }
 
+#endif /* LIBC_TESTS_QEMU */
+
 /*
  * The three the assembler actually asks for, spelled out rather than left to
  * the differential loop -- so a failure names the instruction it breaks rather
@@ -215,4 +224,30 @@ UTEST(strto, bare_prefix_converts_the_zero) {
   const char *nope = "zzz";
   ASSERT_EQ(0ULL, sut_strtoull(nope, &end, 0));
   ASSERT_EQ(nope, (const char *)end);
+}
+
+/*
+ * atoi/atol at the limits.  INT_MIN's magnitude does not fit in an int, so the
+ * old signed accumulator overflowed on "-2147483648" -- UB inside the libc for
+ * an input C defines (the result must be INT_MIN).  And neither may touch
+ * errno: POSIX says they "need not", and a caller's errno must survive a
+ * successful call.
+ */
+UTEST(strto, atoi_atol_limits_leave_errno_alone) {
+  ASSERT_EQ(INT_MAX, sut_atoi("2147483647"));
+  ASSERT_EQ(INT_MIN, sut_atoi("-2147483648"));
+  ASSERT_EQ(LONG_MAX, sut_atol(LONG_MAX == INT_MAX ? "2147483647"
+                                                   : "9223372036854775807"));
+  ASSERT_EQ(LONG_MIN, sut_atol(LONG_MAX == INT_MAX ? "-2147483648"
+                                                   : "-9223372036854775808"));
+  ASSERT_EQ(-42, sut_atoi(" \t-42abc"));
+  ASSERT_EQ(7, sut_atoi("+7"));
+  ASSERT_EQ(0, sut_atoi("-"));
+  ASSERT_EQ(0, sut_atoi("x1"));
+
+  sut_errno = 1234;
+  (void)sut_atoi("99999999999999999999");
+  (void)sut_atol("-99999999999999999999999");
+  (void)sut_atoi("junk");
+  ASSERT_EQ(1234, sut_errno);
 }

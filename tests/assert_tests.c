@@ -34,30 +34,30 @@
 #define __assert_fail sut___assert_fail
 #include "../assert.h"
 
-static char out[256];
-static int out_len;
+static char buf[256];
+static size_t out_len;
 static int raised;
 static jmp_buf back;
 
-static void fake_syscall(int number, const void *args, syscall_result *result) {
+static void fake_syscall(int number, const void *view args, inout syscall_result *view result) {
   result->result = 0;
   result->err = -1;
   if (number == sys_write) {
-    const write_context *ctx = (const write_context *)args;
-    int n = (int)ctx->count;
-    if (out_len + n > (int)sizeof(out) - 1)
-      n = (int)sizeof(out) - 1 - out_len;
-    memcpy(out + out_len, ctx->buf, n);
+    const write_context *view ctx = (const write_context *view)args;
+    size_t n = ctx->count;
+    if (out_len + n > (int)sizeof(buf) - 1)
+      n = sizeof(buf) - 1 - out_len;
+    memcpy(buf + out_len, ctx->buf, n);
     out_len += n;
-    *ctx->result = n;
+    *ctx->result = (ssize_t)n;
   } else if (number == sys_kill) {
-    raised = ((const kill_context *)args)->sig;
+    raised = ((const kill_context *view)args)->sig;
     longjmp(back, 1);
   }
 }
 
 static void reset(void) {
-  memset(out, 0, sizeof(out));
+  memset(buf, 0, sizeof(buf));
   out_len = 0;
   raised = 0;
   RESET_FAKE(trigger_supervisor_call);
@@ -66,15 +66,15 @@ static void reset(void) {
 
 UTEST(assert, failure_prints_and_aborts) {
   reset();
-  int line = 0;
+  volatile int line = 0; /* set after setjmp, read after longjmp (C 7.13.2.1) */
   if (!setjmp(back)) {
     line = __LINE__ + 1;
     assert(1 + 1 == 3);
   }
   ASSERT_EQ(SIGABRT, raised);
-  char want[256];
+  char want[256] = undefined;
   snprintf(want, sizeof(want), "%s:%d: %s: Assertion `1 + 1 == 3' failed.\n", __FILE__, line, __func__);
-  ASSERT_STREQ(want, out);
+  ASSERT_STREQ(want, buf);
 }
 
 UTEST(assert, true_and_commas_do_nothing) {
@@ -84,7 +84,7 @@ UTEST(assert, true_and_commas_do_nothing) {
     assert((int[]){1, 2}[1] == 2); /* a comma: one argument (C23) */
   }
   ASSERT_EQ(0, raised);
-  ASSERT_EQ(0, out_len);
+  ASSERT_EQ(0U, out_len);
 }
 
 UTEST(assert, no_function_name) {
@@ -92,7 +92,7 @@ UTEST(assert, no_function_name) {
   if (!setjmp(back))
     sut___assert_fail("x", "f.c", 7, "");
   ASSERT_EQ(SIGABRT, raised);
-  ASSERT_STREQ("f.c:7: Assertion `x' failed.\n", out);
+  ASSERT_STREQ("f.c:7: Assertion `x' failed.\n", buf);
 }
 
 #define NDEBUG

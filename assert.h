@@ -34,6 +34,9 @@ __attribute__((__noreturn__))
 #endif
 void __assert_fail(const char *expr, const char *file, unsigned int line, const char *func);
 
+/* yasc's reading of it (sys/_attrs.h) */
+#include <sys/yasc/assert.h>
+
 /* C11 spells it _Static_assert and leaves the short name to this header; C23
    and C++ make static_assert a keyword of their own. */
 #if !defined(__cplusplus) && !defined(static_assert) &&                        \

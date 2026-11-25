@@ -30,6 +30,8 @@ size_t sut_strspn(const char *s, const char *accept);
 size_t sut_strcspn(const char *s, const char *reject);
 char *sut_strtok(char *s, const char *delimiters);
 char *sut_strtok_r(char *s, const char *delimiters, char **saveptr);
+char *sut_stpcpy(char *dst, const char *src);
+char *sut_stpncpy(char *dst, const char *src, size_t n);
 
 UTEST(string_tests, memchr) {
   const unsigned char bytes[] = {'A', 'B', 0, 'C', 'B'};
@@ -179,4 +181,22 @@ UTEST(string_tests, strtok) {
   ASSERT_STREQ(result, "World?");
   result = sut_strtok(NULL, delimiters);
   ASSERT_EQ(result, NULL);
+}
+
+UTEST(string_tests, stpcpy_returns_the_end) {
+  char dst[8] = "#######";
+  ASSERT_EQ(dst + 3, sut_stpcpy(dst, "abc"));
+  ASSERT_STREQ("abc", dst);
+  ASSERT_EQ(dst, sut_stpcpy(dst, ""));
+  ASSERT_EQ(0, dst[0]);
+}
+
+UTEST(string_tests, stpncpy_pads_and_returns_the_first_nul) {
+  char dst[8];
+  memset(dst, '#', sizeof(dst));
+  ASSERT_EQ(dst + 2, sut_stpncpy(dst, "ab", 6));
+  ASSERT_EQ(0, memcmp(dst, "ab\0\0\0\0##", 8));
+  /* too long for a nul: N bytes, DST + N */
+  ASSERT_EQ(dst + 3, sut_stpncpy(dst, "wxyz", 3));
+  ASSERT_EQ(0, memcmp(dst, "wxy\0\0\0##", 8));
 }

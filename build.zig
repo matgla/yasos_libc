@@ -36,14 +36,18 @@ const std = @import("std");
 /// The portable part of libc: the same files userspace builds, picked for
 /// needing nothing from the OS beyond what noos/syscalls.c provides.
 const portable_sources = [_][]const u8{
-    "atoi.c",
+    // atoi.c is yasc too (strto*'s `out char * borrows(s) * view` end
+    // pointer), and the kernel calls none of it: the image dropped every
+    // function in it at --gc-sections (stdlib.c's atoll, which calls
+    // strtoll, with them).
     "bitops.c",
     "byteswap.c",
     "ctype.c",
     "errno.c",
     "fcntl.c",
     "fnmatch.c",
-    "libgen.c",
+    // libgen.c is yasc (slices: `#pragma yasc`), which clang cannot build;
+    // nothing without an OS calls dirname/basename (Makefile: YASC_SRCS).
     "localtime.c",
     "qsort.c",
     "rand.c",
@@ -80,6 +84,11 @@ pub fn build(b: *std.Build) void {
     const flags = [_][]const u8{
         "-std=gnu11",
         "-DYASLIBC_NOOS",
+        // libc's own sources are never fortified (sys/_fortify.h; the Makefile
+        // undefines it too): zig's clang defines _FORTIFY_SOURCE when it
+        // optimizes, and <string.h>'s macros would rewrite strcpy's own
+        // definition into a __builtin___strcpy_chk call.
+        "-U_FORTIFY_SOURCE",
         // The string routines are the loops a compiler would otherwise turn
         // back into calls to themselves.
         "-fno-builtin",

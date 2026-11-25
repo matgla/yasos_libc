@@ -59,3 +59,31 @@ size_t strlcat(char *dst, const char *src, size_t size) __yl_nonnull(2);
 /* memset that the optimiser keeps (C23), for secrets; explicit_bzero zeroes */
 void *memset_explicit(void *s, int c, size_t n);
 void explicit_bzero(void *s, size_t n);
+
+/* _FORTIFY_SOURCE (sys/_fortify.h): the copies that know their destination's
+   size, and the checking functions they call when the compiler cannot prove
+   the copy fits (fortify.c; glibc's names and arguments) */
+#include <sys/_fortify.h>
+#ifdef __YL_FORTIFY
+void *__memcpy_chk(void *dst, const void *src, size_t n, size_t dstlen);
+void *__memmove_chk(void *dst, const void *src, size_t n, size_t dstlen);
+void *__mempcpy_chk(void *dst, const void *src, size_t n, size_t dstlen);
+void *__memset_chk(void *s, int v, size_t n, size_t dstlen);
+char *__strcpy_chk(char *dst, const char *src, size_t dstlen);
+char *__stpcpy_chk(char *dst, const char *src, size_t dstlen);
+char *__strncpy_chk(char *dst, const char *src, size_t n, size_t dstlen);
+char *__stpncpy_chk(char *dst, const char *src, size_t n, size_t dstlen);
+char *__strcat_chk(char *dst, const char *src, size_t dstlen);
+char *__strncat_chk(char *dst, const char *src, size_t n, size_t dstlen);
+
+#define memcpy(d, s, n) __builtin___memcpy_chk(d, s, n, __yl_bos0(d))
+#define memmove(d, s, n) __builtin___memmove_chk(d, s, n, __yl_bos0(d))
+#define mempcpy(d, s, n) __builtin___mempcpy_chk(d, s, n, __yl_bos0(d))
+#define memset(d, v, n) __builtin___memset_chk(d, v, n, __yl_bos0(d))
+#define strcpy(d, s) __builtin___strcpy_chk(d, s, __yl_bos(d))
+#define stpcpy(d, s) __builtin___stpcpy_chk(d, s, __yl_bos(d))
+#define strncpy(d, s, n) __builtin___strncpy_chk(d, s, n, __yl_bos(d))
+#define stpncpy(d, s, n) __builtin___stpncpy_chk(d, s, n, __yl_bos(d))
+#define strcat(d, s) __builtin___strcat_chk(d, s, __yl_bos(d))
+#define strncat(d, s, n) __builtin___strncat_chk(d, s, n, __yl_bos(d))
+#endif

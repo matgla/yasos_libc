@@ -32,7 +32,7 @@
 int owned(close) maybe socket(int domain, int type, int protocol);
 /* a new connection, which the listening socket does not own: closing one
    leaves the other open */
-int owned(close) maybe accept(int view sockfd, struct sockaddr * view maybe addr, socklen_t * view maybe addrlen);
+int owned(close) maybe accept(int view sockfd, out struct sockaddr * view maybe addr, inout socklen_t * view maybe addrlen);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_SOCKET_H */

@@ -31,7 +31,7 @@
 #pragma yasc
 
 int regcomp(out regex_t owned(regfree) * view preg, const char * view regex, int cflags);
-int regexec(const regex_t * view preg, const char * view string, size_t nmatch, regmatch_t * view maybe pmatch,
+int regexec(const regex_t * view preg, const char * view string, size_t nmatch, out regmatch_t * view maybe pmatch,
             int eflags);
 void regfree(drop regex_t owned(regfree) * view preg);
 #endif /* __YASC__ */

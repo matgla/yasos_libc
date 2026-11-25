@@ -1,6 +1,12 @@
 CC ?= gcc
 CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs $(ROOTFS_DEBUG_CFLAGS) -fPIC -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
 CFLAGS += $(ROOTFS_OPT_CFLAGS)
+# libc's own sources are never fortified (sys/_fortify.h): they define the
+# functions the fortified headers turn into macros
+CFLAGS += -U_FORTIFY_SOURCE
+# nor do they get the C23-style const-keeping strto* macros of <stdlib.h>,
+# for the same reason
+CFLAGS += -D__YL_LIBC_SOURCE
 LDFLAGS_STATIC = -nostdlib $(ROOTFS_DEBUG_CFLAGS) -L../tinycc
 LDFLAGS = -shared -fPIC ${LDFLAGS_STATIC}
 LDFLAGS_ELF = $(LDFLAGS) -rdynamic
@@ -39,6 +45,13 @@ endif
 
 
 SRCS += $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c)
+
+# Sources written in yasc (`#pragma yasc`: slices, ownership): only tinycc
+# builds them, so the host unit tests' gcc build leaves them out.
+YASC_SRCS := libgen.c assert.c atoi.c
+ifneq ($(ARM_BUILD),y)
+SRCS := $(filter-out $(YASC_SRCS),$(SRCS))
+endif
 
 # Output directory. Overridable so a build for a *different* architecture does
 # not land on top of this one: the host unit tests (tests/) invoke this Makefile
@@ -88,6 +101,13 @@ prepare:
 
 $(BUILD)/%.o: %.c | prepare
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# The yasc sources build in tcc's safe default (every check, unsafe C an
+# error), not -ccompat: build_rootfs.sh hands every libc compile -ccompat and
+# tcc has no option that takes it back, so it is filtered out here.  Same code
+# as under -ccompat; only the checks are added.
+$(patsubst %.c,$(BUILD)/%.o,$(YASC_SRCS)): $(BUILD)/%.o: %.c | prepare
+	$(CC) $(filter-out -ccompat,$(CFLAGS)) -c $< -o $@
 
 $(TARGET_SHARED): $(OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS)

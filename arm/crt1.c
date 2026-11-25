@@ -38,8 +38,9 @@ extern void *__yasos_fini_got;
  * instead of whatever register r2 happened to hold. */
 int main(int argc, char *argv[], char *envp[]);
 
-/* ssp.c: tcc -fstack-protector's guard, mixed before anything runs */
-void __stack_chk_init(void *seed);
+/* ssp.c: tcc -fstack-protector's guard, mixed before anything runs
+   (__stack_chk_init) */
+#include "../internal/compiler_rt.h"
 
 /* Pure-assembly _start: capture R9 (GOT base) into R2 before any
  * GOT-relative C code runs, then tail-call __crt1_main. */

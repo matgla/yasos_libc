@@ -3,28 +3,41 @@
 #include <limits.h>
 #include <stdlib.h>
 
-int atoi(const char *s) {
-  int num = 0;
+/*
+ * The magnitude is accumulated unsigned: "-2147483648" is INT_MIN, which C
+ * requires atoi to return, but its magnitude does not fit in an int, so a
+ * signed accumulator overflowed -- undefined behaviour inside the libc on a
+ * well-defined input (UBSan traps on it).  Unsigned arithmetic wraps by
+ * definition, and the conversion back is implementation-defined (two's
+ * complement on every compiler we build with), not undefined.
+ *
+ * errno: C leaves the result undefined when the value does not fit and POSIX
+ * says atoi/atol "need not affect errno", so neither touches it -- glibc's
+ * ERANGE through strtol is not required.  Callers that need to detect
+ * overflow or "not a number" use strtol.
+ */
+int atoi(const char *view s) {
+  unsigned num = 0;
   int neg = 0;
   while (isspace(*s))
     s++;
   if (*s == '-' || *s == '+')
     neg = *s++ == '-';
   while ((unsigned)(*s - '0') <= 9u)
-    num = num * 10 + *s++ - '0';
-  return neg ? -num : num;
+    num = num * 10u + (unsigned)(*s++ - '0');
+  return (int)(neg ? 0u - num : num);
 }
 
-long atol(const char *s) {
-  long num = 0;
+long atol(const char *view s) {
+  unsigned long num = 0;
   int neg = 0;
   while (isspace(*s))
     s++;
   if (*s == '-' || *s == '+')
     neg = *s++ == '-';
   while ((unsigned)(*s - '0') <= 9u)
-    num = num * 10 + *s++ - '0';
-  return neg ? -num : num;
+    num = num * 10ul + (unsigned long)(*s++ - '0');
+  return (long)(neg ? 0ul - num : num);
 }
 
 /* The value of `c` as a digit in `base`, or -1. The ranges have to be checked
@@ -48,7 +61,7 @@ static int digit(char c, int base) {
 /* The `long` pair narrows the `long long` one below (same on a 64-bit host),
  * which already hands back the caller's own pointer when nothing converted --
  * this one used to leave it past the blanks and the sign. */
-long strtol(const char *s, char **endptr, int base) {
+long strtol(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
   long long v = strtoll(s, endptr, base);
 
   if (v > LONG_MAX) {
@@ -64,8 +77,8 @@ long strtol(const char *s, char **endptr, int base) {
 
 /* C's strtoul negates a "-" number in unsigned long, so the range check is on
  * the magnitude. */
-unsigned long strtoul(const char *s, char **endptr, int base) {
-  const char *p = s;
+unsigned long strtoul(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+  const char *view p = s;
   int saved = errno, neg;
   unsigned long long v;
 
@@ -119,10 +132,10 @@ unsigned long strtoul(const char *s, char **endptr, int base) {
  * pattern that way, and this libc's whole reason for caring is tcc's inline
  * assembler.
  */
-static int strto_base(const char **s, int base, const char **after_zero) {
-  const char *p = *s;
+static int strto_base(inout const char *view *view s, int base, out const char *view maybe *view after_zero) {
+  const char *view p = *s;
 
-  *after_zero = 0;
+  *after_zero = nullptr;
   if (base == 0) {
     if (*p == '0') {
       if (p[1] == 'x' || p[1] == 'X')
@@ -145,9 +158,9 @@ static int strto_base(const char **s, int base, const char **after_zero) {
   return base;
 }
 
-unsigned long long strtoull(const char *s, char **endptr, int base) {
-  const char *start = s;
-  const char *after_zero;
+unsigned long long strtoull(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+  const char *view start = s;
+  const char *view maybe after_zero = nullptr;
   unsigned long long num = 0;
   unsigned long long cutoff;
   int cutlim;
@@ -179,7 +192,7 @@ unsigned long long strtoull(const char *s, char **endptr, int base) {
   /* No digits at all means no conversion: the caller is entitled to see its own
    * pointer back, which is how it tells "0" from "not a number at all". */
   if (endptr)
-    *endptr = (char *)(any ? s : start);
+    *endptr = unsafe((char *view)(any ? s : start));
   if (overflow) {
     num = ULLONG_MAX;
     errno = ERANGE;
@@ -189,9 +202,9 @@ unsigned long long strtoull(const char *s, char **endptr, int base) {
   return num;
 }
 
-long long strtoll(const char *s, char **endptr, int base) {
-  const char *start = s;
-  const char *after_zero;
+long long strtoll(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+  const char *view start = s;
+  const char *view maybe after_zero;
   unsigned long long num = 0;
   unsigned long long limit;
   unsigned long long cutoff;
@@ -226,7 +239,7 @@ long long strtoll(const char *s, char **endptr, int base) {
     s = after_zero;
   }
   if (endptr)
-    *endptr = (char *)(any ? s : start);
+    *endptr = unsafe((char *view)(any ? s : start));
   if (overflow) {
     errno = ERANGE;
     return sgn > 0 ? LLONG_MAX : LLONG_MIN;

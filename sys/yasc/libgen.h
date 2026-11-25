@@ -29,9 +29,10 @@
 #ifdef __YASC__
 #pragma yasc
 
-/* never null: "." for a null or empty PATH */
-char * borrows(static, path) dirname(char * view maybe path);
-char * borrows(static, path) basename(char * view maybe path);
+/* never null: "." for a null or empty PATH; PATH's NUL is inside the buffer
+   the caller names (tcc checks each call) */
+char * borrows(static, path) dirname(inout char path[maybe :0]);
+char * borrows(static, path) basename(inout char path[maybe :0]);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_LIBGEN_H */

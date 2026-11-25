@@ -1,7 +1,6 @@
 #include "utest.h"
 
 #include <sys/resource.h>
-#include <sys/syscall.h>
 
 #include "syscalls_stub.h"
 
@@ -12,6 +11,7 @@ int sut_setrlimit(int resource, const struct rlimit *new_limit);
 
 static void capture_success(int number, const void *args,
                             syscall_result *result) {
+  (void)number;
   (void)args;
   result->result = 0;
   result->err = -1;
