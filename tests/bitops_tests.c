@@ -25,14 +25,9 @@
 int sut_ffs(int value);
 int sut_ffsl(long value);
 int sut_ffsll(long long value);
-int sut___clzsi2(unsigned int value);
-int sut___ctzsi2(unsigned int value);
-int sut___paritysi2(unsigned int value);
-int sut___popcountsi2(unsigned int value);
-int sut___clzdi2(unsigned long long value);
-int sut___ctzdi2(unsigned long long value);
-int sut___popcountdi2(unsigned long long value);
-int sut___paritydi2(unsigned long long value);
+/* libgcc's __clz/__ctz/__popcount/__parity{si,di}2 are the compiler
+   runtime's now, not this libc's (tinycc lib/builtin.c, tested there by
+   tests/ir_tests/911_libgcc_bit_helpers.c) */
 
 UTEST(bitops_tests, first_set_bit_family) {
   ASSERT_EQ(0, sut_ffs(0));
@@ -49,33 +44,83 @@ UTEST(bitops_tests, first_set_bit_family) {
   ASSERT_EQ(64, sut_ffsll(1ULL << 63));
 }
 
-UTEST(bitops_tests, clz_and_ctz_helpers) {
-  ASSERT_EQ((int)(sizeof(unsigned int) * CHAR_BIT), sut___clzsi2(0));
-  ASSERT_EQ((int)(sizeof(unsigned int) * CHAR_BIT - 1), sut___clzsi2(1));
-  ASSERT_EQ(0, sut___clzsi2(1U << ((sizeof(unsigned int) * CHAR_BIT) - 1)));
-  ASSERT_EQ((int)(sizeof(unsigned int) * CHAR_BIT), sut___ctzsi2(0));
-  ASSERT_EQ(0, sut___ctzsi2(1));
-  ASSERT_EQ(7, sut___ctzsi2(1U << 7));
+/* POSIX: ffs* convert to unsigned, so the sign bit is the highest position. */
+UTEST(bitops_tests, first_set_bit_negative_values) {
+  const int int_bits = (int)(sizeof(int) * CHAR_BIT);
+  const int long_bits = (int)(sizeof(long) * CHAR_BIT);
 
-  ASSERT_EQ((int)(sizeof(unsigned long long) * CHAR_BIT), sut___clzdi2(0));
-  ASSERT_EQ((int)(sizeof(unsigned long long) * CHAR_BIT - 1), sut___clzdi2(1));
-  ASSERT_EQ(0, sut___clzdi2(1ULL << 63));
-  ASSERT_EQ((int)(sizeof(unsigned long long) * CHAR_BIT), sut___ctzdi2(0));
-  ASSERT_EQ(0, sut___ctzdi2(1));
-  ASSERT_EQ(17, sut___ctzdi2(1ULL << 17));
+  ASSERT_EQ(1, sut_ffs(-1));
+  ASSERT_EQ(2, sut_ffs(-2));
+  ASSERT_EQ(int_bits, sut_ffs(INT_MIN));
+  ASSERT_EQ(1, sut_ffs(INT_MAX));
+
+  ASSERT_EQ(1, sut_ffsl(-1L));
+  ASSERT_EQ(long_bits, sut_ffsl(LONG_MIN));
+  ASSERT_EQ(1, sut_ffsl(LONG_MAX));
+
+  ASSERT_EQ(1, sut_ffsll(-1LL));
+  ASSERT_EQ(64, sut_ffsll(LLONG_MIN));
+  ASSERT_EQ(1, sut_ffsll(LLONG_MAX));
+  /* the high word alone: a 32-bit split must not lose it */
+  ASSERT_EQ(33, sut_ffsll(1LL << 32));
+  ASSERT_EQ(41, sut_ffsll((1LL << 40) | (1LL << 62)));
 }
 
-UTEST(bitops_tests, popcount_and_parity_helpers) {
-  ASSERT_EQ(0, sut___popcountsi2(0));
-  ASSERT_EQ(4, sut___popcountsi2(0xF0));
-  ASSERT_EQ(0, sut___paritysi2(0));
-  ASSERT_EQ(1, sut___paritysi2(0x07));
-  ASSERT_EQ(0, sut___paritysi2(0x0F));
+/* Every bit position, alone and with every higher bit set. */
+UTEST(bitops_tests, every_bit_position) {
+  const int w = (int)(sizeof(unsigned int) * CHAR_BIT);
+  int i;
 
-  ASSERT_EQ(0, sut___popcountdi2(0));
-  ASSERT_EQ(32, sut___popcountdi2(0xF0F0F0F0F0F0F0F0ULL));
-  ASSERT_EQ(0, sut___paritydi2(0));
-  /* 15 set bits -> odd parity. (0x1111...1111 has 16 set bits, i.e. even.) */
-  ASSERT_EQ(1, sut___paritydi2(0x1111111111111110ULL));
-  ASSERT_EQ(0, sut___paritydi2(0x3333333333333333ULL));
+  for (i = 0; i < w; i++) {
+    unsigned int bit = 1U << i;
+    unsigned int from = ~0U << i;
+
+    ASSERT_EQ(i + 1, sut_ffs((int)bit));
+    ASSERT_EQ(i + 1, sut_ffs((int)from));
+    ASSERT_EQ(i + 1, sut_ffsl((long)(1UL << i)));
+  }
+
+  for (i = 0; i < 64; i++) {
+    unsigned long long bit = 1ULL << i;
+    unsigned long long from = ~0ULL << i;
+
+    ASSERT_EQ(i + 1, sut_ffsll((long long)bit));
+    ASSERT_EQ(i + 1, sut_ffsll((long long)from));
+  }
+}
+
+/* Straightforward references, checked on pseudo-random values. */
+static int ref_ffs64(unsigned long long v) {
+  int i;
+  for (i = 0; i < 64; i++)
+    if (v & (1ULL << i))
+      return i + 1;
+  return 0;
+}
+
+UTEST(bitops_tests, matches_reference_on_random_values) {
+  unsigned long long x = 0x9E3779B97F4A7C15ULL;
+  int n;
+
+  for (n = 0; n < 2000; n++) {
+    unsigned long long v;
+    unsigned int v32;
+    unsigned long vl;
+
+    /* xorshift64, then thin out some values so long zero runs occur */
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    v = x;
+    if (n & 1)
+      v &= x << (n % 61);
+    if (n & 2)
+      v >>= n % 63;
+    v32 = (unsigned int)v;
+    vl = (unsigned long)v;
+
+    ASSERT_EQ(ref_ffs64(v32), sut_ffs((int)v32));
+    ASSERT_EQ(ref_ffs64(vl), sut_ffsl((long)vl));
+    ASSERT_EQ(ref_ffs64(v), sut_ffsll((long long)v));
+  }
 }

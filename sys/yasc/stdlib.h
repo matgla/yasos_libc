@@ -20,8 +20,8 @@
 
 /* yasc declarations for <stdlib.h> (how and why: sys/_attrs.h): the results that
  * may be null and are not allocations (those are malloc-attributed in
- * <stdlib.h> itself), realloc, whose result takes its block over, and
- * mkstemp's descriptor. */
+ * <stdlib.h> itself), realloc, whose result takes its block over,
+ * mkstemp's descriptor, and the number parsers of atoi.c. */
 
 #ifndef _SYS_YASC_STDLIB_H
 #define _SYS_YASC_STDLIB_H
@@ -31,21 +31,32 @@
 #ifdef __YASC__
 #pragma yasc
 
-char * borrows(static) maybe getenv(const char * view name) __yl_nonnull(1);
+char * borrows(static) maybe getenv(const char * view name);
 /* base may be null with nmemb == 0 */
 void * borrows(base) maybe bsearch(const void * view key, const void * view maybe base, size_t nmemb, size_t size,
-                          int (*compar)(const void * view, const void * view)) __yl_nonnull(1, 5);
+                          int (*compar)(const void * view, const void * view));
 /* T itself, or null on failure */
-char * borrows(t) maybe mkdtemp(char * view t) __yl_nonnull(1);
+char * borrows(t) maybe mkdtemp(inout char * view t);
 /* an open descriptor of the file it made from T, or -1 */
-int owned(close) maybe mkstemp(char * view t) __yl_nonnull(1);
+int owned(close) maybe mkstemp(inout char * view t);
 /* S, never null */
-char * borrows(s) itoa(int n, char * view s, int base) __yl_nonnull(2);
+char * borrows(s) itoa(int n, out char * view s, int base);
 /* written on success (0) only */
 int posix_memalign(out void * owned(free) maybe * view memptr, size_t alignment, size_t size);
 /* the result takes the block over (it may move it); null: v is still the caller's */
-void * owned(free) maybe takes(v) realloc(void * owned maybe v, size_t sz);
-void * owned(free) maybe takes(p) reallocarray(void * owned maybe p, size_t n, size_t m);
+void * owned(free) maybe takes(v) realloc(void * owned maybe v, size_t sz) __yl_alloc_size(2);
+void * owned(free) maybe takes(p) reallocarray(void * owned maybe p, size_t n, size_t m) __yl_alloc_size(2, 3);
+
+/* atoi.c.  S is read up to the first character that is not part of the
+   number.  ENDPTR may be null; when it is not, *endptr is written: where the
+   number ended, or S itself when nothing converted -- a pointer into S
+   (borrows(s)): the caller's end borrows from what it passed for S. */
+int atoi(const char * view s);
+long atol(const char * view s);
+long strtol(const char * view s, out char * borrows(s) * view maybe endptr, int base);
+unsigned long strtoul(const char * view s, out char * borrows(s) * view maybe endptr, int base);
+long long strtoll(const char * view s, out char * borrows(s) * view maybe endptr, int base);
+unsigned long long strtoull(const char * view s, out char * borrows(s) * view maybe endptr, int base);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_STDLIB_H */

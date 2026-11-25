@@ -29,7 +29,7 @@
 #pragma yasc
 
 /* null at the end of the directory or on an error */
-struct dirent * borrows(dir) maybe readdir(DIR * view dir) __yl_nonnull(1);
+struct dirent * borrows(dir) maybe readdir(inout DIR * view dir);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_DIRENT_H */

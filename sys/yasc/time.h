@@ -30,16 +30,16 @@
 #ifdef __YASC__
 #pragma yasc
 
-struct tm * borrows(static) maybe localtime(const time_t * view timep) __yl_nonnull(1);
-struct tm * borrows(result) maybe localtime_r(const time_t * view timer, struct tm * view result) __yl_nonnull(1, 2);
-struct tm * borrows(static) maybe gmtime(const time_t * view timep) __yl_nonnull(1);
-struct tm * borrows(result) maybe gmtime_r(const time_t * view timer, struct tm * view result) __yl_nonnull(1, 2);
-char * borrows(static) maybe ctime(const time_t * view timep) __yl_nonnull(1);
-char * borrows(buf) maybe ctime_r(const time_t * view timep, char * view buf) __yl_nonnull(1, 2);
-char * borrows(static) asctime(const struct tm * view tm) __yl_nonnull(1);
-char * borrows(buf) asctime_r(const struct tm * view tm, char * view buf) __yl_nonnull(1, 2);
+struct tm * borrows(static) maybe localtime(const time_t * view timep);
+struct tm * borrows(result) maybe localtime_r(const time_t * view timer, out struct tm * view result);
+struct tm * borrows(static) maybe gmtime(const time_t * view timep);
+struct tm * borrows(result) maybe gmtime_r(const time_t * view timer, out struct tm * view result);
+char * borrows(static) maybe ctime(const time_t * view timep);
+char * borrows(buf) maybe ctime_r(const time_t * view timep, out char * view buf);
+char * borrows(static) asctime(const struct tm * view tm);
+char * borrows(buf) asctime_r(const struct tm * view tm, out char * view buf);
 /* past the parsed text in S, or null when it does not match FMT */
-char * borrows(s) maybe strptime(const char * view s, const char * view fmt, struct tm * view tm) __yl_nonnull(1, 2, 3);
+char * borrows(s) maybe strptime(const char * view s, const char * view fmt, inout struct tm * view tm);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_TIME_H */

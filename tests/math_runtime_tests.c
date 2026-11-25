@@ -24,14 +24,6 @@
 #include "utest.h"
 
 typedef union {
-  double _Complex value;
-  struct {
-    double real;
-    double imag;
-  } parts;
-} double_complex_parts;
-
-typedef union {
   double value;
   unsigned long long bits;
 } double_bits;
@@ -45,12 +37,8 @@ long double sut_fmaxl(long double left, long double right);
 int sut_ilogb(double value);
 int sut_ilogbf(float value);
 int sut_ilogbl(long double value);
-double _Complex sut___divdc3(double a_real, double a_imag, double b_real,
-                             double b_imag);
-
-static double fabs_test(double value) {
-  return value < 0.0 ? -value : value;
-}
+/* __divdc3 is the compiler runtime's now (tinycc lib/fp/soft/divc3.c, tested
+   there by tests/ir_tests/912_complex_div_runtime.c) */
 
 static double make_double(unsigned long long bits) {
   double_bits repr;
@@ -103,13 +91,4 @@ UTEST(math_runtime_tests, ilogb_family_handles_zero_nan_and_infinity) {
   ASSERT_EQ(FP_ILOGBNAN, sut_ilogb(nan));
   ASSERT_EQ(FP_ILOGBNAN, sut_ilogbf(nanf));
   ASSERT_EQ(FP_ILOGBNAN, sut_ilogbl((long double)nan));
-}
-
-UTEST(math_runtime_tests, divdc3_divides_complex_doubles) {
-  double_complex_parts result;
-
-  result.value = sut___divdc3(1.0, 2.0, 3.0, 4.0);
-
-  ASSERT_LT(fabs_test(result.parts.real - 0.44), 1e-12);
-  ASSERT_LT(fabs_test(result.parts.imag - 0.08), 1e-12);
 }

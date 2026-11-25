@@ -23,21 +23,22 @@
    corrupted heap, and abort()s: the shell reports the signal, a debugger
    stops there. */
 
+#pragma yasc
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-static void put(const char *s)
+static void put(const char *view s)
 {
   if (s)
     write(2, s, strlen(s));
 }
 
-void __assert_fail(const char *expr, const char *file, unsigned int line, const char *func)
+void __assert_fail(const char *view expr, const char *view file, unsigned int line, const char *view func)
 {
-  char num[12];
-  char *p = num + sizeof(num);
+  char num[12] = undefined;
+  char *view p = num + sizeof(num);
   *--p = '\0';
   do {
     *--p = (char)('0' + line % 10);

@@ -27,7 +27,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/syscall.h>
 
 #include "syscalls_stub.h"
 

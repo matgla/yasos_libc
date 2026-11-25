@@ -32,11 +32,11 @@ int c_memchr_null(void) { return memchr(0, 'x', 0) != 0; }
 int c_strtok(char * view s) { int n = 0; for (char * view maybe t = strtok(s, " "); t; t = strtok(0, " ")) n += *t; return n; }
 int c_strtok_r(char * view s) { char * view maybe sp = 0; char * view maybe t = strtok_r(s, " ", &sp); return t ? *t : 0; }
 int c_getenv(void) { char * view maybe e = getenv("HOME"); if (!e) return 0; return *e + (int)strlen(e); }
-int c_fgets(FILE * view f) { char buf[8]; while (fgets(buf, 8, f)) if (buf[0] == 'x') return 1; return 0; }
-int c_fopen(void) { char buf[8]; FILE * owned maybe f = fopen("x", "r"); if (!f) return -1; int r = fgets(buf, 8, f) != 0; fclose(f); return r; }
+int c_fgets(FILE * view f) { char buf[8] = undefined; while (fgets(buf, 8, f)) if (buf[0] == 'x') return 1; return 0; }
+int c_fopen(void) { char buf[8] = undefined; FILE * owned maybe f = fopen("x", "r"); if (!f) return -1; int r = fgets(buf, 8, f) != 0; fclose(f); return r; }
 int c_readdir(void) { int n = 0; DIR * owned maybe d = opendir("/"); if (!d) return -1; struct dirent * view maybe e; while ((e = readdir(d))) n += e->d_type; closedir(d); return n; }
 int c_localtime(void) { time_t t = time(0); struct tm * view maybe tm = localtime(&t); return tm ? tm->tm_year : 0; }
-int c_ctime_r(const time_t * view t) { char b[26]; char * view maybe s = ctime_r(t, b); return s ? *s : 0; }
+int c_ctime_r(const time_t * view t) { char b[26] = undefined; char * view maybe s = ctime_r(t, b); return s ? *s : 0; }
 int c_getpw(void) { struct passwd * view maybe p = getpwuid(0); if (!p) return -1; return (int)p->pw_uid; }
 int c_getgr(void) { struct group * view maybe g = getgrnam("wheel"); return g ? (int)g->gr_gid : -1; }
 int c_setlocale(void) { char * view maybe l = setlocale(0, 0); return l ? *l : 0; }
@@ -47,12 +47,12 @@ int c_qsort(int * view a) { qsort(a, 3, sizeof a[0], cmp); return a[0]; }
 int c_tmpnam(void) { char * view maybe n = tmpnam(0); return n ? *n : 0; }
 int c_nulls(void) {
   /* null where it is allowed */
-  char b[4];
+  char b[4] = undefined;
   fflush(0); setvbuf(stdout, 0, _IONBF, 0); perror(0);
   return snprintf(0, 0, "%d", 1) + (int)strtol("1", 0, 10) + (int)time(0) + (getcwd(0, 0) != 0) +
          (realpath("/", 0) != 0) + setenv("A", 0, 1) + (int)sizeof b;
 }
-int c_paths(void) { struct stat st; int owned(close) maybe fd = open("/x", O_RDONLY); if (fd >= 0) close(fd); return stat("/x", &st) + access("/x", 0) + unlink("/y"); }
+int c_paths(void) { struct stat st = undefined; int owned(close) maybe fd = open("/x", O_RDONLY); if (fd >= 0) close(fd); return stat("/x", &st) + access("/x", 0) + unlink("/y"); }
 void t_realloc(char * owned maybe p) { char * owned maybe q = realloc(move(p), 8); if (!q) { free(p); return; } free(q); }
 const char * borrows(static) c_strerror(int e) { char * view s = strerror(e); return *s ? s : strerror(0); }
 char * borrows(static) c_asctime(const struct tm * view t) { return asctime(t); }
@@ -75,12 +75,12 @@ int c_inotify(void) { int owned(close) maybe fd = inotify_init1(0); if (fd < 0) 
 int c_assert(char * view maybe p) { assert(p); return *p; }
 static_assert(sizeof(int) == 4, "int is 32 bits");
 /* the safe APIs */
-int c_strl(char * view d) { char b[8]; size_t n = strlcpy(b, "abc", sizeof b); n += strlcat(b, d, sizeof b); return (int)(n + strlcpy(0, d, 0)); }
-void c_secret(void) { char k[16]; k[0] = 1; memset_explicit(k, 0, sizeof k); explicit_bzero(k, sizeof k); }
+int c_strl(char * view d) { char b[8] = undefined; size_t n = strlcpy(b, "abc", sizeof b); n += strlcat(b, d, sizeof b); return (int)(n + strlcpy(0, d, 0)); }
+void c_secret(void) { char k[16] = undefined; k[0] = 1; memset_explicit(k, 0, sizeof k); explicit_bzero(k, sizeof k); }
 void c_reallocarray(int * owned maybe p) { int * owned maybe q = reallocarray(move(p), 8, sizeof(int)); if (!q) { free(p); return; } free(q); }
 int c_ckd(int a, int b) { int r; if (ckd_add(&r, a, b) || ckd_mul(&r, r, 2) || ckd_sub(&r, r, 1)) return -1; return r; }
 void t_getline(FILE * view f) { char * owned maybe l = 0; size_t n = 0; while (getline(&l, &n, f) > 0) { } free(l); }
 void t_memalign(void) { void * owned maybe m; if (posix_memalign(&m, 8, 64)) return; free(m); }
 void t_addrinfo(void) { struct addrinfo * owned maybe r; if (getaddrinfo("h", "80", 0, &r)) return; freeaddrinfo(r); }
-void t_regex(void) { regex_t owned(regfree) re; if (regcomp(&re, "a", 0)) return; regexec(&re, "x", 0, 0, 0); regfree(&re); }
-void t_pipe(void) { int owned(close) maybe p[2]; if (pipe(p) < 0) return; close(p[0]); close(p[1]); }
+void t_regex(void) { regex_t owned(regfree) re = undefined; if (regcomp(&re, "a", 0)) return; regexec(&re, "x", 0, 0, 0); regfree(&re); }
+void t_pipe(void) { int owned(close) maybe p[2] = undefined; if (pipe(p) < 0) return; close(p[0]); close(p[1]); }

@@ -33,8 +33,8 @@ int h_strtok(char * view s) { char * view maybe t = strtok(s, " "); return *t; }
 int h_strtok_r(char * view s) { char * view maybe sp = 0; char * view maybe t = strtok_r(s, " ", &sp); return *t; } /* HIT deref */
 int h_getenv(void) { char * view e = getenv("HOME"); return *e; }                          /* HIT store */
 int h_getenv_arg(void) { char * view maybe e = getenv("A"); return getenv(e) != 0; }       /* HIT maybe arg */
-int h_fgets(FILE * view f) { char buf[8]; char * view maybe l = fgets(buf, 8, f); return *l; } /* HIT deref */
-int h_fgets_fp(void) { char buf[8]; FILE * owned maybe f = fopen("x", "r"); int r = fgets(buf, 8, f) != 0; if (f) fclose(f); return r; } /* HIT maybe arg */
+int h_fgets(FILE * view f) { char buf[8] = undefined; char * view maybe l = fgets(buf, 8, f); return *l; } /* HIT deref */
+int h_fgets_fp(void) { char buf[8] = undefined; FILE * owned maybe f = fopen("x", "r"); int r = fgets(buf, 8, f) != 0; if (f) fclose(f); return r; } /* HIT maybe arg */
 int h_readdir(DIR * view d) { struct dirent * view maybe e = readdir(d); return e->d_type; } /* HIT deref */
 int h_localtime(const time_t * view t) { struct tm * view maybe tm = localtime(t); return tm->tm_year; } /* HIT deref */
 int h_gmtime_r(const time_t * view t, struct tm * view res) { struct tm * view r = gmtime_r(t, res); return r != 0; } /* HIT store */
@@ -54,7 +54,7 @@ int h_tmpnam(void) { char * view maybe n = tmpnam(0); return *n; }              
 int n_strtok(void) { return strtok(0, 0) != 0; }                 /* HIT nonnull */
 int n_fopen(void) { FILE * owned maybe f = fopen(0, "r"); if (f) fclose(f); return 0; } /* HIT nonnull */
 int n_printf(void) { return printf(0); }                         /* HIT nonnull */
-int n_snprintf(void) { char b[4]; return snprintf(b, 4, 0); }    /* HIT nonnull */
+int n_snprintf(void) { char b[4] = undefined; return snprintf(b, 4, 0); }    /* HIT nonnull */
 int n_strtol(void) { return (int)strtol(0, 0, 10); }             /* HIT nonnull */
 int n_qsort(int * view a) { qsort(a, 1, 4, 0); return 0; }       /* HIT nonnull */
 int n_localtime(void) { return localtime(0) != 0; }              /* HIT nonnull */
@@ -79,7 +79,7 @@ void t_mkstemp(char * view t) { mkstemp(t); }                                  /
 void t_inotify(void) { int fd = inotify_init(); (void)fd; }                    /* HIT owned result in a plain int */
 int t_inotify_watch(void) { int owned(close) maybe fd = inotify_init1(0); int w = inotify_add_watch(fd, "/", 1); if (fd >= 0) close(fd); return w; } /* HIT maybe handle to int view */
 /* the safe APIs */
-int s_strlcpy_maybe(void) { char b[8]; char * view maybe s = getenv("A"); return (int)strlcpy(b, s, 8); } /* HIT maybe arg */
+int s_strlcpy_maybe(void) { char b[8] = undefined; char * view maybe s = getenv("A"); return (int)strlcpy(b, s, 8); } /* HIT maybe arg */
 int s_strlcat_maybe(char * view d) { return (int)strlcat(d, getenv("A"), 8); }  /* HIT maybe arg */
 void * borrows(static) maybe s_memset_explicit(char * view b) { return memset_explicit(b, 0, 4); } /* HIT borrows(s) */
 void s_reallocarray_back(int * owned maybe p) { p = reallocarray(move(p), 4, 4); free(p); } /* HIT takes(p): p may leak */
@@ -93,6 +93,6 @@ int h_assert_off(char * view maybe p) { assert(p); return *p; }                /
 int h_assert_on(char * view maybe p) { assert(p != 0); return *p; }
 void t_getline_leak(FILE * view f) { char * owned maybe l = 0; size_t n = 0; getline(&l, &n, f); }            /* HIT out-param: l still owns the buffer */
 void t_memalign_twice(void) { void * owned maybe m = 0; if (posix_memalign(&m, 8, 8)) return; if (posix_memalign(&m, 8, 16)) return; free(m); } /* HIT out: m overwritten */
-void t_regex_leak(void) { regex_t owned(regfree) re; if (regcomp(&re, "a", 0)) return; regexec(&re, "x", 0, 0, 0); } /* HIT re never released */
-void t_regex_plain(void) { regex_t re; regcomp(&re, "a", 0); }                        /* HIT not declared owned */
-void t_pipe_half(void) { int owned(close) maybe p[2]; if (pipe(p) < 0) return; close(p[0]); } /* HIT p[1] leaks */
+void t_regex_leak(void) { regex_t owned(regfree) re = undefined; if (regcomp(&re, "a", 0)) return; regexec(&re, "x", 0, 0, 0); } /* HIT re never released */
+void t_regex_plain(void) { regex_t re = undefined; regcomp(&re, "a", 0); }                        /* HIT not declared owned */
+void t_pipe_half(void) { int owned(close) maybe p[2] = undefined; if (pipe(p) < 0) return; close(p[0]); } /* HIT p[1] leaks */

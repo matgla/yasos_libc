@@ -30,7 +30,7 @@
 #pragma yasc
 
 struct group * borrows(static) maybe getgrgid(gid_t gid);
-struct group * borrows(static) maybe getgrnam(const char * view name) __yl_nonnull(1);
+struct group * borrows(static) maybe getgrnam(const char * view name);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_GRP_H */

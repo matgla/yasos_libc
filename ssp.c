@@ -29,9 +29,11 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "internal/compiler_rt.h"
+
 uintptr_t __stack_chk_guard = 0xff0a0d00u;
 
-void __stack_chk_init(void *seed)
+void __stack_chk_init(void *RT_VIEW seed)
 {
   struct timespec ts = {0, 0};
   uintptr_t g = __stack_chk_guard;

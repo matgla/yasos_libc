@@ -134,3 +134,18 @@ ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) __yl_no
 void clearerr(FILE *fp) __yl_nonnull(1);
 
 int remove(const char *pathname) __yl_nonnull(1);
+/* _FORTIFY_SOURCE (sys/_fortify.h): the printf functions that know their
+   destination's size, and the checking functions they call when the compiler
+   cannot prove the output fits (fortify.c; glibc's names and arguments) */
+#include <sys/_fortify.h>
+#ifdef __YL_FORTIFY
+int __sprintf_chk(char *dst, int flag, size_t dstlen, const char *fmt, ...);
+int __snprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *fmt, ...);
+int __vsprintf_chk(char *dst, int flag, size_t dstlen, const char *fmt, va_list ap);
+int __vsnprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *fmt, va_list ap);
+
+#define sprintf(d, ...) __builtin___sprintf_chk(d, __yl_fortify_flag, __yl_bos(d), __VA_ARGS__)
+#define snprintf(d, n, ...) __builtin___snprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), __VA_ARGS__)
+#define vsprintf(d, f, ap) __builtin___vsprintf_chk(d, __yl_fortify_flag, __yl_bos(d), f, ap)
+#define vsnprintf(d, n, f, ap) __builtin___vsnprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), f, ap)
+#endif

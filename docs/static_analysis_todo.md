@@ -23,9 +23,10 @@ Rules:
   say goes into `sys/yasc/<header>.h`, which the header includes before its
   own prototypes; under `__YASC__` that file says `#pragma yasc` (yasc to its
   end, the includer stays C) and declares the functions again. tcc keeps the
-  first declaration, so the yasc one repeats the nonnull attributes. Every
+  first declaration's qualifiers (nonnull it merges from all of them). Every
   pointer there says `view` or `owned`, `maybe` where null is allowed: a
-  parameter without `maybe` is nonnull to the flow checks too. Don't
+  parameter without `maybe` is nonnull to the flow checks, so the yasc
+  declarations carry no `__yl_nonnull`. Don't
   redeclare there a function that carries `__yl_malloc` / `__yl_dealloc`, nor
   a deallocator: the first declaration would drop the attribute's effect.
   Regular C (`-ccompat`, gcc, host builds) sees exactly the C prototypes:

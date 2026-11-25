@@ -35,6 +35,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "internal/compiler_rt.h"
+
 struct ubsan_loc
 {
   const char *file;
@@ -219,32 +221,32 @@ static void ub_arith(struct ubsan_overflow *d, uintptr_t a, uintptr_t b, const c
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_add_overflow(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_add_overflow(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_arith(d, a, b, " + ", 0);
 }
 
-void __ubsan_handle_add_overflow_abort(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_add_overflow_abort(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_arith(d, a, b, " + ", 1);
 }
 
-void __ubsan_handle_sub_overflow(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_sub_overflow(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_arith(d, a, b, " - ", 0);
 }
 
-void __ubsan_handle_sub_overflow_abort(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_sub_overflow_abort(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_arith(d, a, b, " - ", 1);
 }
 
-void __ubsan_handle_mul_overflow(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_mul_overflow(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_arith(d, a, b, " * ", 0);
 }
 
-void __ubsan_handle_mul_overflow_abort(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_mul_overflow_abort(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_arith(d, a, b, " * ", 1);
 }
@@ -263,12 +265,12 @@ static void ub_negate(struct ubsan_overflow *d, uintptr_t a, int abort_)
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_negate_overflow(struct ubsan_overflow *d, uintptr_t a)
+void __ubsan_handle_negate_overflow(struct ubsan_overflow *RT_VIEW d, uintptr_t a)
 {
   ub_negate(d, a, 0);
 }
 
-void __ubsan_handle_negate_overflow_abort(struct ubsan_overflow *d, uintptr_t a)
+void __ubsan_handle_negate_overflow_abort(struct ubsan_overflow *RT_VIEW d, uintptr_t a)
 {
   ub_negate(d, a, 1);
 }
@@ -292,12 +294,12 @@ static void ub_divrem(struct ubsan_overflow *d, uintptr_t a, uintptr_t b, int ab
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_divrem_overflow(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_divrem_overflow(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_divrem(d, a, b, 0);
 }
 
-void __ubsan_handle_divrem_overflow_abort(struct ubsan_overflow *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_divrem_overflow_abort(struct ubsan_overflow *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_divrem(d, a, b, 1);
 }
@@ -339,12 +341,12 @@ static void ub_shift(struct ubsan_shift *d, uintptr_t a, uintptr_t b, int abort_
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_shift_out_of_bounds(struct ubsan_shift *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_shift_out_of_bounds(struct ubsan_shift *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_shift(d, a, b, 0);
 }
 
-void __ubsan_handle_shift_out_of_bounds_abort(struct ubsan_shift *d, uintptr_t a, uintptr_t b)
+void __ubsan_handle_shift_out_of_bounds_abort(struct ubsan_shift *RT_VIEW d, uintptr_t a, uintptr_t b)
 {
   ub_shift(d, a, b, 1);
 }
@@ -385,12 +387,12 @@ static void ub_mismatch(struct ubsan_mismatch *d, uintptr_t p, int abort_)
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_type_mismatch_v1(struct ubsan_mismatch *d, uintptr_t p)
+void __ubsan_handle_type_mismatch_v1(struct ubsan_mismatch *RT_VIEW d, uintptr_t p)
 {
   ub_mismatch(d, p, 0);
 }
 
-void __ubsan_handle_type_mismatch_v1_abort(struct ubsan_mismatch *d, uintptr_t p)
+void __ubsan_handle_type_mismatch_v1_abort(struct ubsan_mismatch *RT_VIEW d, uintptr_t p)
 {
   ub_mismatch(d, p, 1);
 }
@@ -405,12 +407,12 @@ static void ub_vla(struct ubsan_vla *d, uintptr_t v, int abort_)
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_vla_bound_not_positive(struct ubsan_vla *d, uintptr_t v)
+void __ubsan_handle_vla_bound_not_positive(struct ubsan_vla *RT_VIEW d, uintptr_t v)
 {
   ub_vla(d, v, 0);
 }
 
-void __ubsan_handle_vla_bound_not_positive_abort(struct ubsan_vla *d, uintptr_t v)
+void __ubsan_handle_vla_bound_not_positive_abort(struct ubsan_vla *RT_VIEW d, uintptr_t v)
 {
   ub_vla(d, v, 1);
 }
@@ -427,12 +429,28 @@ static void ub_oob(struct ubsan_oob *d, uintptr_t i, int abort_)
   ub_end(&o, abort_);
 }
 
-void __ubsan_handle_out_of_bounds(struct ubsan_oob *d, uintptr_t i)
+void __ubsan_handle_out_of_bounds(struct ubsan_oob *RT_VIEW d, uintptr_t i)
 {
   ub_oob(d, i, 0);
 }
 
-void __ubsan_handle_out_of_bounds_abort(struct ubsan_oob *d, uintptr_t i)
+void __ubsan_handle_out_of_bounds_abort(struct ubsan_oob *RT_VIEW d, uintptr_t i)
 {
   ub_oob(d, i, 1);
+}
+
+struct ubsan_unreachable
+{
+  struct ubsan_loc loc;
+};
+
+/* __builtin_unreachable() under -fsanitize=unreachable, and yasc's
+   `unreachable` with it in handler mode: always fatal -- clang has no _abort
+   variant, and the code after the call is the compiler's trap */
+void __ubsan_handle_builtin_unreachable(struct ubsan_unreachable *RT_VIEW d)
+{
+  struct ubsan_out o;
+  ub_begin(&o, &d->loc, 1);
+  ub_str(&o, "execution reached an unreachable program point");
+  ub_end(&o, 1);
 }

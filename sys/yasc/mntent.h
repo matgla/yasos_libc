@@ -29,9 +29,9 @@
 #pragma yasc
 
 /* null at the end of the table */
-struct mntent * borrows(static) maybe getmntent(FILE * view stream) __yl_nonnull(1);
+struct mntent * borrows(static) maybe getmntent(inout FILE * view stream);
 /* where OPT starts in mnt_opts, or null when it is not there */
-char * borrows(mnt) maybe hasmntopt(const struct mntent * view mnt, const char * view opt) __yl_nonnull(1, 2);
+char * borrows(mnt) maybe hasmntopt(const struct mntent * view mnt, const char * view opt);
 #endif /* __YASC__ */
 
 #endif /* _SYS_YASC_MNTENT_H */

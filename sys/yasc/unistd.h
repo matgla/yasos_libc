@@ -33,7 +33,7 @@
 /* an invalid handle is fine (EBADF), as free(NULL) is */
 int close(int drop owned(close) maybe fd);
 /* buf may be null with n == 0 */
-ssize_t read(int view fd, void * view maybe buf, size_t n);
+ssize_t read(int view fd, out void * view maybe buf, size_t n);
 ssize_t write(int view fd, const void * view maybe buf, size_t n);
 int owned(close) maybe dup(int view fd);
 /* both written on success (0) only */
