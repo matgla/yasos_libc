@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/pwd.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/pwd.h"
+#else
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33,8 +38,6 @@ typedef struct passwd {
   char *pw_shell;  /* shell program */
 } passwd;
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/pwd.h>
 
 struct passwd *getpwnam(const char *name) __yl_nonnull(1);
 struct passwd *getpwuid(uid_t uid);
@@ -43,3 +46,4 @@ int getpwnam_r(const char *name, struct passwd *pwd, char *buf, size_t size,
                struct passwd **result);
 int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t size,
                struct passwd **result);
+#endif /* __YASC__ */

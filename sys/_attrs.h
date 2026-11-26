@@ -28,19 +28,16 @@
  * see nothing.  Its own names (__yl_*), so it never clashes with the
  * <sys/cdefs.h> of a host libc.
  *
- * What GCC attributes cannot say -- a result that may be null (yasc `maybe`)
- * -- is in sys/yasc/<header>.h: the header includes it before its own
- * prototypes, and in a yasc unit (__YASC__) it says `#pragma yasc` and
- * declares those functions again with yasc qualifiers.  It has to be a file
- * of its own: a header is regular C, where the yasc words are identifiers,
- * also in the expansion of its macros, and the pragma lasts to the end of
- * the file that says it (the file that included it stays C).  tcc keeps the
- * first declaration's yasc qualifiers (nonnull it takes from every
- * declaration, as GCC does).  There every pointer says `view` (or `owned`),
- * and `maybe` where null is allowed: a parameter without `maybe` is nonnull,
- * so a null or maybe-null argument is an error -- no __yl_nonnull there,
- * it would only repeat that.  Regular C (-ccompat, gcc, clang) never
- * sees any of it. */
+ * What GCC attributes cannot say -- a result that may be null (yasc `maybe`),
+ * where a result points (`borrows`) -- is said once, in yasc: a header with
+ * yasc declarations is written in yasc/<header>, and the C <header> is
+ * written from it by `tcc -yasc-c-header` (`make headers`; tinycc
+ * docs/yasc_c_headers.md).  A yasc unit (__YASC__) reads the yasc header,
+ * everything else the C one, where the yasc words are gone and `owned(D)`
+ * reads __yl_dealloc(D, n).  A yasc parameter without `maybe` must not get
+ * null from a yasc caller; __yl_nonnull is still written by hand, only where
+ * null is undefined (getline and posix_memalign check it: EINVAL).  Parts
+ * nobody annotated yet stay regular C in `#pragma tcc c_begin` / `c_end`. */
 
 #ifndef _SYS__ATTRS_H
 #define _SYS__ATTRS_H
@@ -56,11 +53,14 @@
    (sys/_fortify.h) read of a block from it.  tcc knows malloc, calloc,
    realloc, aligned_alloc and memalign by name as well; gcc and clang need it */
 #define __yl_alloc_size(...) __attribute__((__alloc_size__(__VA_ARGS__)))
+/* never returns (C11 _Noreturn, for C99 and the declarations' own place) */
+#define __yl_noreturn __attribute__((__noreturn__))
 #else
 #define __yl_malloc
 #define __yl_nonnull(...)
 #define __yl_returns_nonnull
 #define __yl_alloc_size(...)
+#define __yl_noreturn
 #endif
 
 /* An allocator whose result DEALLOC's argument ARG releases (GCC 11's
@@ -86,10 +86,10 @@
 /* A struct member's pointer, after its declarator (`ssize_t *result
  * __yl_view;`): yasc code reads it as `view` -- borrowed, never freed through
  * the struct, not null -- or with __yl_view_maybe `view maybe`, instead of a
- * pointer from regular C, which it dereferences only inside `unsafe`.  The
- * struct is defined once, here in regular C: a yasc copy of it in
- * sys/yasc/<header>.h would be a second definition.  Only a tcc that knows the
- * attributes (__has_attribute): an older one, gcc and clang see nothing. */
+ * pointer from regular C, which it dereferences only inside `unsafe`.  A
+ * struct defined in a yasc header says `view` itself, and its C header gets
+ * these.  Only a tcc that knows the attributes (__has_attribute): an older
+ * one, gcc and clang see nothing. */
 #if defined(__TINYC__) && defined(__has_attribute)
 #if __has_attribute(__yasc_view__)
 #define __yl_view __attribute__((__yasc_view__))

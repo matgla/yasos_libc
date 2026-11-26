@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/fcntl.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/fcntl.h"
+#else
 // Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
 // Please check the LICENSE file for copying conditions.
 // Modified by:
@@ -62,14 +67,13 @@
 /* unlinkat(2): remove a directory (rmdir); without it a directory is EISDIR. */
 #define AT_REMOVEDIR 0x200
 
-/* yasc's reading: owned handles (sys/_attrs.h) */
-#include <sys/yasc/fcntl.h>
 
 int open(const char *path, int flags, ...) __yl_nonnull(1);
 int creat(const char *path, int mode) __yl_nonnull(1);
 
 int fcntl(int fd, int cmd, ...);
 
+/* dirfd may be AT_FDCWD */
 int openat(int dirfd, const char *pathname, int flags, ...) __yl_nonnull(2);
 
 /* pid_t / off_t now live in <sys/types.h> (included above). */
@@ -82,3 +86,4 @@ struct flock {
 };
 
 
+#endif /* __YASC__ */

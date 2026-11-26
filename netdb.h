@@ -1,3 +1,9 @@
+/* Written by `tcc -yasc-c-header` from yasc/netdb.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/netdb.h"
+#else
+#include <sys/_attrs.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -35,12 +41,11 @@ struct addrinfo {
 
 #define AI_PASSIVE 0x0001
 
-/* yasc's reading: where the result points (sys/_attrs.h) */
-#include <sys/yasc/netdb.h>
 
-int getaddrinfo(const char *node, const char *service,
-                const struct addrinfo *hints, struct addrinfo **res);
-
+int getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
+                struct addrinfo **res);
+/* the list is written on success (0) only; freeaddrinfo releases it */
 void freeaddrinfo(struct addrinfo *res);
-
+/* a fixed message, never null */
 const char *gai_strerror(int errcode);
+#endif /* __YASC__ */

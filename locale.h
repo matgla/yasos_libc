@@ -1,3 +1,9 @@
+/* Written by `tcc -yasc-c-header` from yasc/locale.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/locale.h"
+#else
+#include <sys/_attrs.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,9 +28,9 @@
 
 typedef unsigned char locale_t;
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/locale.h>
 
+/* null when the locale is not available (this libc has only "C", but code
+   written for any libc tests it); LOCALE null queries the current one */
 char *setlocale(int category, const char *locale);
 locale_t uselocale(locale_t locale);
 locale_t newlocale(int category_mask, const char *locale, locale_t base);
@@ -44,3 +50,4 @@ void freelocale(locale_t locobj);
 #define LC_MESSAGES_MASK (1 << LC_MESSAGES)
 
 #define LC_ALL 6
+#endif /* __YASC__ */

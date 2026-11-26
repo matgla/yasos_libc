@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/stdio.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/stdio.h"
+#else
 // Copyright (C) 2010-2020 Ali Gholami Rudi <ali at rudi dot ir>
 // Please check the LICENSE file for copying conditions.
 // Modified by:
@@ -61,8 +66,6 @@ extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/stdio.h>
 
 /* fclose first: fopen names it as its deallocator (sys/_attrs.h) */
 int fclose(FILE *fp);
@@ -74,6 +77,7 @@ int fflush(FILE *fp);
 void setbuf(FILE *fp, char *buf) __yl_nonnull(1);
 
 FILE *tmpfile(void) __yl_dealloc(fclose, 1);
+/* BUFFER or a static one; null when no name is left */
 char *tmpnam(char *buffer);
 int fputc(int c, FILE *fp) __yl_nonnull(2);
 int putchar(int c);
@@ -98,6 +102,7 @@ int fsetpos(FILE *fp, const fpos_t *pos) __yl_nonnull(1, 2);
 FILE *popen(const char *command, const char *type) __yl_dealloc(pclose, 1) __yl_nonnull(1, 2);
 
 int fgetc(FILE *fp) __yl_nonnull(1);
+/* S, or null at the end of the input or on an error */
 char *fgets(char *s, int sz, FILE *fp) __yl_nonnull(1, 3);
 int scanf(const char *fmt, ...) __yl_nonnull(1);
 int fscanf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
@@ -112,6 +117,8 @@ int feof(FILE *fp) __yl_nonnull(1);
 
 void perror(const char *s);
 
+/* the line buffer is the caller's before and after (the callee may replace
+   it), and must be freed even after -1 */
 ssize_t getline(char **lineptr, size_t *n, FILE *fp) __yl_nonnull(3);
 int setvbuf(FILE *fp, char *buf, int mode, size_t size) __yl_nonnull(1);
 int dprintf(int fildes, const char *format, ...) __yl_nonnull(2);
@@ -128,9 +135,11 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
 #define RENAME_NOREPLACE (1 << 0)
 #define RENAME_EXCHANGE (1 << 1)
 #define RENAME_WHITEOUT (1 << 2)
-FILE *fdopen(int fd, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(2);
+/* the stream takes the descriptor over; null: fd is still the caller's */
+FILE *fdopen(int fd, const char *mode) __yl_nonnull(2) __yl_dealloc(fclose, 1);
 FILE *fmemopen(void *buf, size_t size, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(3);
-ssize_t getdelim(char **lineptr, size_t *n, int delimiter, FILE *stream) __yl_nonnull(4);
+ssize_t getdelim(char **lineptr, size_t *n, int delimiter,
+                 FILE *stream) __yl_nonnull(4);
 void clearerr(FILE *fp) __yl_nonnull(1);
 
 int remove(const char *pathname) __yl_nonnull(1);
@@ -149,3 +158,4 @@ int __vsnprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *f
 #define vsprintf(d, f, ap) __builtin___vsprintf_chk(d, __yl_fortify_flag, __yl_bos(d), f, ap)
 #define vsnprintf(d, n, f, ap) __builtin___vsnprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), f, ap)
 #endif
+#endif /* __YASC__ */

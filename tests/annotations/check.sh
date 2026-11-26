@@ -1,5 +1,5 @@
 #!/bin/sh
-# The header annotations (sys/_attrs.h, sys/yasc/) checked with tcc: every line
+# The header annotations (sys/_attrs.h, the yasc/ headers) checked with tcc: every line
 # marked HIT warns and no other line does, in yasc and in regular C.
 #
 #   tests/annotations/check.sh [path/to/armv8m-tcc]   (default: libs/tinycc's)

@@ -1,4 +1,7 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#include <sys/_attrs.h>
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,20 +21,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <dlfcn.h> (how and why: sys/_attrs.h). */
+#pragma once
 
-#ifndef _SYS_YASC_DLFCN_H
-#define _SYS_YASC_DLFCN_H
+typedef unsigned char locale_t;
 
-#include <sys/_attrs.h>
 
-#ifdef __YASC__
-#pragma yasc
+#pragma tcc c_end
+/* null when the locale is not available (this libc has only "C", but code
+   written for any libc tests it); LOCALE null queries the current one */
+char * borrows(static) maybe setlocale(int category, const char * view maybe locale);
+#pragma tcc c_begin
+locale_t uselocale(locale_t locale);
+locale_t newlocale(int category_mask, const char *locale, locale_t base);
+void freelocale(locale_t locobj);
 
-/* null when the symbol is not found; HANDLE may be RTLD_DEFAULT (null) */
-void * borrows(static) maybe dlsym(inout void * view maybe handle, const char * view name);
-/* null when no error happened since the last call */
-char * borrows(static) maybe dlerror(void);
-#endif /* __YASC__ */
+#define LC_CTYPE 1
+#define LC_CTYPE_MASK (1 << LC_CTYPE)
+#define LC_NUMERIC 0
+#define LC_NUMERIC_MASK (1 << LC_NUMERIC)
+#define LC_TIME 2
+#define LC_TIME_MASK (1 << LC_TIME)
+#define LC_COLLATE 3
+#define LC_COLLATE_MASK (1 << LC_COLLATE)
+#define LC_MONETARY 4
+#define LC_MONETARY_MASK (1 << LC_MONETARY)
+#define LC_MESSAGES 5
+#define LC_MESSAGES_MASK (1 << LC_MESSAGES)
 
-#endif /* _SYS_YASC_DLFCN_H */
+#define LC_ALL 6
+#pragma tcc c_end

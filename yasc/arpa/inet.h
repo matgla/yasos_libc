@@ -1,4 +1,7 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#include <sys/_attrs.h>
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +21,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <libgen.h> (how and why: sys/_attrs.h): both may
- * modify PATH and return a pointer into it, or a static ".". */
+#pragma once
 
-#ifndef _SYS_YASC_LIBGEN_H
-#define _SYS_YASC_LIBGEN_H
+#include <sys/socket.h>
 
-#include <sys/_attrs.h>
+unsigned int htonl(unsigned int n);
+unsigned int ntohl(unsigned int n);
+unsigned short htons(unsigned short n);
+unsigned short ntohs(unsigned short n);
 
-#ifdef __YASC__
-#pragma yasc
-
-/* never null: "." for a null or empty PATH; PATH's NUL is inside the buffer
-   the caller names (tcc checks each call) */
-char * borrows(static, path) dirname(inout char path[maybe :0]);
-char * borrows(static, path) basename(inout char path[maybe :0]);
-#endif /* __YASC__ */
-
-#endif /* _SYS_YASC_LIBGEN_H */
+#pragma tcc c_end
+/* DST, or null when AF is unknown or SIZE too small */
+const char * borrows(dst) maybe inet_ntop(int af, const void * view src, out char * view dst, socklen_t size);

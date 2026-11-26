@@ -1,4 +1,6 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +20,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <arpa/inet.h> (how and why: sys/_attrs.h) */
+#pragma once
 
-#ifndef _SYS_YASC_INET_H
-#define _SYS_YASC_INET_H
-
+#include <sys/types.h>
 #include <sys/_attrs.h>
 
-#ifdef __YASC__
-#pragma yasc
+struct group {
+  char *gr_name;   /* group name */
+  char *gr_passwd; /* group password */
+  gid_t gr_gid;    /* group ID */
+  char **gr_mem;   /* NULL-terminated array of pointers
+                      to names of group members */
+};
 
-/* DST, or null when AF is unknown or SIZE too small */
-const char * borrows(dst) maybe inet_ntop(int af, const void * view src, out char * view dst, socklen_t size);
-#endif /* __YASC__ */
 
-#endif /* _SYS_YASC_INET_H */
+#pragma tcc c_end
+struct group * borrows(static) maybe getgrgid(gid_t gid);
+#pragma tcc c_begin
+int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
+               struct group **result);
+
+#pragma tcc c_end
+struct group * borrows(static) maybe getgrnam(const char * view name) __yl_nonnull(1);
+#pragma tcc c_begin
+int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
+               struct group **result);
+
+int initgroups(const char *user, gid_t group) __yl_nonnull(1);
+#pragma tcc c_end

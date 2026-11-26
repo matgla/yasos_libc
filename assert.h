@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/assert.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/assert.h"
+#else
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,16 +31,12 @@
 #define _ASSERT_H_DECLS
 
 #include <stdbool.h>
+#include <sys/_attrs.h>
 
 /* Prints "FILE:LINE: FUNC: Assertion `EXPR' failed." to the standard error
    and abort()s. */
-#if defined(__GNUC__) || defined(__TINYC__)
-__attribute__((__noreturn__))
-#endif
-void __assert_fail(const char *expr, const char *file, unsigned int line, const char *func);
-
-/* yasc's reading of it (sys/_attrs.h) */
-#include <sys/yasc/assert.h>
+__yl_noreturn void __assert_fail(const char *expr, const char *file, unsigned int line,
+                                 const char *func);
 
 /* C11 spells it _Static_assert and leaves the short name to this header; C23
    and C++ make static_assert a keyword of their own. */
@@ -55,3 +56,4 @@ void __assert_fail(const char *expr, const char *file, unsigned int line, const 
 #define assert(...)                                                            \
   ((__VA_ARGS__) ? (void)0 : __assert_fail(#__VA_ARGS__, __FILE__, __LINE__, __func__))
 #endif
+#endif /* __YASC__ */

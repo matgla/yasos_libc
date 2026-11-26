@@ -19,18 +19,19 @@ Rules:
   it only for what it implements, `decl/attribute.c`), never a raw spelling.
   `sys/cdefs.h`'s `__printflike` / `__scanflike` are gated that way (0fd98e2).
 - yasc qualifiers cannot be written in a regular-C header: its yasc words are
-  identifiers there, also in the expansion of its macros. What only yasc can
-  say goes into `sys/yasc/<header>.h`, which the header includes before its
-  own prototypes; under `__YASC__` that file says `#pragma yasc` (yasc to its
-  end, the includer stays C) and declares the functions again. tcc keeps the
-  first declaration's qualifiers (nonnull it merges from all of them). Every
-  pointer there says `view` or `owned`, `maybe` where null is allowed: a
-  parameter without `maybe` is nonnull to the flow checks, so the yasc
-  declarations carry no `__yl_nonnull`. Don't
-  redeclare there a function that carries `__yl_malloc` / `__yl_dealloc`, nor
-  a deallocator: the first declaration would drop the attribute's effect.
-  Regular C (`-ccompat`, gcc, host builds) sees exactly the C prototypes:
-  libc's objects stay byte-identical.
+  identifiers there, also in the expansion of its macros. Since 2026-11-26 a
+  header with yasc declarations is written in yasc, `yasc/<header>`, and the C
+  `<header>` is written from it (`make headers`, tinycc's `-yasc-c-header`);
+  each function is declared once. Until then what only yasc can say went into
+  a `sys/yasc/<header>.h` twin, which drifted from the C declarations. Every
+  pointer in a yasc declaration says `view` or `owned`, `maybe` where null is
+  allowed: a parameter without `maybe` is nonnull to the flow checks. Its
+  `__yl_nonnull` / `__yl_returns_nonnull` (for C) are still written by hand:
+  `view` is the yasc caller's rule, C's nonnull says null is undefined (the
+  next point). `owned(D)` gives the C header `__yl_dealloc(D, n)`. Parts not
+  annotated yet stay regular C between `#pragma tcc c_begin` and `c_end`.
+  Regular C (`-ccompat`, gcc, host builds) sees the same C prototypes as
+  before.
 - nonnull only where C or POSIX leave null undefined -- not where it is
   defined (free, fflush, setvbuf's buffer, time, perror, system, getcwd,
   realpath's buffer and path, setenv/unsetenv (EINVAL), getline's lineptr
@@ -75,7 +76,7 @@ Rules:
   - time.h's `time_t` / `struct tm` pointers, `strftime`'s format,
     `strptime`, `nanosleep`'s request; `readdir`, `getmntent`/`addmntent`/
     `hasmntopt`, `dlsym`'s name, `getpwnam`, `getgrnam`, `initgroups`.
-- [x] **`maybe` results** (e0b04d4, `sys/yasc/`), `view maybe`: `strchr`,
+- [x] **`maybe` results** (e0b04d4, `yasc/`), `view maybe`: `strchr`,
   `strrchr`, `strstr`, `strpbrk`, `memchr` (and `__memchr_c`), `memrchr`,
   `strtok`, `strtok_r`, `getenv`, `bsearch`, `mkdtemp`, `fgets`, `tmpnam`,
   `readdir`, `localtime(_r)`, `gmtime(_r)`, `ctime(_r)`, `strptime`,
@@ -130,7 +131,7 @@ Rules:
     after its definition is reported by gcc, not by tcc; strings.h and
     string.h both say `strcasecmp`'s. [tcc]
   - [ ] a maybe value for a `nonnull` parameter of a regular-C declaration is
-    not reported (only a null constant); the `sys/yasc/` functions get it from
+    not reported (only a null constant); the `yasc/` functions get it from
     their non-maybe parameters. [tcc: nonnull = not maybe in the flow check]
 - [ ] **`warn_unused_result` / `[[nodiscard]]`**: `realloc`, `mkstemp`, `dup`,
   `pipe`, `fork`, `setuid`, `chdir`, `read`, `write`, `fgets`, `fread`, and
@@ -140,7 +141,7 @@ Rules:
 - [ ] **`alloc_size`**: `malloc` (`alloc_size(1)`), `calloc` (`(1, 2)`),
   `realloc` (`(2)`), `aligned_alloc`, `memalign`. [tcc
   `__builtin_object_size`]
-- [ ] **`deprecated`** in yasc only -- in the `sys/yasc/` files, so regular C
+- [ ] **`deprecated`** in yasc only -- in the `yasc/` files, so regular C
   never sees it:
   - `tmpnam` (race; use `mkstemp`)
   - `sprintf`/`vsprintf` (use `snprintf`)
@@ -156,17 +157,17 @@ Rules:
   (above, wrongly for a non-const argument); a header `_Generic` would be
   regular C and drop the yasc declaration's `maybe`. [tcc builtin fix first]
 
-## P1: yasc ownership signatures (`sys/yasc/`)
+## P1: yasc ownership signatures (`yasc/`)
 
 A pointer declared in regular C is *unchecked* from yasc (no diagnostics;
 tinycc `docs/yasc_modules.md`, "Legacy C"), so a libc function is checked
-only as far as its attributes or its `sys/yasc/` declaration say.
+only as far as its attributes or its `yasc/` declaration say.
 
 - [x] Wrong deallocator (`free(f)` on a FILE): tcc maps the existing
   `malloc(fclose, 1)` (`__yl_dealloc`) to `owned(fclose)`, so libc needed
   nothing: "'f' is released by fclose, not free" (2026-11-20).
 - [x] `realloc`: `void * owned(free) maybe takes(v) realloc(...)` in
-  `sys/yasc/stdlib.h`; `fdopen` takes its fd the same way (`sys/yasc/stdio.h`)
+  `yasc/stdlib.h`; `fdopen` takes its fd the same way (`yasc/stdio.h`)
   (2026-11-20).
 - [x] (2026-11-20) Results that point into an argument: `borrows(s)` on
   `strchr`, `strrchr`, `strstr`, `strpbrk`, `memchr`, `memrchr`, `strtok_r`,
@@ -214,7 +215,7 @@ only as far as its attributes or its `sys/yasc/` declaration say.
   view res`) with `freeaddrinfo` its drop.  tcc follows `&v` passed to such a
   parameter and reads a status result's test (0 / >= 0 success).
   - Done later the same day: `regcomp`/`regexec`/`regfree` (`regex_t
-    owned(regfree)`, an object owned as a whole: sys/yasc/regex.h) and
+    owned(regfree)`, an object owned as a whole: yasc/regex.h) and
     `pipe`/`pipe2` (`out int owned(close) maybe * view fds`: both written on
     0, followed in a local `int owned(close) maybe p[2]`).
   - Still to do: `asprintf`/`vasprintf` and `scandir` do not exist here;
@@ -248,8 +249,8 @@ only as far as its attributes or its `sys/yasc/` declaration say.
   zig.h), so the header tests `__TINYC__`/`__GNUC__`, and other compilers
   get an `#error`. Host tests run gcc's builtins; tcc's are its own tests'.
 
-Each new one gets its attributes (and a `sys/yasc/` declaration where it
-returns a pointer that may be null) when it is added; host tests in
+Each new one gets its attributes (and its yasc declaration in `yasc/<header>`
+where it returns a pointer that may be null) when it is added; host tests in
 `tests/safe_api_tests.c`.
 
 ## P2: runtime hardening

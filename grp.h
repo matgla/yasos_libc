@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/grp.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/grp.h"
+#else
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,8 +36,6 @@ struct group {
                       to names of group members */
 };
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/grp.h>
 
 struct group *getgrgid(gid_t gid);
 int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
@@ -43,3 +46,4 @@ int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
                struct group **result);
 
 int initgroups(const char *user, gid_t group) __yl_nonnull(1);
+#endif /* __YASC__ */

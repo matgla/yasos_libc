@@ -1,3 +1,9 @@
+/* Written by `tcc -yasc-c-header` from yasc/langinfo.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/langinfo.h"
+#else
+#include <sys/_attrs.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -81,8 +87,7 @@
 #define ERA_D_T_FMT 54
 #define ERA_T_FMT 55
 
-/* yasc's reading: where the result points (sys/_attrs.h) */
-#include <sys/yasc/langinfo.h>
 
 char *nl_langinfo(nl_item item);
 char *nl_langinfo_l(nl_item item, locale_t locale);
+#endif /* __YASC__ */

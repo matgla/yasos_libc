@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/sys/inotify.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "../yasc/sys/inotify.h"
+#else
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,8 +30,6 @@
 #include <sys/xattr.h>
 #include <sys/_attrs.h>
 
-/* yasc's reading: an owned handle (sys/_attrs.h) */
-#include <sys/yasc/inotify.h>
 
 int inotify_init(void);
 int inotify_init1(int flags);
@@ -53,3 +56,4 @@ struct inotify_event {
   uint32_t len;    /* Size of name field */
   char name[];     /* Optional null-terminated name */
 };
+#endif /* __YASC__ */

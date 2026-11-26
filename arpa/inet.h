@@ -1,3 +1,9 @@
+/* Written by `tcc -yasc-c-header` from yasc/arpa/inet.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "../yasc/arpa/inet.h"
+#else
+#include <sys/_attrs.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,7 +32,7 @@ unsigned int htonl(unsigned int n);
 unsigned int ntohl(unsigned int n);
 unsigned short htons(unsigned short n);
 unsigned short ntohs(unsigned short n);
-/* yasc's reading: where the result points (sys/_attrs.h) */
-#include <sys/yasc/inet.h>
 
+/* DST, or null when AF is unknown or SIZE too small */
 const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+#endif /* __YASC__ */

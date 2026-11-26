@@ -1,3 +1,9 @@
+/* Written by `tcc -yasc-c-header` from yasc/regex.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/regex.h"
+#else
+#include <sys/_attrs.h>
 #pragma once
 
 /* POSIX <regex.h>. The engine is musl's (TRE by Ville Laurikari): regcomp.c,
@@ -46,12 +52,11 @@ typedef struct {
 
 #define REG_ENOSYS -1
 
-/* yasc's reading: a compiled pattern is an owned object (sys/_attrs.h) */
-#include <sys/yasc/regex.h>
 
-int regcomp(regex_t *__restrict preg, const char *__restrict regex, int cflags);
-int regexec(const regex_t *__restrict preg, const char *__restrict string, size_t nmatch,
-            regmatch_t *__restrict pmatch, int eflags);
+int regcomp(regex_t *preg, const char *regex, int cflags);
+int regexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t *pmatch,
+            int eflags);
 void regfree(regex_t *preg);
 size_t regerror(int errcode, const regex_t *__restrict preg, char *__restrict errbuf,
                 size_t errbuf_size);
+#endif /* __YASC__ */

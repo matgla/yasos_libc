@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/mntent.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/mntent.h"
+#else
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -43,12 +48,13 @@ struct mntent {
   int mnt_passno;   /* Pass number for fsck */
 };
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/mntent.h>
 
 /* endmntent first: setmntent names it as its deallocator (sys/_attrs.h) */
 int endmntent(FILE *streamp);
 FILE *setmntent(const char *filename, const char *type) __yl_dealloc(endmntent, 1) __yl_nonnull(1, 2);
+/* null at the end of the table */
 struct mntent *getmntent(FILE *stream) __yl_nonnull(1);
 int addmntent(FILE *stream, const struct mntent *mnt) __yl_nonnull(1, 2);
+/* where OPT starts in mnt_opts, or null when it is not there */
 char *hasmntopt(const struct mntent *mnt, const char *opt) __yl_nonnull(1, 2);
+#endif /* __YASC__ */

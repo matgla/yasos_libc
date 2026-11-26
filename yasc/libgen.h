@@ -1,4 +1,6 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,19 +20,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <assert.h> (how and why: sys/_attrs.h): the three
- * strings are only read, never kept or written. */
+#pragma once
 
-#ifndef _SYS_YASC_ASSERT_H
-#define _SYS_YASC_ASSERT_H
 
-#include <sys/_attrs.h>
-
-#ifdef __YASC__
-#pragma yasc
-
-__attribute__((__noreturn__)) void __assert_fail(const char *view expr, const char *view file,
-                                                 unsigned int line, const char *view func);
-#endif /* __YASC__ */
-
-#endif /* _SYS_YASC_ASSERT_H */
+/* PATH is read up to its NUL, however long (POSIX).  tcc checks each call
+   (sys/_attrs.h): a buffer the caller names with no NUL inside it ends the
+   program instead of being read past its end. */
+#pragma tcc c_end
+/* never null: "." for a null or empty PATH; PATH's NUL is inside the buffer
+   the caller names (tcc checks each call) */
+char * borrows(static, path) dirname(inout char path[maybe :0]);
+char * borrows(static, path) basename(inout char path[maybe :0]);

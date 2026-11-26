@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/dlfcn.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/dlfcn.h"
+#else
 /**
  * dlfcn.h
  *
@@ -26,12 +31,13 @@
 #define RTLD_NOW 0x00002
 #define RTLD_DEFAULT ((void *)0)
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/dlfcn.h>
 
 /* dlclose first: dlopen names it as its deallocator (sys/_attrs.h); every
    handle dlopen returns is given back with one dlclose. */
 int dlclose(void *);
 void *dlopen(const char *, int) __yl_dealloc(dlclose, 1);
-void *dlsym(void *, const char *) __yl_nonnull(2);
+/* null when the symbol is not found; HANDLE may be RTLD_DEFAULT (null) */
+void *dlsym(void *handle, const char *name) __yl_nonnull(2);
+/* null when no error happened since the last call */
 char *dlerror(void);
+#endif /* __YASC__ */

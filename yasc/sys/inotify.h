@@ -1,4 +1,6 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,19 +20,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <locale.h> (how and why: sys/_attrs.h). */
+#pragma once
 
-#ifndef _SYS_YASC_LOCALE_H
-#define _SYS_YASC_LOCALE_H
+#include <stdint.h>
 
+#include <sys/xattr.h>
 #include <sys/_attrs.h>
 
-#ifdef __YASC__
-#pragma yasc
 
-/* null when the locale is not available (this libc has only "C", but code
-   written for any libc tests it); LOCALE null queries the current one */
-char * borrows(static) maybe setlocale(int category, const char * view maybe locale);
-#endif /* __YASC__ */
+#pragma tcc c_end
+int owned(close) maybe inotify_init(void);
+int owned(close) maybe inotify_init1(int flags);
+int inotify_add_watch(int view fd, const char * view pathname, uint32_t mask) __yl_nonnull(2);
+#pragma tcc c_begin
 
-#endif /* _SYS_YASC_LOCALE_H */
+#define IN_ACCESS 0x00000001
+#define IN_ATTRIB 0x00000002
+#define IN_CLOSE_WRITE 0x00000004
+#define IN_CLOSE_NOWRITE 0x00000008
+#define IN_CREATE 0x00000010
+#define IN_DELETE 0x00000020
+#define IN_DELETE_SELF 0x00000040
+#define IN_MODIFY 0x00000080
+#define IN_MOVE_SELF 0x00000100
+#define IN_MOVED_FROM 0x00000200
+#define IN_MOVED_TO 0x00000400
+#define IN_OPEN 0x00000800
+
+struct inotify_event {
+  int wd;          /* Watch descriptor */
+  uint32_t mask;   /* Mask describing event */
+  uint32_t cookie; /* Unique cookie associating related
+                      events (for rename(2)) */
+  uint32_t len;    /* Size of name field */
+  char name[];     /* Optional null-terminated name */
+};
+#pragma tcc c_end

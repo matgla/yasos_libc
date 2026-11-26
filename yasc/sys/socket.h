@@ -1,4 +1,7 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#include <sys/_attrs.h>
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +21,51 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <sys/socket.h> (how and why: sys/_attrs.h): a socket
- * is an owned handle, invalid (< 0) on failure. */
+#pragma once
 
-#ifndef _SYS_YASC_SOCKET_H
-#define _SYS_YASC_SOCKET_H
+#include <netinet/in.h>
+#include <sys/types.h>
 
-#include <sys/_attrs.h>
+struct sockaddr {
+  sa_family_t sa_family; /* Address family */
+  char sa_data[];        /* Socket address */
+};
 
-#ifdef __YASC__
-#pragma yasc
+struct sockaddr_storage {
+  sa_family_t ss_family; /* Address family */
+};
 
+typedef unsigned int socklen_t;
+
+
+#pragma tcc c_end
 int owned(close) maybe socket(int domain, int type, int protocol);
+#pragma tcc c_begin
+int listen(int sockfd, int backlog);
+/* the connection's own descriptor; ADDR and ADDRLEN may be null together */
+#pragma tcc c_end
 /* a new connection, which the listening socket does not own: closing one
    leaves the other open */
 int owned(close) maybe accept(int view sockfd, out struct sockaddr * view maybe addr, inout socklen_t * view maybe addrlen);
-#endif /* __YASC__ */
+#pragma tcc c_begin
+int setsockopt(int socket, int level, int option_name, const void *option_value,
+               socklen_t option_len);
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int shutdown(int sockfd, int how);
+ssize_t sendto(int socket, const void *message, size_t length, int flags,
+               const struct sockaddr *dest_addr, socklen_t dest_len);
+ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
+                 struct sockaddr *address, socklen_t *address_len);
 
-#endif /* _SYS_YASC_SOCKET_H */
+#define SOL_SOCKET 1
+
+#define SO_REUSEADDR 2
+
+#define SHUT_RD 0
+#define SHUT_WR 1
+#define SHUT_RDWR 2
+
+#define AF_INET 2
+#define AF_INET6 10
+#pragma tcc c_end

@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/unistd.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/unistd.h"
+#else
 /*
  *   Copyright (c) 2025 Mateusz Stadnik
 
@@ -43,12 +48,11 @@ int unlink(const char *path) __yl_nonnull(1);
 extern char **environ;
 
 int isatty(int fd);
-/* yasc's reading: owned and borrowed handles (sys/_attrs.h) */
-#include <sys/yasc/unistd.h>
 
+/* an invalid handle is fine (EBADF), as free(NULL) is */
 int close(int fd);
-
 ssize_t write(int fd, const void *buf, size_t n);
+/* buf may be null with n == 0 */
 ssize_t read(int fd, void *buf, size_t n);
 int fsync(int fd);
 void sync(void);
@@ -63,9 +67,13 @@ void sync(void);
 long lseek(int fd, long offset, int whence);
 off64_t lseek64(int fd, off64_t offset, int whence);
 
+/* both written on success (0) only */
 int pipe(int fds[2]) __yl_nonnull(1);
 int pipe2(int fds[2], int flags) __yl_nonnull(1);
 int dup(int fd);
+/* The result is FD2 again (or -1): a number the caller picked and already
+   accounts for -- usually 0, 1 or 2, which no variable owns -- so it is not an
+   owned handle, or every dup2(p[1], 1) would leak. FD is only borrowed. */
 int dup2(int fd, int fd2);
 
 int vfork(void);
@@ -120,6 +128,8 @@ int symlink(const char *target, const char *linkpath) __yl_nonnull(1, 2);
 
 int ftruncate(int fd, off_t length);
 
+/* null when there is no login name (here always "root", but code written for
+   any libc tests it) */
 char *getlogin(void);
 unsigned alarm(unsigned seconds);
 
@@ -131,3 +141,4 @@ unsigned alarm(unsigned seconds);
 #define _SC_NPROCESSORS_CONF 4
 
 #define _POSIX_VERSION 200112L
+#endif /* __YASC__ */

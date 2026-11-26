@@ -1,4 +1,7 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#include <sys/_attrs.h>
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +21,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <fcntl.h> (how and why: sys/_attrs.h): what opens a
- * file descriptor gives an owned handle, invalid (< 0) on failure. */
+#pragma once
 
-#ifndef _SYS_YASC_FCNTL_H
-#define _SYS_YASC_FCNTL_H
+#include <sys/socket.h>
 
-#include <sys/_attrs.h>
+struct addrinfo {
+  int ai_flags;
+  int ai_family;
+  int ai_socktype;
+  int ai_protocol;
+  socklen_t ai_addrlen;
+  struct sockaddr *ai_addr;
+  char *ai_canonname;
+  struct addrinfo *ai_next;
+};
 
-#ifdef __YASC__
-#pragma yasc
+#define AI_PASSIVE 0x0001
 
-int owned(close) maybe open(const char * view path, int flags, ...);
-int owned(close) maybe creat(const char * view path, int mode);
-/* dirfd may be AT_FDCWD */
-int owned(close) maybe openat(int view maybe dirfd, const char * view pathname, int flags, ...);
-#endif /* __YASC__ */
 
-#endif /* _SYS_YASC_FCNTL_H */
+#pragma tcc c_end
+int getaddrinfo(const char * view maybe node, const char * view maybe service, const struct addrinfo * view maybe hints,
+                out struct addrinfo * owned(freeaddrinfo) maybe * view res);
+/* the list is written on success (0) only; freeaddrinfo releases it */
+void freeaddrinfo(drop struct addrinfo * owned(freeaddrinfo) maybe res);
+/* a fixed message, never null */
+const char * borrows(static) gai_strerror(int errcode);

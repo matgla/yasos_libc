@@ -1,3 +1,8 @@
+/* Written by `tcc -yasc-c-header` from yasc/time.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/time.h"
+#else
 #pragma once
 
 #include <sys/time.h>
@@ -26,8 +31,6 @@ struct tm {
   char *tm_zone;
 };
 
-/* yasc's reading of the results that may be null (sys/_attrs.h) */
-#include <sys/yasc/time.h>
 
 time_t time(time_t *timep);
 long strftime(char *s, size_t len, const char *fmt, struct tm *tm) __yl_nonnull(3, 4);
@@ -49,4 +52,6 @@ char *asctime(const struct tm *tm) __yl_nonnull(1);
 char *asctime_r(const struct tm *tm, char *buf) __yl_nonnull(1, 2);
 char *ctime(const time_t *timep) __yl_nonnull(1);
 char *ctime_r(const time_t *timep, char *buf) __yl_nonnull(1, 2);
+/* past the parsed text in S, or null when it does not match FMT */
 char *strptime(const char *s, const char *fmt, struct tm *tm) __yl_nonnull(1, 2, 3);
+#endif /* __YASC__ */

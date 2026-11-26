@@ -1,3 +1,9 @@
+/* Written by `tcc -yasc-c-header` from yasc/sys/socket.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "../yasc/sys/socket.h"
+#else
+#include <sys/_attrs.h>
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,12 +40,12 @@ struct sockaddr_storage {
 
 typedef unsigned int socklen_t;
 
-/* yasc's reading: an owned handle (sys/_attrs.h) */
-#include <sys/yasc/socket.h>
 
 int socket(int domain, int type, int protocol);
 int listen(int sockfd, int backlog);
 /* the connection's own descriptor; ADDR and ADDRLEN may be null together */
+/* a new connection, which the listening socket does not own: closing one
+   leaves the other open */
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 int setsockopt(int socket, int level, int option_name, const void *option_value,
                socklen_t option_len);
@@ -61,3 +67,4 @@ ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
 
 #define AF_INET 2
 #define AF_INET6 10
+#endif /* __YASC__ */

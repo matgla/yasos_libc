@@ -1,4 +1,6 @@
-// Copyright (c) 2026 Mateusz Stadnik <matgla@live.com>
+#pragma yasc
+#pragma tcc c_begin
+// Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,19 +20,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <grp.h> (how and why: sys/_attrs.h): null when there is no
- * such group. */
+#pragma once
 
-#ifndef _SYS_YASC_GRP_H
-#define _SYS_YASC_GRP_H
-
+#include <sys/types.h>
 #include <sys/_attrs.h>
 
-#ifdef __YASC__
-#pragma yasc
+typedef struct passwd {
+  char *pw_name;   /* username */
+  char *pw_passwd; /* password */
+  uid_t pw_uid;    /* user ID */
+  gid_t pw_gid;    /* group ID */
+  char *pw_gecos;  /* real name */
+  char *pw_dir;    /* home directory */
+  char *pw_shell;  /* shell program */
+} passwd;
 
-struct group * borrows(static) maybe getgrgid(gid_t gid);
-struct group * borrows(static) maybe getgrnam(const char * view name);
-#endif /* __YASC__ */
 
-#endif /* _SYS_YASC_GRP_H */
+#pragma tcc c_end
+struct passwd * borrows(static) maybe getpwnam(const char * view name) __yl_nonnull(1);
+struct passwd * borrows(static) maybe getpwuid(uid_t uid);
+#pragma tcc c_begin
+
+int getpwnam_r(const char *name, struct passwd *pwd, char *buf, size_t size,
+               struct passwd **result);
+int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t size,
+               struct passwd **result);
+#pragma tcc c_end

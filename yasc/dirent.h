@@ -18,28 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-/* yasc declarations for <time.h> (how and why: sys/_attrs.h): the conversions that
- * fail (null) when the year does not fit. asctime and asctime_r always
- * return their buffer here. */
 
-#ifndef _SYS_YASC_TIME_H
-#define _SYS_YASC_TIME_H
+#pragma yasc
+#pragma once
 
 #include <sys/_attrs.h>
 
-#ifdef __YASC__
-#pragma yasc
+typedef struct __dirent_dir DIR;
 
-struct tm * borrows(static) maybe localtime(const time_t * view timep);
-struct tm * borrows(result) maybe localtime_r(const time_t * view timer, out struct tm * view result);
-struct tm * borrows(static) maybe gmtime(const time_t * view timep);
-struct tm * borrows(result) maybe gmtime_r(const time_t * view timer, out struct tm * view result);
-char * borrows(static) maybe ctime(const time_t * view timep);
-char * borrows(buf) maybe ctime_r(const time_t * view timep, out char * view buf);
-char * borrows(static) asctime(const struct tm * view tm);
-char * borrows(buf) asctime_r(const struct tm * view tm, out char * view buf);
-/* past the parsed text in S, or null when it does not match FMT */
-char * borrows(s) maybe strptime(const char * view s, const char * view fmt, inout struct tm * view tm);
-#endif /* __YASC__ */
+#define DT_BLK 1
+#define DT_CHR 2
+#define DT_DIR 3
+#define DT_FIFO 4
+#define DT_LNK 5
+#define DT_REG 6
+#define DT_SOCK 7
+#define DT_UNKNOWN 0
 
-#endif /* _SYS_YASC_TIME_H */
+struct dirent {
+  unsigned long d_ino;
+  unsigned long d_off;
+  unsigned short d_reclen;
+  unsigned char d_type;
+  char d_name[256];
+};
+
+/* closedir first: opendir names it as its deallocator */
+int closedir(drop DIR * owned maybe dir);
+DIR * owned(closedir) maybe opendir(const char * view path) __yl_nonnull(1);
+DIR * owned(closedir) maybe fdopendir(int fd);
+/* null at the end of the directory or on an error */
+struct dirent * borrows(dir) maybe readdir(inout DIR * view dir) __yl_nonnull(1);
