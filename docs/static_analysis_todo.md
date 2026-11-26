@@ -47,7 +47,7 @@ Rules:
 - [x] `calloc` checks `n * m` for overflow (`malloc.c`).
 - [x] `MALLOC_DEBUG` (compile-time only): poisons freed blocks with 0xDE and
   reports a poison violation when a block is reused.
-- [x] `__chk_fail()` (`bounds.c`), with no `*_chk` functions behind it yet.
+- [x] `__chk_fail()` (now `fortify.c`; `chk_calls` is libtcc1's).
 - [x] `MEMTST` allocation tracking, on x86_64 only.
 - [x] **The annotation header** `sys/_attrs.h` (0ce2dc5).
 - [x] **Allocators and their deallocators** (0ce2dc5, 2e3d79f):
