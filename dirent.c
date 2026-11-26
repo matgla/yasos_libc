@@ -4,11 +4,10 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-#include <stdio.h>
+#include <errno.h>
 
 struct __dirent_dir {
-  int fd;
+  int owned(close) maybe fd;
   int buf_pos;
   int buf_end;
   /* getdents scratch. 1 KiB still batches several entries per syscall and keeps
@@ -17,53 +16,62 @@ struct __dirent_dir {
   char buf[1024];
 };
 
-DIR *opendir(const char *path) {
-  DIR *dir;
-  int fd;
+DIR *owned(closedir) maybe opendir(const char *path)
+{ 
+  int owned(close) maybe fd = 0;
   if ((fd = open(path, O_RDONLY | O_DIRECTORY)) < 0)
-    return NULL;
+    return nullptr;
   fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-  if (!(dir = malloc(sizeof(*dir)))) {
+  
+  DIR *owned(free) maybe dir = malloc(sizeof(*dir));
+  if (!dir) {
     close(fd);
-    return NULL;
+    return nullptr;
   }
-  memset(dir, 0, sizeof(*dir));
-  dir->fd = fd;
+
+  memset(borrow(dir), 0, sizeof(*dir));
+  dir->fd = move(fd);
   return dir;
 }
 
-int closedir(DIR *dir) {
+int closedir(drop DIR *owned maybe dir) {
+  if (!dir) {
+    errno = EBADF;
+    return -1;
+  }
   int ret;
   ret = close(dir->fd);
   free(dir);
   return ret;
 }
 
-int getdents(int fd, struct dirent *de, size_t len);
+int getdents(int view fd, struct dirent *de, size_t len);
 
-struct dirent *readdir(DIR *dir) {
-  struct dirent *de;
+struct dirent *borrows(dir) maybe readdir(inout DIR *dir) {
   int len;
   if (dir->buf_pos >= dir->buf_end) {
-    len = getdents(dir->fd, (void *)dir->buf, sizeof(dir->buf));
+    if (dir->fd < 0) {
+      errno = EBADF;
+      return nullptr;
+    }
+    len = getdents(dir->fd, cast<ptr(struct dirent *view)>(dir->buf), sizeof(dir->buf));
     if (len <= 0)
-      return NULL;
+      return nullptr;
     dir->buf_pos = 0;
     dir->buf_end = len;
   }
-  de = (void *)(dir->buf + dir->buf_pos);
+  struct dirent *de = cast<ptr(struct dirent *), align(4)>(dir->buf + dir->buf_pos);
   dir->buf_pos += de->d_reclen;
   return de;
 }
 
-DIR *fdopendir(int fd) {
-  DIR *dir;
+DIR *owned(closedir) maybe takes(fd) fdopendir(int owned(close) fd) {
   fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-  if (!(dir = malloc(sizeof(*dir)))) {
-    close(fd);
-    return NULL;
+  DIR *owned(free) maybe dir = malloc(sizeof(*dir));
+  if (!dir) {
+    return nullptr;
   }
-  memset(dir, 0, sizeof(*dir));
-  dir->fd = fd;
+  memset(borrow(dir), 0, sizeof(*dir));
+  dir->fd = move(fd);
   return dir;
 }

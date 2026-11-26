@@ -48,7 +48,7 @@ SRCS += $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c)
 
 # Sources written in yasc (`#pragma yasc`: slices, ownership): only tinycc
 # builds them, so the host unit tests' gcc build leaves them out.
-YASC_SRCS := libgen.c assert.c atoi.c
+YASC_SRCS := libgen.c assert.c atoi.c byteswap.c complex.c ctype.c dirent.c dl.c fcntl.c
 ifneq ($(ARM_BUILD),y)
 SRCS := $(filter-out $(YASC_SRCS),$(SRCS))
 endif
@@ -82,7 +82,7 @@ OBJS = $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
 # tinycc writes from them (<header>, committed: gcc, clang and the kernel read
 # them as they are).  `make headers` after editing a yasc one; CI runs
 # `make headers-check`.  tinycc docs/yasc_c_headers.md.
-YASC_HEADERS := $(wildcard yasc/*.h) $(wildcard yasc/*/*.h)
+YASC_HEADERS := $(wildcard yasc/*.h) $(wildcard yasc/*/*.h) $(wildcard yasc/*/*/*.h)
 # a cross this host runs (after build_rootfs.sh, ../tinycc/armv8m-tcc is the native ARM one)
 YASC_TCC ?= $(firstword $(foreach c,../tinycc/bin/armv8m-tcc ../tinycc/armv8m-tcc,$(shell "$(c)" -v >/dev/null 2>&1 && echo "$(c)")))
 
@@ -99,7 +99,7 @@ headers-check:
 
 .PHONY: headers headers-check
 
-HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(YASC_HEADERS) $(wildcard arpa/*.h) \
+HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(wildcard sys/*/*.h) $(YASC_HEADERS) $(wildcard arpa/*.h) \
            $(wildcard arm/*.h) $(wildcard libs/*.h)
 $(filter %.o, $(OBJS)): $(HEADERS)
 

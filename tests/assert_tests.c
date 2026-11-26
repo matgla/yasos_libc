@@ -43,15 +43,15 @@ static void fake_syscall(int number, const void *args, inout syscall_result *res
   result->result = 0;
   result->err = -1;
   if (number == sys_write) {
-    const write_context *view ctx = (const write_context *view)args;
+    const write_context *view ctx = cast<ptr(const write_context *view)>(args);
     size_t n = ctx->count;
-    if (out_len + n > (int)sizeof(buf) - 1)
+    if (out_len + n > cast<int(int)>(sizeof(buf)) - 1)
       n = sizeof(buf) - 1 - out_len;
     memcpy(buf + out_len, ctx->buf, n);
     out_len += n;
-    *ctx->result = (ssize_t)n;
+    *ctx->result = cast<int(ssize_t)>(n);
   } else if (number == sys_kill) {
-    raised = ((const kill_context *view)args)->sig;
+    raised = cast<ptr(const kill_context *view)>(args)->sig;
     longjmp(back, 1);
   }
 }

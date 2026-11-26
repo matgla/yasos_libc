@@ -101,4 +101,18 @@
 #define __yl_view_maybe
 #endif
 
+/* After a prototype a yasc header's c_api(T) gave (`char *dlerror(void)
+ * __yl_c_api(0, const char *);`): what the yasc declaration says of the
+ * result (n 0) or of parameter n.  tcc's -Wyasc-c-api reports C code that
+ * writes through such a pointer (tinycc docs/yasc_c_api.md); an older tcc,
+ * gcc and clang see nothing. */
+#if defined(__TINYC__) && defined(__has_attribute)
+#if __has_attribute(__yasc_c_api__)
+#define __yl_c_api(n, ...) __attribute__((__yasc_c_api__(n, __VA_ARGS__)))
+#endif
+#endif
+#ifndef __yl_c_api
+#define __yl_c_api(n, ...)
+#endif
+
 #endif /* _SYS__ATTRS_H */

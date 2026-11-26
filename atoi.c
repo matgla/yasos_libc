@@ -23,9 +23,9 @@ int atoi(const char *s) {
     s++;
   if (*s == '-' || *s == '+')
     neg = *s++ == '-';
-  while ((unsigned)(*s - '0') <= 9u)
-    num = num * 10u + (unsigned)(*s++ - '0');
-  return (int)(neg ? 0u - num : num);
+  while (cast<trunc(unsigned)>(*s - '0') <= 9u)
+    num = num * 10u + cast<int(unsigned)>(*s++ - '0');
+  return cast<trunc(int)>(neg ? 0u - num : num);
 }
 
 long atol(const char *s) {
@@ -35,9 +35,9 @@ long atol(const char *s) {
     s++;
   if (*s == '-' || *s == '+')
     neg = *s++ == '-';
-  while ((unsigned)(*s - '0') <= 9u)
-    num = num * 10ul + (unsigned long)(*s++ - '0');
-  return (long)(neg ? 0ul - num : num);
+  while (cast<trunc(unsigned)>(*s - '0') <= 9u)
+    num = num * 10ul + cast<int(unsigned long)>((*s++ - '0'));
+  return cast<trunc(long)>(neg ? 0ul - num : num);
 }
 
 /* The value of `c` as a digit in `base`, or -1. The ranges have to be checked
@@ -72,13 +72,13 @@ long strtol(const char *s, out char *borrows(s) * maybe endptr, int base) {
     errno = ERANGE;
     return LONG_MIN;
   }
-  return (long)v;
+  return cast<int(long)>(v);
 }
 
 /* C's strtoul negates a "-" number in unsigned long, so the range check is on
  * the magnitude. */
 unsigned long strtoul(const char *s, out char *borrows(s) * maybe endptr, int base) {
-  const char *view p = s;
+  const char *p = s;
   int saved = errno, neg;
   unsigned long long v;
 
@@ -96,7 +96,7 @@ unsigned long strtoul(const char *s, out char *borrows(s) * maybe endptr, int ba
     errno = ERANGE;
     return ULONG_MAX;
   }
-  return neg ? -(unsigned long)v : (unsigned long)v;
+  return neg ? -cast<int(unsigned long)>(v) : cast<int(unsigned long)>(v);
 }
 
 /*
@@ -133,7 +133,7 @@ unsigned long strtoul(const char *s, out char *borrows(s) * maybe endptr, int ba
  * assembler.
  */
 static int strto_base(inout const char *view *s, int base, out const char *view maybe *after_zero) {
-  const char *view p = *s;
+  const char *p = *s;
 
   *after_zero = nullptr;
   if (base == 0) {
@@ -159,8 +159,8 @@ static int strto_base(inout const char *view *s, int base, out const char *view 
 }
 
 unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, int base) {
-  const char *view start = s;
-  const char *view maybe after_zero = nullptr;
+  const char *start = s;
+  const char *maybe after_zero = nullptr;
   unsigned long long num = 0;
   unsigned long long cutoff;
   int cutlim;
@@ -175,8 +175,8 @@ unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, 
     sgn = ',' - *s++;
   base = strto_base(&s, base, &after_zero);
 
-  cutoff = ULLONG_MAX / (unsigned)base;
-  cutlim = (int)(ULLONG_MAX % (unsigned)base);
+  cutoff = ULLONG_MAX / cast<int(unsigned)>(base);
+  cutlim = cast<int(int)>(ULLONG_MAX % cast<int(unsigned)>(base));
   for (; (dig = digit(*s, base)) >= 0; s++) {
     any = 1;
     if (num > cutoff || (num == cutoff && dig > cutlim))
@@ -192,7 +192,7 @@ unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, 
   /* No digits at all means no conversion: the caller is entitled to see its own
    * pointer back, which is how it tells "0" from "not a number at all". */
   if (endptr)
-    *endptr = unsafe((char *view)(any ? s : start));
+    *endptr = unsafe_cast<qual(char *)>(any ? s : start);
   if (overflow) {
     num = ULLONG_MAX;
     errno = ERANGE;
@@ -203,8 +203,8 @@ unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, 
 }
 
 long long strtoll(const char *s, out char *borrows(s) * maybe endptr, int base) {
-  const char *view start = s;
-  const char *view maybe after_zero;
+  const char * start = s;
+  const char *maybe after_zero;
   unsigned long long num = 0;
   unsigned long long limit;
   unsigned long long cutoff;
@@ -222,10 +222,10 @@ long long strtoll(const char *s, out char *borrows(s) * maybe endptr, int base) 
 
   /* Accumulated unsigned so that LLONG_MIN, which has no positive counterpart,
    * is representable on the way in rather than overflowing at the last digit. */
-  limit = sgn > 0 ? (unsigned long long)LLONG_MAX
-                  : (unsigned long long)LLONG_MAX + 1;
-  cutoff = limit / (unsigned)base;
-  cutlim = (int)(limit % (unsigned)base);
+  limit = sgn > 0 ? cast<int(unsigned long long)>(LLONG_MAX)
+                  : cast<trunc(unsigned long long)>(LLONG_MIN);
+  cutoff = limit / cast<int(unsigned)>(base);
+  cutlim = cast<int(int)>(limit % cast<int(unsigned)>(base));
   for (; (dig = digit(*s, base)) >= 0; s++) {
     any = 1;
     if (num > cutoff || (num == cutoff && dig > cutlim))
@@ -239,12 +239,12 @@ long long strtoll(const char *s, out char *borrows(s) * maybe endptr, int base) 
     s = after_zero;
   }
   if (endptr)
-    *endptr = unsafe((char *view)(any ? s : start));
+    *endptr = unsafe_cast<qual(char *)>(any ? s : start);
   if (overflow) {
     errno = ERANGE;
     return sgn > 0 ? LLONG_MAX : LLONG_MIN;
   }
   /* Negate in the unsigned domain: LLONG_MIN has no positive counterpart, so
    * `-(long long)num` on the last representable value has nothing to negate. */
-  return sgn > 0 ? (long long)num : (long long)(0ULL - num);
+  return sgn > 0 ? cast<int(long long)>(num) : cast<trunc(long long)>(0ULL - num);
 }

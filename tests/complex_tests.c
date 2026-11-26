@@ -55,9 +55,9 @@ double sut_cimag(double _Complex value);
 long double sut_cimagl(long double _Complex value);
 
 UTEST(complex_tests, conj_returns_complex_conjugate) {
-  float_complex_parts float_value;
-  double_complex_parts double_value;
-  long_double_complex_parts long_double_value;
+  float_complex_parts float_value = { .value = 0.0f + 0.0fi };
+  double_complex_parts double_value = { .value = 0.0 + 0.0i };
+  long_double_complex_parts long_double_value = { .value = 0.0L + 0.0iL };
 
   float_value.value = sut_conjf(1.5f + 2.25fi);
   ASSERT_EQ(1.5f, float_value.parts.real);

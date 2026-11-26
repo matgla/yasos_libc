@@ -18,19 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "utest.h"
+#pragma yasc
+#pragma once
 
-#include <ctype.h>
+/* The dynamic loader. */
 
-int sut_isspace(int c);
+#include "core.h" /* SystemCall, trigger_syscall, sys/_attrs.h */
 
-UTEST(ctypes, isspace) {
-  for (int c = 0; c < 256; ++c) {
-    if (c != ' ' && c != '\t' && c != '\n' && c != '\v' && c != '\f' &&
-        c != '\r') {
-      ASSERT_FALSE(sut_isspace(c));
-    } else {
-      ASSERT_TRUE(sut_isspace(c));
-    }
-  }
-}
+typedef struct dlopen_context {
+  const char * view maybe path;
+  int flags;
+  void * view maybe * view result;
+} dlopen_context;
+
+/* A handle is the loader's, not an object to dereference. */
+#pragma tcc c_begin
+typedef struct dlclose_context {
+  void *handle;
+} dlclose_context;
+
+typedef struct dlsym_context {
+  void *handle;
+  const char *symbol __yl_view_maybe;
+  void **result __yl_view;
+} dlsym_context;
+#pragma tcc c_end

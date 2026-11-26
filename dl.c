@@ -19,45 +19,81 @@
  */
 
 #include <dlfcn.h>
-#include <stddef.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
-#include <sys/syscall.h>
+#include <sys/syscall/dl.h>
 
-void *dlopen(const char *path, int mode) {
-  void *result = NULL;
-  printf("dlopen: %s %d\n", path, mode);
+/* dlerror()'s message: the last failure of dlopen, dlsym or dlclose, kept
+   until dlerror() reads it (a call that works leaves it as it is). */
+static char dl_message[192];
+static bool dl_pending;
+
+/* a dl call failed with errno: the message is "WHAT: NAME: cause" */
+static void dl_failed(const char *what, const char * maybe name) {
+  const char *cause = errno ? strerror(errno) : "failed";
+  if (name)
+    snprintf(dl_message, sizeof dl_message, "%s: %s: %s", what, name, cause);
+  else
+    snprintf(dl_message, sizeof dl_message, "%s: %s", what, cause);
+  dl_pending = true;
+}
+
+/* the system call NUMBER with CONTEXT: errno is the kernel's on a failure,
+   and as it was when the call works */
+static int dl_call(int number, const void *context) {
+  const int saved = errno;
+  errno = 0;
+  const int rc = trigger_syscall(number, context);
+  if (rc == 0)
+    errno = saved;
+  return rc;
+}
+
+void *owned(dlclose) maybe dlopen(const char * maybe path, int mode) {
+  void *result = nullptr;
   const dlopen_context context = {
       .path = path,
       .flags = mode,
       .result = &result,
   };
 
-  trigger_syscall(sys_dlopen, &context);
-  printf("dlopen result: %p\n", result);
-  return result;
+  if (dl_call(sys_dlopen, &context) != 0) {
+    dl_failed("dlopen", path);
+    return nullptr;
+  }
+  return unsafe(result);
 }
 
-void *dlsym(void *handle, const char *symbol_name) {
-  void *result = NULL;
-  printf("dlsym: %p %s\n", handle, symbol_name);
+void *borrows(static) maybe dlsym(inout void * maybe handle, const char *symbol_name) {
+  void *borrows(static) maybe result = nullptr;
   const dlsym_context context = {
       .handle = handle,
       .symbol = symbol_name,
       .result = &result,
   };
-  trigger_syscall(sys_dlsym, &context);
-  printf("dlsym result: %p\n", result);
+  if (dl_call(sys_dlsym, &context) != 0) {
+    dl_failed("dlsym", symbol_name);
+    return nullptr;
+  }
   return result;
 }
 
-int dlclose(void *handle) {
+int dlclose(drop void * owned handle) {
+  /* the kernel takes the handle back, whatever it answers */
   const dlclose_context context = {
-      .handle = handle,
+      .handle = move(handle),
   };
-  return trigger_syscall(sys_dlclose, &context);
+  const int rc = dl_call(sys_dlclose, &context);
+  if (rc != 0)
+    dl_failed("dlclose", nullptr);
+  return rc;
 }
 
-char *dlerror(void) {
-  return "";
+const char * borrows(static) maybe dlerror(void) {
+  if (!dl_pending)
+    return nullptr;
+  dl_pending = false;
+  return dl_message;
 }

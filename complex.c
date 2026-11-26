@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <complex.h>
+
 typedef union {
   float _Complex value;
   struct {
@@ -43,67 +45,57 @@ typedef union {
 } long_double_complex_parts;
 
 float _Complex conjf(float _Complex value) {
-  float_complex_parts result;
-
-  result.value = value;
+  float_complex_parts result = { 
+    .value = value, 
+  };
   result.parts.imag = -result.parts.imag;
   return result.value;
 }
 
 double _Complex conj(double _Complex value) {
-  double_complex_parts result;
-
-  result.value = value;
+  double_complex_parts result = {
+    .value = value
+  };
+  
   result.parts.imag = -result.parts.imag;
   return result.value;
 }
 
 long double _Complex conjl(long double _Complex value) {
-  long_double_complex_parts result;
+  long_double_complex_parts result = {
+    .value = value
+  };
 
-  result.value = value;
   result.parts.imag = -result.parts.imag;
   return result.value;
 }
 
 float crealf(float _Complex value) {
-  float_complex_parts parts;
-
-  parts.value = value;
+  float_complex_parts parts = { .value = value };
   return parts.parts.real;
 }
 
 double creal(double _Complex value) {
-  double_complex_parts parts;
-
-  parts.value = value;
+  double_complex_parts parts = { .value = value };
   return parts.parts.real;
 }
 
 long double creall(long double _Complex value) {
-  long_double_complex_parts parts;
-
-  parts.value = value;
+  long_double_complex_parts parts = { .value = value };
   return parts.parts.real;
 }
 
 float cimagf(float _Complex value) {
-  float_complex_parts parts;
-
-  parts.value = value;
+  float_complex_parts parts = { .value = value };
   return parts.parts.imag;
 }
 
 double cimag(double _Complex value) {
-  double_complex_parts parts;
-
-  parts.value = value;
+  double_complex_parts parts = { .value = value };
   return parts.parts.imag;
 }
 
 long double cimagl(long double _Complex value) {
-  long_double_complex_parts parts;
-
-  parts.value = value;
+  long_double_complex_parts parts = { .value = value };
   return parts.parts.imag;
 }

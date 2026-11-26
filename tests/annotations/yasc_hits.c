@@ -90,7 +90,7 @@ void s_reallocarray_dropped(void) { reallocarray(0, 2, 2); }                  /*
 int h_assert_off(char * maybe p) { assert(p); return *p; }                /* HIT deref */
 #undef NDEBUG
 #include <assert.h>
-int h_assert_on(char * maybe p) { assert(p != 0); return *p; }
+int h_assert_on(char * maybe p) { assert(p != nullptr); return *p; }
 void t_getline_leak(FILE *f) { char * owned maybe l = 0; size_t n = 0; getline(&l, &n, f); }            /* HIT out-param: l still owns the buffer */
 void t_memalign_twice(void) { void * owned maybe m = 0; if (posix_memalign(&m, 8, 8)) return; if (posix_memalign(&m, 8, 16)) return; free(m); } /* HIT out: m overwritten */
 void t_regex_leak(void) { regex_t owned(regfree) re = undefined; if (regcomp(&re, "a", 0)) return; regexec(&re, "x", 0, 0, 0); } /* HIT re never released */

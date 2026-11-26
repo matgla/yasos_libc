@@ -166,7 +166,7 @@ int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
 }
 
 int fchown(int fd, uid_t owner, gid_t group) {
-  return fchownat(fd, 0, owner, group, 0);
+  return fchownat(fd, NULL, owner, group, 0);
 }
 
 int chown(const char *path, uid_t owner, gid_t group) {

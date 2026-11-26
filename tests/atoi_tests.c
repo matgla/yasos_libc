@@ -120,7 +120,7 @@ UTEST(atoi, atoi_atol_match_glibc_in_range)
     const struct strto_golden * view g = &GOLDEN[i];
     if (g->base != 10 || g->l_range || g->l < INT_MIN || g->l > INT_MAX)
       continue;
-    if (sut_atoi(g->input) != (int)g->l || sut_atol(g->input) != g->l)
+    if (sut_atoi(g->input) != g->l || sut_atol(g->input) != g->l)
       printf("atoi/atol(\"%s\"): %d / %ld, want %ld\n", g->input, sut_atoi(g->input), sut_atol(g->input), g->l);
     ASSERT_EQ((int)g->l, sut_atoi(g->input));
     ASSERT_EQ(g->l, sut_atol(g->input));

@@ -38,10 +38,10 @@ static void put(const char *s)
 void __assert_fail(const char *expr, const char *file, unsigned int line, const char *func)
 {
   char num[12] = undefined;
-  char *view p = num + sizeof(num);
+  char *p = num + sizeof(num);
   *--p = '\0';
   do {
-    *--p = (char)('0' + line % 10);
+    *--p = cast<int(char)>('0' + line % 10);
     line /= 10;
   } while (line);
   put(file);

@@ -31,7 +31,13 @@ SYMBOLS_REDEFINES = symbols_redefines.txt
 LIBC_SRCS = $(wildcard ../*.c) $(wildcard ../*.h)
 
 # Rules
-all: $(TARGET) test
+# `make` / `make test`: every suite -- the host one (gcc, against glibc's
+# answers), the header annotations (tcc) and libc on QEMU at every level (tcc,
+# the target's answers and the only run of the yasc sources' tests).  The slow
+# allocator drivers stay on demand: `make stress`.
+all: test
+
+test: host annotations qemu
 
 build/%.o: %.c
 	mkdir -p build
@@ -47,7 +53,8 @@ $(LIBC_TEST_STATIC): $(LIBC_STATIC)
 $(TARGET): $(OBJS) $(LIBC_TEST_STATIC)
 	$(CC) $(CFLAGS) $^ -o $@
 
-test: $(TARGET)
+# the host suite alone
+host: $(TARGET)
 	./$(TARGET)
 
 build_tests: $(TARGET)
@@ -98,6 +105,10 @@ QEMU_LIBC_HEADERS = resource_tests.c stdio_tests.c
 
 qemu: $(addprefix qemu-,$(QEMU_OPTS))
 
+# the header annotations (sys/_attrs.h, yasc/): annotations/check.sh says how
+annotations: qemu-check-cc
+	@sh ./annotations/check.sh "$(QEMU_CC)"
+
 qemu-check-cc:
 	@test -n "$(QEMU_CC)" || { echo "no host-runnable armv8m-tcc in $(TINYCC) or $(TINYCC)/bin: build_rootfs.sh or make -C $(TINYCC) cross"; exit 1; }
 
@@ -108,7 +119,7 @@ qemu-%: qemu-check-cc
 	  YASC_SRCS="$(YASC_SRCS)" QEMU_SKIP="$(QEMU_SKIP)" QEMU_LIBC_HEADERS="$(QEMU_LIBC_HEADERS)" \
 	  sh ./qemu_suite.sh $*
 
-.PHONY: qemu qemu-check-cc
+.PHONY: all test host build_tests stress annotations qemu qemu-check-cc clean
 
 clean:
 	rm -rf build

@@ -114,7 +114,7 @@ int chown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 #pragma tcc c_end
 int fchown(int view fd, uid_t owner, gid_t group);
 int fchownat(int view maybe dirfd, const char *pathname, uid_t owner, gid_t group,
-             int flags) __yl_nonnull(2);
+             int flags);
 #pragma tcc c_begin
 int lchown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int link(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);

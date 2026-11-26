@@ -21,7 +21,7 @@
 #include <byteswap.h>
 
 uint16_t bswap_16(uint16_t x) {
-  return (x << 8) | (x >> 8);
+  return cast<int(uint16_t)>(x << 8) | cast<int(uint16_t)>(x >> 8);
 }
 
 uint32_t bswap_32(uint32_t x) {
