@@ -220,9 +220,9 @@ int sethostname(const char *name, size_t size) {
   return -1; // Not implemented
 }
 
-int access(char *name, int mode) {
+int access(const char *name, int mode) {
   access_context context = {
-      .pathname = (const char *)name,
+      .pathname = name,
       .mode = mode,
       .dirfd = AT_FDCWD,
       .flags = 0,

@@ -16,7 +16,12 @@ YASC_SRCS = $(shell sed -n 's/^YASC_SRCS *:*= *//p' ../Makefile)
 # build: `make qemu` runs them on QEMU (below), in tcc's safe default.
 YASC_TESTS = $(patsubst %.c,%_tests,$(YASC_SRCS))
 
-SRCS = $(filter-out $(addsuffix .c,$(STANDALONE) $(YASC_TESTS)) qemu_shim.c qemu_suite.sh, $(wildcard *.c))
+# Tests of functions a yasc source defines, themselves regular C: the host's
+# libc_sut.a has none of them (gcc leaves the yasc sources out), so they run
+# on QEMU only.  strto_tests: strto*/atoi/atol are atoi.c's.
+HOST_SKIP = strto_tests
+
+SRCS = $(filter-out $(addsuffix .c,$(STANDALONE) $(YASC_TESTS) $(HOST_SKIP)) qemu_shim.c qemu_suite.sh, $(wildcard *.c))
 OBJS = $(patsubst %.c, build/%.o, $(SRCS))
 
 
@@ -28,7 +33,7 @@ LIBC_BUILD = ../build-host
 LIBC_STATIC = $(LIBC_BUILD)/libc.a
 LIBC_TEST_STATIC = build/libc_sut.a
 SYMBOLS_REDEFINES = symbols_redefines.txt
-LIBC_SRCS = $(wildcard ../*.c) $(wildcard ../*.h)
+LIBC_SRCS = $(wildcard ../*.c ../sys/*.c ../arpa/*.c ../internal/*.h ../include/*.h ../include/*/*.h ../include/*/*/*.h ../include/*/*/*/*.h)
 
 # Rules
 # `make` / `make test`: every suite -- the host one (gcc, against glibc's

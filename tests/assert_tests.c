@@ -32,7 +32,7 @@
 #include "syscalls_stub.h"
 
 #define __assert_fail sut___assert_fail
-#include "../assert.h"
+#include "../include/assert.h"
 
 static char buf[256];
 static size_t out_len;
@@ -96,13 +96,13 @@ UTEST(assert, no_function_name) {
 }
 
 #define NDEBUG
-#include "../assert.h"
+#include "../include/assert.h"
 static int ndebug_assert(void) {
   assert(0);
   return 1;
 }
 #undef NDEBUG
-#include "../assert.h"
+#include "../include/assert.h"
 
 UTEST(assert, ndebug_at_each_inclusion) {
   reset();

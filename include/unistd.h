@@ -1,5 +1,8 @@
-#pragma yasc
-#pragma tcc c_begin
+/* Written by `tcc -yasc-c-header` from yasc/unistd.h: edit that file, not this one.
+   A yasc unit reads the yasc header itself. */
+#ifdef __YASC__
+#include "yasc/unistd.h"
+#else
 /*
  *   Copyright (c) 2025 Mateusz Stadnik
 
@@ -39,21 +42,19 @@
 #define TRUE 1
 #define FALSE 0
 
-int access(char *name, int type) __yl_nonnull(1);
+int access(const char *name, int type) __yl_nonnull(1);
 int unlink(const char *path) __yl_nonnull(1);
 
 extern char **environ;
 
-#pragma tcc c_end
-int isatty(int view fd);
+int isatty(int fd);
 
 /* an invalid handle is fine (EBADF), as free(NULL) is */
-int close(int drop owned(close) maybe fd);
-ssize_t write(int view fd, const void * maybe buf, size_t n);
+int close(int fd);
+ssize_t write(int fd, const void *buf, size_t n);
 /* buf may be null with n == 0 */
-ssize_t read(int view fd, out void * maybe buf, size_t n);
-int fsync(int view fd);
-#pragma tcc c_begin
+ssize_t read(int fd, void *buf, size_t n);
+int fsync(int fd);
 void sync(void);
 
 /* lseek() whence */
@@ -63,19 +64,17 @@ void sync(void);
 #define SEEK_END 2
 #endif
 
-#pragma tcc c_end
-long lseek(int view fd, long offset, int whence);
-off64_t lseek64(int view fd, off64_t offset, int whence);
+long lseek(int fd, long offset, int whence);
+off64_t lseek64(int fd, off64_t offset, int whence);
 
 /* both written on success (0) only */
-int pipe(out int owned(close) maybe fds[2]) __yl_nonnull(1);
-int pipe2(out int owned(close) maybe fds[2], int flags) __yl_nonnull(1);
-int owned(close) maybe dup(int view fd);
+int pipe(int fds[2]) __yl_nonnull(1);
+int pipe2(int fds[2], int flags) __yl_nonnull(1);
+int dup(int fd);
 /* The result is FD2 again (or -1): a number the caller picked and already
    accounts for -- usually 0, 1 or 2, which no variable owns -- so it is not an
    owned handle, or every dup2(p[1], 1) would leak. FD is only borrowed. */
-int dup2(int view fd, int fd2);
-#pragma tcc c_begin
+int dup2(int fd, int fd2);
 
 int vfork(void);
 int fork(void);
@@ -96,12 +95,10 @@ int sleep(int n);
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path) __yl_nonnull(1);
 int rmdir(const char *path) __yl_nonnull(1);
-#pragma tcc c_end
-int fchdir(int view fd);
+int fchdir(int fd);
 
 /* DIRFD may be AT_FDCWD; the link's text is not NUL-terminated */
-ssize_t readlinkat(int view maybe dirfd, const char *pathname, out char *buf, size_t bufsiz) __yl_nonnull(2);
-#pragma tcc c_begin
+ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(2);
 ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(1);
 
 uid_t getuid(void);
@@ -111,38 +108,30 @@ pid_t setsid(void);
 int setgid(gid_t gid);
 
 int chown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
-#pragma tcc c_end
-int fchown(int view fd, uid_t owner, gid_t group);
-int fchownat(int view maybe dirfd, const char *pathname, uid_t owner, gid_t group,
+int fchown(int fd, uid_t owner, gid_t group);
+int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
              int flags);
-#pragma tcc c_begin
 int lchown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int link(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
 int chroot(const char *path) __yl_nonnull(1);
-#pragma tcc c_end
-int faccessat(int view maybe dirfd, const char *pathname, int mode, int flags) __yl_nonnull(2);
-#pragma tcc c_begin
+int faccessat(int dirfd, const char *pathname, int mode, int flags) __yl_nonnull(2);
 int gethostname(char *name, size_t size);
 int sethostname(const char *name, size_t size);
 
 long sysconf(int name);
 pid_t getsid(pid_t pid);
 
-#pragma tcc c_end
-int unlinkat(int view maybe dirfd, const char *pathname, int flags) __yl_nonnull(2);
-int linkat(int view maybe olddirfd, const char *oldpath, int view maybe newdirfd, const char *newpath,
+int unlinkat(int dirfd, const char *pathname, int flags) __yl_nonnull(2);
+int linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
            int flags) __yl_nonnull(2, 4);
-int symlinkat(const char *target, int view maybe newdirfd, const char *linkpath) __yl_nonnull(1, 3);
-#pragma tcc c_begin
+int symlinkat(const char *target, int newdirfd, const char *linkpath) __yl_nonnull(1, 3);
 int symlink(const char *target, const char *linkpath) __yl_nonnull(1, 2);
 
-#pragma tcc c_end
-int ftruncate(int view fd, off_t length);
+int ftruncate(int fd, off_t length);
 
 /* null when there is no login name (here always "root", but code written for
    any libc tests it) */
-char * borrows(static) maybe getlogin(void);
-#pragma tcc c_begin
+char *getlogin(void);
 unsigned alarm(unsigned seconds);
 
 #define _CS_PATH "/bin"
@@ -153,4 +142,4 @@ unsigned alarm(unsigned seconds);
 #define _SC_NPROCESSORS_CONF 4
 
 #define _POSIX_VERSION 200112L
-#pragma tcc c_end
+#endif /* __YASC__ */

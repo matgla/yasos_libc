@@ -12,7 +12,7 @@ tcc=${1:-$libc/../tinycc/armv8m-tcc}
 # tcc's headers beside it; bin/armv8m-tcc (build_rootfs.sh's cross) uses the tree's
 tinc=$(dirname "$tcc")/include
 [ -d "$tinc" ] || tinc=$libc/../tinycc/include
-inc="-nostdinc -I$libc -I$tinc"
+inc="-nostdinc -I$libc/include -I$tinc"
 fail=0
 
 check() { # FILE FLAGS...

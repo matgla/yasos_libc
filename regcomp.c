@@ -1,4 +1,4 @@
-#include "rorel.h"
+#include "internal/rorel.h"
 /*
   regcomp.c - TRE POSIX compatible regex compilation functions.
 
@@ -37,7 +37,7 @@
 #include <stdint.h>
 #include <ctype.h>
 
-#include "tre.h"
+#include "internal/tre.h"
 
 #include <assert.h>
 

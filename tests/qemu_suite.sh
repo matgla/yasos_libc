@@ -22,7 +22,7 @@ libc=$(dirname "$here")
 out=$QEMU_BUILD/$o
 mkdir -p "$out/libc"
 
-cflags="-Wall -Werror -Wno-nonnull-compare -I$libc/libs -pedantic -nostdlib -nostdinc -I$libc \
+cflags="-Wall -Werror -Wno-nonnull-compare -I$libc/libs -pedantic -nostdlib -nostdinc -I$libc/include \
 -I$YASOS_SYS_INCLUDE -I$TINYCC/include -U_FORTIFY_SOURCE -D__YL_LIBC_SOURCE -ffunction-sections $QEMU_ARCH -$o"
 
 : >"$out/libc.log"
@@ -64,12 +64,12 @@ rm -f "$out/libc_sut.a"
 arm-none-eabi-ar rcs "$out/libc_sut.a" $objs
 
 # The tests build against newlib's headers, plus the few of libc's that newlib
-# does not have: sys/_attrs.h (../assert.h and the yasc/ headers reach for it) and
+# does not have: sys/_attrs.h (include/assert.h and the yasc/ headers reach for it) and
 # sys/mman.h (the tests' "host" mmap, qemu_shim.c) -- from this tree, not the
 # copies the cross finds installed in the rootfs.
 mkdir -p "$out/inc/sys"
 for h in sys/_attrs.h sys/mman.h; do
-  ln -sfn "$libc/$h" "$out/inc/$h"
+  ln -sfn "$libc/include/$h" "$out/inc/$h"
 done
 
 harness_cflags="-$o -D_DEFAULT_SOURCE -DLIBC_TESTS_QEMU -I$out/inc"
@@ -100,7 +100,7 @@ for t in "$here"/*_tests.c; do
   esac
   case " $QEMU_LIBC_HEADERS " in
     *" $b "*)
-      compile "$b" -ccompat -w -DLIBC_TESTS_QEMU -nostdlib -nostdinc -I"$libc" -I"$YASOS_SYS_INCLUDE" -I"$TINYCC/include" \
+      compile "$b" -ccompat -w -DLIBC_TESTS_QEMU -nostdlib -nostdinc -I"$libc/include" -I"$YASOS_SYS_INCLUDE" -I"$TINYCC/include" \
         -ffunction-sections $QEMU_ARCH -$o -c "$t" -o "$out/${b%.c}.o"
       own="$own $out/${b%.c}.o"
       ;;

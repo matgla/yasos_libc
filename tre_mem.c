@@ -39,7 +39,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "tre.h"
+#include "internal/tre.h"
 
 /*
   This memory allocator is for allocating small memory blocks efficiently

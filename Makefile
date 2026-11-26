@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs $(ROOTFS_DEBUG_CFLAGS) -fPIC -pedantic -nostdlib -nostdinc -I. -I../../source/sys/include -I../tinycc/include
+CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs $(ROOTFS_DEBUG_CFLAGS) -fPIC -pedantic -nostdlib -nostdinc -Iinclude -I../../source/sys/include -I../tinycc/include
 CFLAGS += $(ROOTFS_OPT_CFLAGS)
 # libc's own sources are never fortified (sys/_fortify.h): they define the
 # functions the fortified headers turn into macros
@@ -78,29 +78,30 @@ OBJS = $(patsubst %.c, $(BUILD)/%.o, $(SRCS))
 # the default goal, and a plain `make` would build one object and stop.
 .DEFAULT_GOAL := all
 
-# The headers written in yasc (yasc/<header>, one source) and the C headers
-# tinycc writes from them (<header>, committed: gcc, clang and the kernel read
-# them as they are).  `make headers` after editing a yasc one; CI runs
+# The public headers are include/<header>.  The ones written in yasc
+# (include/yasc/<header>, one source) and the C headers tinycc writes from
+# them (include/<header>, committed: gcc, clang and the kernel read them as
+# they are).  `make headers` after editing a yasc one; CI runs
 # `make headers-check`.  tinycc docs/yasc_c_headers.md.
-YASC_HEADERS := $(wildcard yasc/*.h) $(wildcard yasc/*/*.h) $(wildcard yasc/*/*/*.h)
+YASC_HEADERS := $(patsubst include/yasc/%,%,$(wildcard include/yasc/*.h) $(wildcard include/yasc/*/*.h) $(wildcard include/yasc/*/*/*.h))
 # a cross this host runs (after build_rootfs.sh, ../tinycc/armv8m-tcc is the native ARM one)
 YASC_TCC ?= $(firstword $(foreach c,../tinycc/bin/armv8m-tcc ../tinycc/armv8m-tcc,$(shell "$(c)" -v >/dev/null 2>&1 && echo "$(c)")))
 
 headers:
 	@test -n "$(YASC_TCC)" || { echo "no armv8m-tcc in ../tinycc or ../tinycc/bin (YASC_TCC=)"; exit 1; }
-	@for h in $(patsubst yasc/%,%,$(YASC_HEADERS)); do $(YASC_TCC) -yasc-c-header yasc/$$h -o $$h || exit 1; done
+	@for h in $(YASC_HEADERS); do $(YASC_TCC) -yasc-c-header include/yasc/$$h -o include/$$h || exit 1; done
 
 headers-check:
 	@test -n "$(YASC_TCC)" || { echo "no armv8m-tcc in ../tinycc or ../tinycc/bin (YASC_TCC=)"; exit 1; }
-	@mkdir -p $(BUILD); fail=0; for h in $(patsubst yasc/%,%,$(YASC_HEADERS)); do \
-	  $(YASC_TCC) -yasc-c-header yasc/$$h > $(BUILD)/.header-check.h || exit 1; \
-	  cmp -s $(BUILD)/.header-check.h $$h || { echo "$$h is not what yasc/$$h gives: make headers"; fail=1; }; \
+	@mkdir -p $(BUILD); fail=0; for h in $(YASC_HEADERS); do \
+	  $(YASC_TCC) -yasc-c-header include/yasc/$$h > $(BUILD)/.header-check.h || exit 1; \
+	  cmp -s $(BUILD)/.header-check.h include/$$h || { echo "include/$$h is not what include/yasc/$$h gives: make headers"; fail=1; }; \
 	done; rm -f $(BUILD)/.header-check.h; exit $$fail
 
 .PHONY: headers headers-check
 
-HEADERS := $(wildcard *.h) $(wildcard sys/*.h) $(wildcard sys/*/*.h) $(YASC_HEADERS) $(wildcard arpa/*.h) \
-           $(wildcard arm/*.h) $(wildcard libs/*.h)
+HEADERS := $(wildcard include/*.h include/*/*.h include/*/*/*.h include/*/*/*/*.h) \
+           $(wildcard internal/*.h arm/*.h libs/*.h)
 $(filter %.o, $(OBJS)): $(HEADERS)
 
 TARGET_SHARED = $(BUILD)/libc.so
@@ -163,13 +164,8 @@ install: $(TARGET_SHARED) $(TARGET_STATIC) $(BUILD)/arm/crt1.o $(BUILD)/arm/crti
 	cp $(BUILD)/arm/crt1.o $(LIBDIR)
 	cp $(BUILD)/arm/crti.o $(LIBDIR)
 	cp $(BUILD)/arm/crtn.o $(LIBDIR)
-	cp *.h $(INCLUDEDIR)
+	cp -r include/. $(INCLUDEDIR)
 	cp ../tinycc/include/*.h $(INCLUDEDIR)
-	cp -r sys $(INCLUDEDIR)
-	cp -r yasc $(INCLUDEDIR)
-	cp -r arpa $(INCLUDEDIR)
-	cp -r net $(INCLUDEDIR)
-	cp -r netinet $(INCLUDEDIR)
 
 clean:
 	rm -rf build

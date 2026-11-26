@@ -33,7 +33,7 @@
 
 /* libc's own <fcntl.h>, not the toolchain's: newlib numbers O_CREAT and the
  * rest apart, and the kernel reads libc's numbers. */
-#include "../fcntl.h"
+#include "../include/fcntl.h"
 
 /* Declared without fcntl.h's owned(close): the fds here are the fake's
  * numbers, nothing to close. */

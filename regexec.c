@@ -38,7 +38,7 @@
 
 #include <regex.h>
 
-#include "tre.h"
+#include "internal/tre.h"
 
 #include <assert.h>
 

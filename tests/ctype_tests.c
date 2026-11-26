@@ -22,7 +22,7 @@
 
 /* libc's own <ctype.h>, not the toolchain's: its inline versions are what
  * programs call, so they are checked against ctype.c's functions below. */
-#include "../ctype.h"
+#include "../include/ctype.h"
 
 int sut_isascii(int c);
 int sut_isblank(int c);

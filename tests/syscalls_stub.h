@@ -20,7 +20,7 @@
 
 #include "fff.h"
 
-#include "../sys/syscall.h"
+#include "../include/sys/syscall.h"
 
 DECLARE_FAKE_VOID_FUNC(trigger_supervisor_call, int, const void *,
                        syscall_result *)

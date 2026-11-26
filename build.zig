@@ -41,10 +41,10 @@ const portable_sources = [_][]const u8{
     // function in it at --gc-sections (stdlib.c's atoll, which calls
     // strtoll, with them).
     "bitops.c",
-    "byteswap.c",
-    "ctype.c",
+    // byteswap.c, ctype.c and fcntl.c are yasc as well (Makefile: YASC_SRCS;
+    // cast<...>), which clang cannot build.  <byteswap.h> and <ctype.h> give
+    // their callers inline versions, and nothing without an OS opens a file.
     "errno.c",
-    "fcntl.c",
     "fnmatch.c",
     // libgen.c is yasc (slices: `#pragma yasc`), which clang cannot build;
     // nothing without an OS calls dirname/basename (Makefile: YASC_SRCS).
@@ -101,11 +101,11 @@ pub fn build(b: *std.Build) void {
     if (target.result.cpu.arch.isArm() or target.result.cpu.arch.isThumb()) {
         lib.root_module.addCSourceFiles(.{ .files = &.{"noos/aeabi_mem.c"}, .flags = &flags });
     }
-    lib.root_module.addIncludePath(b.path("."));
+    lib.root_module.addIncludePath(b.path("include"));
     // Like newlib, which this replaces: libc is not where a sanitizer's traps
     // belong -- the word-wise copies type-pun on purpose.
     lib.root_module.sanitize_c = .off;
 
     b.installArtifact(lib);
-    b.addNamedLazyPath("include", b.path("."));
+    b.addNamedLazyPath("include", b.path("include"));
 }

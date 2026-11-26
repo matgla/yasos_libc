@@ -30,7 +30,7 @@
 #include <sys/mman.h>
 
 #include "syscalls_stub.h"
-#include "../stdckdint.h"
+#include "../include/stdckdint.h"
 
 size_t sut_strlcpy(char *dst, const char *src, size_t size);
 size_t sut_strlcat(char *dst, const char *src, size_t size);
