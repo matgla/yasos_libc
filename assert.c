@@ -29,13 +29,13 @@
 #include <string.h>
 #include <unistd.h>
 
-static void put(const char *view s)
+static void put(const char *s)
 {
   if (s)
     write(2, s, strlen(s));
 }
 
-void __assert_fail(const char *view expr, const char *view file, unsigned int line, const char *view func)
+void __assert_fail(const char *expr, const char *file, unsigned int line, const char *func)
 {
   char num[12] = undefined;
   char *view p = num + sizeof(num);

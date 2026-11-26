@@ -33,8 +33,8 @@
 /* Prints "FILE:LINE: FUNC: Assertion `EXPR' failed." to the standard error
    and abort()s. */
 #pragma tcc c_end
-__yl_noreturn void __assert_fail(const char * view expr, const char * view file, unsigned int line,
-                                 const char * view func);
+__yl_noreturn void __assert_fail(const char *expr, const char *file, unsigned int line,
+                                 const char *func);
 #pragma tcc c_begin
 
 /* C11 spells it _Static_assert and leaves the short name to this header; C23

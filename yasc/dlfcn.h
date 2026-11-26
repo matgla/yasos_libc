@@ -35,6 +35,6 @@ int dlclose(void *);
 void *dlopen(const char *, int) __yl_dealloc(dlclose, 1);
 #pragma tcc c_end
 /* null when the symbol is not found; HANDLE may be RTLD_DEFAULT (null) */
-void * borrows(static) maybe dlsym(inout void * view maybe handle, const char * view name) __yl_nonnull(2);
+void * borrows(static) maybe dlsym(inout void * maybe handle, const char *name) __yl_nonnull(2);
 /* null when no error happened since the last call */
 char * borrows(static) maybe dlerror(void);

@@ -32,10 +32,10 @@ struct tm {
 time_t time(time_t *timep);
 long strftime(char *s, size_t len, const char *fmt, struct tm *tm) __yl_nonnull(3, 4);
 #pragma tcc c_end
-struct tm * borrows(static) maybe localtime(const time_t * view timep) __yl_nonnull(1);
-struct tm * borrows(result) maybe localtime_r(const time_t * view timer, out struct tm * view result) __yl_nonnull(1, 2);
-struct tm * borrows(static) maybe gmtime(const time_t * view timep) __yl_nonnull(1);
-struct tm * borrows(result) maybe gmtime_r(const time_t * view timer, out struct tm * view result) __yl_nonnull(1, 2);
+struct tm * borrows(static) maybe localtime(const time_t *timep) __yl_nonnull(1);
+struct tm * borrows(result) maybe localtime_r(const time_t *timer, out struct tm *result) __yl_nonnull(1, 2);
+struct tm * borrows(static) maybe gmtime(const time_t *timep) __yl_nonnull(1);
+struct tm * borrows(result) maybe gmtime_r(const time_t *timer, out struct tm *result) __yl_nonnull(1, 2);
 #pragma tcc c_begin
 
 /* Time zones: $TZ (an IANA name or a POSIX TZ string), else /etc/localtime,
@@ -48,9 +48,9 @@ void tzset(void);
 time_t mktime(struct tm *tm) __yl_nonnull(1);
 time_t timegm(struct tm *tm) __yl_nonnull(1);
 #pragma tcc c_end
-char * borrows(static) asctime(const struct tm * view tm) __yl_nonnull(1);
-char * borrows(buf) asctime_r(const struct tm * view tm, out char * view buf) __yl_nonnull(1, 2);
-char * borrows(static) maybe ctime(const time_t * view timep) __yl_nonnull(1);
-char * borrows(buf) maybe ctime_r(const time_t * view timep, out char * view buf) __yl_nonnull(1, 2);
+char * borrows(static) asctime(const struct tm *tm) __yl_nonnull(1);
+char * borrows(buf) asctime_r(const struct tm *tm, out char *buf) __yl_nonnull(1, 2);
+char * borrows(static) maybe ctime(const time_t *timep) __yl_nonnull(1);
+char * borrows(buf) maybe ctime_r(const time_t *timep, out char *buf) __yl_nonnull(1, 2);
 /* past the parsed text in S, or null when it does not match FMT */
-char * borrows(s) maybe strptime(const char * view s, const char * view fmt, inout struct tm * view tm) __yl_nonnull(1, 2, 3);
+char * borrows(s) maybe strptime(const char *s, const char *fmt, inout struct tm *tm) __yl_nonnull(1, 2, 3);

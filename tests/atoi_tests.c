@@ -35,12 +35,12 @@
 #include <limits.h>
 #include <stdio.h>
 
-int sut_atoi(const char * view s);
-long sut_atol(const char * view s);
-long sut_strtol(const char * view s, out char * view * view maybe endptr, int base);
-unsigned long sut_strtoul(const char * view s, out char * view * view maybe endptr, int base);
-long long sut_strtoll(const char * view s, out char * view * view maybe endptr, int base);
-unsigned long long sut_strtoull(const char * view s, out char * view * view maybe endptr, int base);
+int sut_atoi(const char *s);
+long sut_atol(const char *s);
+long sut_strtol(const char *s, out char * view * maybe endptr, int base);
+unsigned long sut_strtoul(const char *s, out char * view * maybe endptr, int base);
+long long sut_strtoll(const char *s, out char * view * maybe endptr, int base);
+unsigned long long sut_strtoull(const char *s, out char * view * maybe endptr, int base);
 
 /* The library under test carries its own errno (rename_symbols.sh / the QEMU
  * suite rename every libc symbol): `errno` here would never see what it set. */
@@ -56,7 +56,7 @@ UTEST(atoi, golden_table_is_complete)
 }
 
 /* one function's answer against the table's: value, end, ERANGE */
-static int same(const char * view what, const struct strto_golden * view g, int eq, long end, int range,
+static int same(const char *what, const struct strto_golden *g, int eq, long end, int range,
                 int want_end, int want_range)
 {
   if (eq && end == want_end && range == want_range)

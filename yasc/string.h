@@ -18,29 +18,29 @@ void *memmove(void *dst, const void *src, size_t n);
 void *memset(void *s, int v, size_t n);
 #pragma tcc c_end
 /* length-bounded: s may be null with n == 0 */
-void * borrows(s) maybe memchr(const void * view maybe s, int c, long n);
-void * borrows(s) maybe memrchr(const void * view maybe s, int c, size_t n);
+void * borrows(s) maybe memchr(const void * maybe s, int c, long n);
+void * borrows(s) maybe memrchr(const void * maybe s, int c, size_t n);
 #pragma tcc c_begin
 int memcmp(const void *s1, const void *s2, size_t n);
 
 #pragma tcc c_end
 /* DST (stpcpy: its terminating null), never SRC */
-char * borrows(dst) strcpy(out char * view dst, const char * view src) __yl_nonnull(1, 2);
-char * borrows(s) maybe strchr(const char * view s, int c) __yl_nonnull(1);
-char * borrows(s) maybe strrchr(const char * view s, int c) __yl_nonnull(1);
+char * borrows(dst) strcpy(out char *dst, const char *src) __yl_nonnull(1, 2);
+char * borrows(s) maybe strchr(const char *s, int c) __yl_nonnull(1);
+char * borrows(s) maybe strrchr(const char *s, int c) __yl_nonnull(1);
 #pragma tcc c_begin
 size_t strlen(const char *s) __yl_nonnull(1);
 size_t strnlen(const char *s, size_t n);
 
 char *strncpy(char *d, const char *s, long n);
 #pragma tcc c_end
-char * borrows(dst) strcat(inout char * view dst, const char * view src) __yl_nonnull(1, 2);
+char * borrows(dst) strcat(inout char *dst, const char *src) __yl_nonnull(1, 2);
 #pragma tcc c_begin
 char *strncat(char *d, const char *s, size_t n);
 int strcmp(const char *str1, const char *str2) __yl_nonnull(1, 2);
 int strncmp(const char *str1, const char *str2, size_t n);
 #pragma tcc c_end
-char * borrows(s) maybe strstr(const char * view s, const char * view r) __yl_nonnull(1, 2);
+char * borrows(s) maybe strstr(const char *s, const char *r) __yl_nonnull(1, 2);
 #pragma tcc c_begin
 
 char *strdup(const char *s) __yl_malloc __yl_nonnull(1);
@@ -49,23 +49,23 @@ size_t strspn(const char *s, const char *accept) __yl_nonnull(1, 2);
 size_t strcspn(const char *s, const char *reject) __yl_nonnull(1, 2);
 #pragma tcc c_end
 /* null when no token is left; str is null after the first call */
-char * borrows(static, str) maybe strtok(inout char * view maybe str, const char * view delimiters) __yl_nonnull(2);
-char * borrows(str, saveptr) maybe strtok_r(inout char * view maybe str, const char * view delimiters,
-                           inout char * view maybe * view saveptr) __yl_nonnull(2, 3);
+char * borrows(static, str) maybe strtok(inout char * maybe str, const char *delimiters) __yl_nonnull(2);
+char * borrows(str, saveptr) maybe strtok_r(inout char * maybe str, const char *delimiters,
+                           inout char * view maybe *saveptr) __yl_nonnull(2, 3);
 #pragma tcc c_begin
 /* faster implementations */
 #define memchr(s, c, n) __memchr_c(s, c, n)
 
 #pragma tcc c_end
-void * borrows(s) maybe __memchr_c(const void * view maybe s, int c, long n);
+void * borrows(s) maybe __memchr_c(const void * maybe s, int c, long n);
 /* a fixed message, "Unknown error" for an unknown number */
 char * borrows(static) strerror(int errnum);
-char * borrows(dst) stpcpy(out char * view dst, const char * view src) __yl_nonnull(1, 2);
+char * borrows(dst) stpcpy(out char *dst, const char *src) __yl_nonnull(1, 2);
 #pragma tcc c_begin
 char *stpncpy(char *dst, const char *src, size_t n);
 
 #pragma tcc c_end
-char * borrows(s) maybe strpbrk(const char * view s, const char * view accept) __yl_nonnull(1, 2);
+char * borrows(s) maybe strpbrk(const char *s, const char *accept) __yl_nonnull(1, 2);
 #pragma tcc c_begin
 int strcasecmp(const char *s1, const char *s2) __yl_nonnull(1, 2);
 int strncasecmp(const char *s1, const char *s2, size_t n);
@@ -74,13 +74,13 @@ int strncasecmp(const char *s1, const char *s2, size_t n);
    >= size when it was cut. dst may be null with size 0. */
 #pragma tcc c_end
 /* length-bounded: dst may be null with size == 0 */
-size_t strlcpy(out char * view maybe dst, const char * view src, size_t size) __yl_nonnull(2);
-size_t strlcat(inout char * view maybe dst, const char * view src, size_t size) __yl_nonnull(2);
+size_t strlcpy(out char * maybe dst, const char *src, size_t size) __yl_nonnull(2);
+size_t strlcat(inout char * maybe dst, const char *src, size_t size) __yl_nonnull(2);
 #pragma tcc c_begin
 /* memset that the optimiser keeps (C23), for secrets; explicit_bzero zeroes */
 #pragma tcc c_end
-void * borrows(s) maybe memset_explicit(out void * view maybe s, int c, size_t n);
-void explicit_bzero(out void * view maybe s, size_t n);
+void * borrows(s) maybe memset_explicit(out void * maybe s, int c, size_t n);
+void explicit_bzero(out void * maybe s, size_t n);
 #pragma tcc c_begin
 
 /* _FORTIFY_SOURCE (sys/_fortify.h): the copies that know their destination's

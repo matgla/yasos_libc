@@ -10,7 +10,7 @@
 char *borrows(static, path) sut_dirname(char path[maybe :0]);
 char *borrows(static, path) sut_basename(char path[maybe :0]);
 
-static int either(const char *view got, const char *view want, const char *view or_want)
+static int either(const char *got, const char *want, const char *or_want)
 {
   if (!strcmp(got, want) || !strcmp(got, or_want))
     return 1;

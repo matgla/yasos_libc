@@ -45,7 +45,8 @@ struct dirent {
 
 /* closedir first: opendir names it as its deallocator */
 int closedir(drop DIR * owned maybe dir);
-DIR * owned(closedir) maybe opendir(const char * view path) __yl_nonnull(1);
-DIR * owned(closedir) maybe fdopendir(int fd);
+DIR * owned(closedir) maybe opendir(const char *path) __yl_nonnull(1);
+/* on success the DIR took FD over (closedir closes it); on null FD is still the caller's */
+DIR * owned(closedir) maybe takes(fd) fdopendir(int owned(close) fd);
 /* null at the end of the directory or on an error */
-struct dirent * borrows(dir) maybe readdir(inout DIR * view dir) __yl_nonnull(1);
+struct dirent * borrows(dir) maybe readdir(inout DIR *dir) __yl_nonnull(1);

@@ -52,8 +52,10 @@ int setsockopt(int socket, int level, int option_name, const void *option_value,
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int shutdown(int sockfd, int how);
+/* DEST_ADDR may be null on a connected socket */
 ssize_t sendto(int socket, const void *message, size_t length, int flags,
                const struct sockaddr *dest_addr, socklen_t dest_len);
+/* ADDRESS and ADDRESS_LEN may be null together */
 ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
                  struct sockaddr *address, socklen_t *address_len);
 

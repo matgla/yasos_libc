@@ -50,6 +50,7 @@ struct dirent {
 /* closedir first: opendir names it as its deallocator */
 int closedir(DIR *dir);
 DIR *opendir(const char *path) __yl_nonnull(1) __yl_dealloc(closedir, 1);
+/* on success the DIR took FD over (closedir closes it); on null FD is still the caller's */
 DIR *fdopendir(int fd) __yl_dealloc(closedir, 1);
 /* null at the end of the directory or on an error */
 struct dirent *readdir(DIR *dir) __yl_nonnull(1);

@@ -41,7 +41,7 @@ int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
                struct group **result);
 
 #pragma tcc c_end
-struct group * borrows(static) maybe getgrnam(const char * view name) __yl_nonnull(1);
+struct group * borrows(static) maybe getgrnam(const char *name) __yl_nonnull(1);
 #pragma tcc c_begin
 int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
                struct group **result);

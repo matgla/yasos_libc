@@ -37,7 +37,7 @@ typedef struct passwd {
 
 
 #pragma tcc c_end
-struct passwd * borrows(static) maybe getpwnam(const char * view name) __yl_nonnull(1);
+struct passwd * borrows(static) maybe getpwnam(const char *name) __yl_nonnull(1);
 struct passwd * borrows(static) maybe getpwuid(uid_t uid);
 #pragma tcc c_begin
 

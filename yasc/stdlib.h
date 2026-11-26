@@ -19,7 +19,7 @@ void *malloc(size_t n) __yl_malloc __yl_alloc_size(1) __yl_dealloc(free, 1);
    sizeof(void *)). Blocks from either are released with plain free(). */
 #pragma tcc c_end
 /* written on success (0) only */
-int posix_memalign(out void * owned(free) maybe * view memptr, size_t alignment, size_t size);
+int posix_memalign(out void * owned(free) maybe *memptr, size_t alignment, size_t size);
 #pragma tcc c_begin
 void *aligned_alloc(size_t alignment, size_t size) __yl_malloc __yl_alloc_size(2) __yl_dealloc(free, 1);
 void *memalign(size_t alignment, size_t size) __yl_malloc __yl_alloc_size(2) __yl_dealloc(free, 1);
@@ -43,15 +43,15 @@ void * owned(free) maybe takes(p) reallocarray(void * owned maybe p, size_t n, s
    number.  ENDPTR may be null; when it is not, *endptr is written: where the
    number ended, or S itself when nothing converted -- a pointer into S
    (borrows(s)): the caller's end borrows from what it passed for S. */
-int atoi(const char * view s) __yl_nonnull(1);
-long atol(const char * view s) __yl_nonnull(1);
+int atoi(const char *s) __yl_nonnull(1);
+long atol(const char *s) __yl_nonnull(1);
 #pragma tcc c_begin
 long long atoll(const char *s) __yl_nonnull(1);
 #pragma tcc c_end
 /* S, never null */
-char * borrows(s) itoa(int n, out char * view s, int base) __yl_nonnull(2);
-long strtol(const char * view s, out char * borrows(s) * view maybe endptr, int base) __yl_nonnull(1);
-unsigned long strtoul(const char * view s, out char * borrows(s) * view maybe endptr, int base) __yl_nonnull(1);
+char * borrows(s) itoa(int n, out char *s, int base) __yl_nonnull(2);
+long strtol(const char *s, out char * borrows(s) * maybe endptr, int base) __yl_nonnull(1);
+unsigned long strtoul(const char *s, out char * borrows(s) * maybe endptr, int base) __yl_nonnull(1);
 #pragma tcc c_begin
 int abs(int n);
 long int labs(long n);
@@ -64,19 +64,19 @@ int atexit(void (*func)(void)) __yl_nonnull(1);
 int on_exit(void (*func)(int, void *), void *arg) __yl_nonnull(1);
 
 #pragma tcc c_end
-char * borrows(static) maybe getenv(const char * view name) __yl_nonnull(1);
+char * borrows(static) maybe getenv(const char *name) __yl_nonnull(1);
 #pragma tcc c_begin
 int putenv(char *string) __yl_nonnull(1);
 
 void qsort(void *a, int n, int sz, int (*cmp)(const void *, const void *)) __yl_nonnull(4);
 #pragma tcc c_end
 /* base may be null with nmemb == 0 */
-void * borrows(base) maybe bsearch(const void * view key, const void * view maybe base, size_t nmemb, size_t size,
-                          int (* view compar)(const void * view, const void * view)) __yl_nonnull(1, 5);
+void * borrows(base) maybe bsearch(const void *key, const void * maybe base, size_t nmemb, size_t size,
+                          int (* view compar)(const void *, const void *)) __yl_nonnull(1, 5);
 /* an open descriptor of the file it made from T, or -1 */
-int owned(close) maybe mkstemp(inout char * view t) __yl_nonnull(1);
+int owned(close) maybe mkstemp(inout char *t) __yl_nonnull(1);
 /* T itself, or null on failure */
-char * borrows(t) maybe mkdtemp(inout char * view t) __yl_nonnull(1);
+char * borrows(t) maybe mkdtemp(inout char *t) __yl_nonnull(1);
 #pragma tcc c_begin
 int system(char *cmd);
 
@@ -87,8 +87,8 @@ double strtod(const char *nptr, char **endptr) __yl_nonnull(1);
 float strtof(const char *nptr, char **endptr) __yl_nonnull(1);
 long double strtold(const char *nptr, char **endptr) __yl_nonnull(1);
 #pragma tcc c_end
-long long strtoll(const char * view s, out char * borrows(s) * view maybe endptr, int base) __yl_nonnull(1);
-unsigned long long strtoull(const char * view s, out char * borrows(s) * view maybe endptr, int base) __yl_nonnull(1);
+long long strtoll(const char *s, out char * borrows(s) * maybe endptr, int base) __yl_nonnull(1);
+unsigned long long strtoull(const char *s, out char * borrows(s) * maybe endptr, int base) __yl_nonnull(1);
 #pragma tcc c_begin
 
 /* for examining heap memory allocation */

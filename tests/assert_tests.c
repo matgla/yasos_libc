@@ -39,7 +39,7 @@ static size_t out_len;
 static int raised;
 static jmp_buf back;
 
-static void fake_syscall(int number, const void *view args, inout syscall_result *view result) {
+static void fake_syscall(int number, const void *args, inout syscall_result *result) {
   result->result = 0;
   result->err = -1;
   if (number == sys_write) {

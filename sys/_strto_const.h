@@ -42,19 +42,19 @@
 
 #ifdef __YASC__
 #pragma yasc
-long __yl_strtol_c(const char * view s, out const char * borrows(s) * view maybe endptr, int base) __asm__("strtol")
+long __yl_strtol_c(const char *s, out const char * borrows(s) * maybe endptr, int base) __asm__("strtol")
     __yl_nonnull(1);
-unsigned long __yl_strtoul_c(const char * view s, out const char * borrows(s) * view maybe endptr, int base)
+unsigned long __yl_strtoul_c(const char *s, out const char * borrows(s) * maybe endptr, int base)
     __asm__("strtoul") __yl_nonnull(1);
-long long __yl_strtoll_c(const char * view s, out const char * borrows(s) * view maybe endptr, int base)
+long long __yl_strtoll_c(const char *s, out const char * borrows(s) * maybe endptr, int base)
     __asm__("strtoll") __yl_nonnull(1);
-unsigned long long __yl_strtoull_c(const char * view s, out const char * borrows(s) * view maybe endptr, int base)
+unsigned long long __yl_strtoull_c(const char *s, out const char * borrows(s) * maybe endptr, int base)
     __asm__("strtoull") __yl_nonnull(1);
-double __yl_strtod_c(const char * view nptr, out const char * borrows(nptr) * view maybe endptr) __asm__("strtod")
+double __yl_strtod_c(const char *nptr, out const char * borrows(nptr) * maybe endptr) __asm__("strtod")
     __yl_nonnull(1);
-float __yl_strtof_c(const char * view nptr, out const char * borrows(nptr) * view maybe endptr) __asm__("strtof")
+float __yl_strtof_c(const char *nptr, out const char * borrows(nptr) * maybe endptr) __asm__("strtof")
     __yl_nonnull(1);
-long double __yl_strtold_c(const char * view nptr, out const char * borrows(nptr) * view maybe endptr) __asm__("strtold")
+long double __yl_strtold_c(const char *nptr, out const char * borrows(nptr) * maybe endptr) __asm__("strtold")
     __yl_nonnull(1);
 /* _Generic matches on const alone: `maybe` and the outer pointer's word do
    not matter */

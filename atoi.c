@@ -16,7 +16,7 @@
  * ERANGE through strtol is not required.  Callers that need to detect
  * overflow or "not a number" use strtol.
  */
-int atoi(const char *view s) {
+int atoi(const char *s) {
   unsigned num = 0;
   int neg = 0;
   while (isspace(*s))
@@ -28,7 +28,7 @@ int atoi(const char *view s) {
   return (int)(neg ? 0u - num : num);
 }
 
-long atol(const char *view s) {
+long atol(const char *s) {
   unsigned long num = 0;
   int neg = 0;
   while (isspace(*s))
@@ -61,7 +61,7 @@ static int digit(char c, int base) {
 /* The `long` pair narrows the `long long` one below (same on a 64-bit host),
  * which already hands back the caller's own pointer when nothing converted --
  * this one used to leave it past the blanks and the sign. */
-long strtol(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+long strtol(const char *s, out char *borrows(s) * maybe endptr, int base) {
   long long v = strtoll(s, endptr, base);
 
   if (v > LONG_MAX) {
@@ -77,7 +77,7 @@ long strtol(const char *view s, out char *borrows(s) *view maybe endptr, int bas
 
 /* C's strtoul negates a "-" number in unsigned long, so the range check is on
  * the magnitude. */
-unsigned long strtoul(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+unsigned long strtoul(const char *s, out char *borrows(s) * maybe endptr, int base) {
   const char *view p = s;
   int saved = errno, neg;
   unsigned long long v;
@@ -132,7 +132,7 @@ unsigned long strtoul(const char *view s, out char *borrows(s) *view maybe endpt
  * pattern that way, and this libc's whole reason for caring is tcc's inline
  * assembler.
  */
-static int strto_base(inout const char *view *view s, int base, out const char *view maybe *view after_zero) {
+static int strto_base(inout const char *view *s, int base, out const char *view maybe *after_zero) {
   const char *view p = *s;
 
   *after_zero = nullptr;
@@ -158,7 +158,7 @@ static int strto_base(inout const char *view *view s, int base, out const char *
   return base;
 }
 
-unsigned long long strtoull(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, int base) {
   const char *view start = s;
   const char *view maybe after_zero = nullptr;
   unsigned long long num = 0;
@@ -202,7 +202,7 @@ unsigned long long strtoull(const char *view s, out char *borrows(s) *view maybe
   return num;
 }
 
-long long strtoll(const char *view s, out char *borrows(s) *view maybe endptr, int base) {
+long long strtoll(const char *s, out char *borrows(s) * maybe endptr, int base) {
   const char *view start = s;
   const char *view maybe after_zero;
   unsigned long long num = 0;

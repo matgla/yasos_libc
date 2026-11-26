@@ -97,6 +97,7 @@ int chdir(const char *path) __yl_nonnull(1);
 int rmdir(const char *path) __yl_nonnull(1);
 int fchdir(int fd);
 
+/* DIRFD may be AT_FDCWD; the link's text is not NUL-terminated */
 ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(2);
 ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(1);
 
@@ -109,7 +110,7 @@ int setgid(gid_t gid);
 int chown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int fchown(int fd, uid_t owner, gid_t group);
 int fchownat(int dirfd, const char *pathname, uid_t owner, gid_t group,
-             int flags);
+             int flags) __yl_nonnull(2);
 int lchown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int link(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
 int chroot(const char *path) __yl_nonnull(1);

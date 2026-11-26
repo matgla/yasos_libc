@@ -40,23 +40,23 @@ typedef unsigned int socklen_t;
 
 #pragma tcc c_end
 int owned(close) maybe socket(int domain, int type, int protocol);
-#pragma tcc c_begin
-int listen(int sockfd, int backlog);
+int listen(int view sockfd, int backlog);
 /* the connection's own descriptor; ADDR and ADDRLEN may be null together */
-#pragma tcc c_end
 /* a new connection, which the listening socket does not own: closing one
    leaves the other open */
-int owned(close) maybe accept(int view sockfd, out struct sockaddr * view maybe addr, inout socklen_t * view maybe addrlen);
-#pragma tcc c_begin
-int setsockopt(int socket, int level, int option_name, const void *option_value,
+int owned(close) maybe accept(int view sockfd, out struct sockaddr * maybe addr, inout socklen_t * maybe addrlen);
+int setsockopt(int view socket, int level, int option_name, const void *option_value,
                socklen_t option_len);
-int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-int shutdown(int sockfd, int how);
-ssize_t sendto(int socket, const void *message, size_t length, int flags,
-               const struct sockaddr *dest_addr, socklen_t dest_len);
-ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
-                 struct sockaddr *address, socklen_t *address_len);
+int bind(int view sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int connect(int view sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int shutdown(int view sockfd, int how);
+/* DEST_ADDR may be null on a connected socket */
+ssize_t sendto(int view socket, const void *message, size_t length, int flags,
+               const struct sockaddr * maybe dest_addr, socklen_t dest_len);
+/* ADDRESS and ADDRESS_LEN may be null together */
+ssize_t recvfrom(int view socket, out void *buffer, size_t length, int flags,
+                 out struct sockaddr * maybe address, inout socklen_t * maybe address_len);
+#pragma tcc c_begin
 
 #define SOL_SOCKET 1
 

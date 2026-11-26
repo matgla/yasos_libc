@@ -76,7 +76,7 @@ void setbuf(FILE *fp, char *buf) __yl_nonnull(1);
 FILE *tmpfile(void) __yl_dealloc(fclose, 1);
 #pragma tcc c_end
 /* BUFFER or a static one; null when no name is left */
-char * borrows(static, buffer) maybe tmpnam(out char * view maybe buffer);
+char * borrows(static, buffer) maybe tmpnam(out char * maybe buffer);
 #pragma tcc c_begin
 int fputc(int c, FILE *fp) __yl_nonnull(2);
 int putchar(int c);
@@ -103,7 +103,7 @@ FILE *popen(const char *command, const char *type) __yl_dealloc(pclose, 1) __yl_
 int fgetc(FILE *fp) __yl_nonnull(1);
 #pragma tcc c_end
 /* S, or null at the end of the input or on an error */
-char * borrows(s) maybe fgets(out char * view s, int sz, inout FILE * view fp) __yl_nonnull(1, 3);
+char * borrows(s) maybe fgets(out char *s, int sz, inout FILE *fp) __yl_nonnull(1, 3);
 #pragma tcc c_begin
 int scanf(const char *fmt, ...) __yl_nonnull(1);
 int fscanf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
@@ -121,18 +121,22 @@ void perror(const char *s);
 #pragma tcc c_end
 /* the line buffer is the caller's before and after (the callee may replace
    it), and must be freed even after -1 */
-ssize_t getline(inout char * owned(free) maybe * view lineptr, inout size_t * view n, inout FILE * view fp) __yl_nonnull(3);
+ssize_t getline(inout char * owned(free) maybe *lineptr, inout size_t *n, inout FILE *fp) __yl_nonnull(3);
 #pragma tcc c_begin
 int setvbuf(FILE *fp, char *buf, int mode, size_t size) __yl_nonnull(1);
-int dprintf(int fildes, const char *format, ...) __yl_nonnull(2);
-int vdprintf(int fildes, const char *format, va_list ap) __yl_nonnull(2);
+#pragma tcc c_end
+int dprintf(int view fildes, const char *format, ...) __yl_nonnull(2);
+int vdprintf(int view fildes, const char *format, va_list ap) __yl_nonnull(2);
+#pragma tcc c_begin
 
 int fileno(FILE *fp) __yl_nonnull(1);
 
 int rename(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
-int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath) __yl_nonnull(2, 4);
-int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpath,
+#pragma tcc c_end
+int renameat(int view maybe olddirfd, const char *oldpath, int view maybe newdirfd, const char *newpath) __yl_nonnull(2, 4);
+int renameat2(int view maybe olddirfd, const char *oldpath, int view maybe newdirfd, const char *newpath,
               unsigned int flags) __yl_nonnull(2, 4);
+#pragma tcc c_begin
 
 /* renameat2 flags, same values as Linux. Only NOREPLACE is honoured. */
 #define RENAME_NOREPLACE (1 << 0)
@@ -140,12 +144,12 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
 #define RENAME_WHITEOUT (1 << 2)
 #pragma tcc c_end
 /* the stream takes the descriptor over; null: fd is still the caller's */
-FILE * owned(fclose) maybe takes(fd) fdopen(int owned(close) fd, const char * view mode) __yl_nonnull(2);
+FILE * owned(fclose) maybe takes(fd) fdopen(int owned(close) fd, const char *mode) __yl_nonnull(2);
 #pragma tcc c_begin
 FILE *fmemopen(void *buf, size_t size, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(3);
 #pragma tcc c_end
-ssize_t getdelim(inout char * owned(free) maybe * view lineptr, inout size_t * view n, int delimiter,
-                 inout FILE * view stream) __yl_nonnull(4);
+ssize_t getdelim(inout char * owned(free) maybe *lineptr, inout size_t *n, int delimiter,
+                 inout FILE *stream) __yl_nonnull(4);
 #pragma tcc c_begin
 void clearerr(FILE *fp) __yl_nonnull(1);
 
