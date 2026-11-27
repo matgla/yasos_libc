@@ -54,10 +54,10 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 int shutdown(int sockfd, int how);
 /* DEST_ADDR may be null on a connected socket */
 ssize_t sendto(int socket, const void *message, size_t length, int flags,
-               const struct sockaddr *dest_addr, socklen_t dest_len);
+               const struct sockaddr *dest_addr, socklen_t dest_len) __yl_access(read_only, 2, 3);
 /* ADDRESS and ADDRESS_LEN may be null together */
 ssize_t recvfrom(int socket, void *buffer, size_t length, int flags,
-                 struct sockaddr *address, socklen_t *address_len);
+                 struct sockaddr *address, socklen_t *address_len) __yl_access(write_only, 2, 3);
 
 #define SOL_SOCKET 1
 

@@ -24,7 +24,7 @@
 
 #include "sys/syscall.h"
 
-int openat(int dirfd, const char *pathname, int flags, ...) {
+int openat(int dirfd, char *pathname, int flags, ...) {
   int mode = 0;
   if (flags & O_CREAT) {
     va_list args;

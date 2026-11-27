@@ -24,5 +24,5 @@
  * sys/syscall/core.h, spelled out here because the ARMv8-M SVCall stub
  * bounds-checks against it and the assembler cannot see a C enum.
  * sys/syscall/core.h checks the two against each other at compile time. */
-#define YASOS_SYSCALL_COUNT 76
+#define YASOS_SYSCALL_COUNT 84
 

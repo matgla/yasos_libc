@@ -34,5 +34,5 @@ unsigned short htons(unsigned short n);
 unsigned short ntohs(unsigned short n);
 
 /* DST, or null when AF is unknown or SIZE too small */
-const char *inet_ntop(int af, const void *src, char *dst, socklen_t size);
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t size) __yl_access(write_only, 3, 4);
 #endif /* __YASC__ */

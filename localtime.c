@@ -40,8 +40,8 @@ typedef long long i64;
 
 long timezone;
 int daylight;
-static char utc_name[] = "UTC";
-char *tzname[2] = {utc_name, utc_name};
+static const char utc_name[] = "UTC";
+const char *tzname[2] = {utc_name, utc_name};
 
 /* --- calendar ------------------------------------------------------------
  * Proleptic Gregorian, days counted from 1970-01-01 (H. Hinnant's
@@ -60,7 +60,8 @@ static int is_leap(i64 y) {
 }
 
 static int month_days(i64 y, int m) {
-  static const unsigned char days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  static const unsigned char days[] = {31, 28, 31, 30, 31, 30,
+                                       31, 31, 30, 31, 30, 31};
   return days[m - 1] + (m == 2 && is_leap(y));
 }
 
@@ -76,38 +77,41 @@ static i64 days_from_civil(i64 y, int m, int d) {
 
 /* UTC seconds `t` into `tm`, fields only (no zone). 0 when the year does not
    fit tm_year. */
-static int secs_to_tm(i64 t, struct tm *tm) {
+static int secs_to_tm(i64 t, out struct tm *tm) {
   i64 days = floor_div(t, SPD);
-  long rem = (long)(t - days * SPD);
+  long rem = cast<int(long)>(t - days * SPD);
   i64 z = days + 719468;
   i64 era = floor_div(z, 146097);
-  long doe = (long)(z - era * 146097);
+  long doe = cast<int(long)>(z - era * 146097);
   long yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
   long doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
   long mp = (5 * doy + 2) / 153;
-  int mday = (int)(doy - (153 * mp + 2) / 5 + 1);
-  int mon = (int)(mp < 10 ? mp + 3 : mp - 9);
+  int mday = cast<as(int)>(doy - (153 * mp + 2) / 5 + 1);
+  int mon = cast<as(int)>(mp < 10 ? mp + 3 : mp - 9);
   i64 year = yoe + era * 400 + (mon <= 2);
-  if (year - 1900 > 0x7fffffffLL || year - 1900 < -0x7fffffffLL - 1)
+  if (year - 1900 > 0x7fffffffLL || year - 1900 < -0x7fffffffLL - 1) {
+    *tm = (struct tm){};
     return 0;
-  tm->tm_year = (int)(year - 1900);
+  }
+  tm->tm_year = cast<int(int)>(year - 1900);
   tm->tm_mon = mon - 1;
   tm->tm_mday = mday;
-  tm->tm_yday = (int)(days - days_from_civil(year, 1, 1));
-  tm->tm_wday = (int)(((days + 4) % 7 + 7) % 7);
-  tm->tm_hour = (int)(rem / 3600);
-  tm->tm_min = (int)(rem / 60 % 60);
-  tm->tm_sec = (int)(rem % 60);
+  tm->tm_yday = cast<int(int)>(days - days_from_civil(year, 1, 1));
+  tm->tm_wday = cast<int(int)>(((days + 4) % 7 + 7) % 7);
+  tm->tm_hour = cast<as(int)>(rem / 3600);
+  tm->tm_min = cast<as(int)>(rem / 60 % 60);
+  tm->tm_sec = cast<as(int)>(rem % 60);
   return 1;
 }
 
 /* `tm`'s fields as seconds, as if they were UTC; any field may be out of its
    range (mktime's normalisation is this arithmetic). */
-static i64 tm_to_secs(const struct tm *tm) {
+static i64 tm_to_secs(struct tm *tm) {
   i64 mon = tm->tm_mon;
   i64 year = 1900LL + tm->tm_year + floor_div(mon, 12);
   mon -= floor_div(mon, 12) * 12;
-  i64 days = days_from_civil(year, (int)mon + 1, 1) + tm->tm_mday - 1;
+  i64 days =
+      days_from_civil(year, cast<int(int)>(mon) + 1, 1) + tm->tm_mday - 1;
   return days * SPD + tm->tm_hour * 3600LL + tm->tm_min * 60LL + tm->tm_sec;
 }
 
@@ -140,97 +144,111 @@ static int is_digit(int c) {
   return c >= '0' && c <= '9';
 }
 
-static const char *parse_name(const char *s, char *out, size_t cap) {
+static const char *?view parse_name(char *s, out char *out, size_t cap) {
   size_t n = 0;
+  *out = '\0';
   if (*s == '<') {
     s++;
     while (*s && *s != '>') {
       if (!is_alpha(*s) && !is_digit(*s) && *s != '+' && *s != '-')
-        return NULL;
+        return nullptr;
       if (n + 1 >= cap)
-        return NULL;
+        return nullptr;
       out[n++] = *s++;
     }
     if (*s != '>')
-      return NULL;
+      return nullptr;
     s++;
   } else {
     while (is_alpha(*s)) {
       if (n + 1 >= cap)
-        return NULL;
+        return nullptr;
       out[n++] = *s++;
     }
   }
   if (n < 3)
-    return NULL;
+    return nullptr;
   out[n] = '\0';
   return s;
 }
 
-static const char *parse_num(const char *s, long *out, long max) {
+static const char *?view parse_num(char *s, out long *out, long max) {
   long v = 0;
+  *out = 0;
   if (!is_digit(*s))
-    return NULL;
+    return nullptr;
   while (is_digit(*s)) {
     v = v * 10 + (*s++ - '0');
     if (v > max)
-      return NULL;
+      return nullptr;
   }
   *out = v;
   return s;
 }
 
 /* [+-]hh[:mm[:ss]] in seconds. */
-static const char *parse_time(const char *s, long *out, long max_hours) {
+static const char *?view parse_time(char *?s, out long *out,
+                                    long max_hours) {
   long sign = 1, h, m = 0, sec = 0;
+  *out = 0;
+  if (!s) {
+    return nullptr;
+  }
   if (*s == '+' || *s == '-')
     sign = *s++ == '-' ? -1 : 1;
   if (!(s = parse_num(s, &h, max_hours)))
-    return NULL;
+    return nullptr;
   if (*s == ':') {
     if (!(s = parse_num(s + 1, &m, 59)))
-      return NULL;
+      return nullptr;
     if (*s == ':' && !(s = parse_num(s + 1, &sec, 59)))
-      return NULL;
+      return nullptr;
   }
   *out = sign * (h * 3600 + m * 60 + sec);
   return s;
 }
 
-static const char *parse_rule(const char *s, struct tzrule *r) {
+static const char *?view parse_rule(char *?s, out struct tzrule *r) {
   long a, b, c;
+  *r = (struct tzrule){};
+  if (!s) {
+    return nullptr;
+  }
   if (*s == 'J') {
     if (!(s = parse_num(s + 1, &a, 365)) || a < 1)
-      return NULL;
+      return nullptr;
     r->kind = 'J';
-    r->d = (int)a;
+    r->d = cast<as(int)>(a);
   } else if (*s == 'M') {
     if (!(s = parse_num(s + 1, &a, 12)) || a < 1 || *s != '.')
-      return NULL;
+      return nullptr;
     if (!(s = parse_num(s + 1, &b, 5)) || b < 1 || *s != '.')
-      return NULL;
+      return nullptr;
     if (!(s = parse_num(s + 1, &c, 6)))
-      return NULL;
+      return nullptr;
     r->kind = 'M';
-    r->m = (int)a;
-    r->w = (int)b;
-    r->d = (int)c;
+    r->m = cast<as(int)>(a);
+    r->w = cast<as(int)>(b);
+    r->d = cast<as(int)>(c);
   } else {
     if (!(s = parse_num(s, &a, 365)))
-      return NULL;
+      return nullptr;
     r->kind = 'D';
-    r->d = (int)a;
+    r->d = cast<as(int)>(a);
   }
   r->secs = 7200;
   /* RFC 8536 3.3.1 allows -167..167 hours here. */
   if (*s == '/' && !(s = parse_time(s + 1, &r->secs, 167)))
-    return NULL;
+    return nullptr;
   return s;
 }
 
-static int parse_posix(const char *s, struct posix_tz *p) {
+static int parse_posix(char *?s, out struct posix_tz *p) {
   long off;
   memset(p, 0, sizeof(*p));
+  if (!s) {
+    return 0;
+  }
   if (!(s = parse_name(s, p->std_name, sizeof(p->std_name))))
     return 0;
   if (!(s = parse_time(s, &off, 24)))
@@ -265,7 +283,7 @@ static int parse_posix(const char *s, struct posix_tz *p) {
 
 /* The rule's day in `year` at its time of day, local time, in seconds as if
    that local time were UTC. */
-static i64 rule_local(i64 year, const struct tzrule *r) {
+static i64 rule_local(i64 year, struct tzrule *r) {
   i64 jan1 = days_from_civil(year, 1, 1);
   i64 day;
   if (r->kind == 'J') {
@@ -274,7 +292,7 @@ static i64 rule_local(i64 year, const struct tzrule *r) {
     day = jan1 + r->d;
   } else {
     i64 first = days_from_civil(year, r->m, 1);
-    int wday1 = (int)(((first + 4) % 7 + 7) % 7);
+    int wday1 = cast<int(int)>(((first + 4) % 7 + 7) % 7);
     int mday = (r->d - wday1 + 7) % 7 + (r->w - 1) * 7;
     int mdays = month_days(year, r->m);
     while (mday >= mdays)
@@ -287,16 +305,16 @@ static i64 rule_local(i64 year, const struct tzrule *r) {
 struct zone_info {
   long off;
   int isdst;
-  char *abbr;
+  const char *abbr;
 };
 
-static char *intern(const char *s);
+static const char *borrows(static) intern(char *s);
 
 /* Interned copies of the POSIX names, so tm_zone outlives a change of zone. */
-static char *posix_std_abbr;
-static char *posix_dst_abbr;
+static const char *posix_std_abbr;
+static const char *posix_dst_abbr;
 
-static void posix_at(const struct posix_tz *p, i64 t, struct zone_info *z) {
+static void posix_at(struct posix_tz *p, i64 t, out struct zone_info *z) {
   z->off = p->std_off;
   z->isdst = 0;
   z->abbr = posix_std_abbr;
@@ -304,7 +322,7 @@ static void posix_at(const struct posix_tz *p, i64 t, struct zone_info *z) {
     return;
   i64 year;
   {
-    struct tm tm;
+    struct tm tm = {};
     if (!secs_to_tm(t + p->std_off, &tm))
       return;
     year = 1900LL + tm.tm_year;
@@ -319,64 +337,94 @@ static void posix_at(const struct posix_tz *p, i64 t, struct zone_info *z) {
   }
 }
 
-/* --- zone state ------------------------------------------------------------ */
+/* --- zone state ------------------------------------------------------------
+ */
 
 enum { ZONE_UTC, ZONE_POSIX, ZONE_FILE };
 
 static int zone_mode = ZONE_UTC;
 static int zone_loaded;
-static int zone_tz_unset;  /* the loaded zone came from an unset TZ */
-static char *zone_tz;      /* ... or from this value of it */
+static int zone_tz_unset;          /* the loaded zone came from an unset TZ */
+static char *?owned(free) zone_tz; /* ... or from this value of it */
 static struct posix_tz zone_posix;
 static int zone_has_rules; /* ZONE_FILE: the footer gave zone_posix */
 
-/* ZONE_FILE: the file, and views into its version 2+ (or version 1) body. */
-static unsigned char *zfile;
-static const unsigned char *ztrans;
-static const unsigned char *zidx;
-static const unsigned char *ztypes;
-static char **zabbr; /* interned abbreviation per type */
+/* ZONE_FILE: the file, and views into its version 2+ (or version 1) body.
+   borrows(zfile): the compiler keeps the views pointing into the file zfile
+   owns now, or at zempty -- where zfile is freed or replaced they are set
+   again before anything could read them (zfile_drop). */
+static unsigned char *?owned(free) zfile;
+static const unsigned char zempty[1];
+static const unsigned char *borrows(zfile) ztrans = zempty;
+static const unsigned char *borrows(zfile) zidx = zempty;
+static const unsigned char *borrows(zfile) ztypes = zempty;
+static const char **?owned(free) zabbr; /* interned abbreviation per type */
 static unsigned long ztimecnt, ztypecnt;
 static int ztsize; /* 8, or 4 for a version 1 file */
+
+/* The file goes, and its views with it -- to zempty, with no call between
+   that could read them. */
+static void zfile_drop(void) {
+  free(move(zfile));
+  zfile = nullptr;
+  ztrans = zempty;
+  zidx = zempty;
+  ztypes = zempty;
+}
 
 /* Abbreviations live here for good: tm_zone and tzname point at them, and a
    struct tm may outlive the zone it was made in (toybox's date switches TZ
    to parse its input). A zone change interns its new names; past the pool
-   they go to the heap, which only a long run of distinct zones reaches. */
-static char *intern(const char *s) {
+   they go to the heap, which only a long run of distinct zones reaches.
+   The table owns every name -- the pool, and the heap ones through
+   `spilled_names` -- so a caller only borrows: nothing it gets is freed. */
+struct spilled_name {
+  struct spilled_name *?owned next;
+  char s[];
+};
+static struct spilled_name *?owned spilled_names;
+
+static const char *borrows(static) intern(char *s) {
   static char pool[256];
   static size_t used;
   size_t n = strlen(s) + 1;
   for (char *p = pool; p < pool + used; p += strlen(p) + 1)
     if (!strcmp(p, s))
       return p;
+  for (struct spilled_name *?q = spilled_names; q; q = q->next)
+    if (!strcmp(q->s, s))
+      return q->s;
   if (used + n <= sizeof(pool)) {
     memcpy(pool + used, s, n);
     used += n;
     return pool + used - n;
   }
-  char *h = malloc(n);
+  struct spilled_name *?owned h = malloc(sizeof(*h) + n);
   if (!h)
     return utc_name;
-  memcpy(h, s, n);
-  return h;
+  memcpy(h->s, s, n);
+  h->next = move(spilled_names);
+  spilled_names = move(h);
+  return spilled_names->s;
 }
 
-static unsigned long be32(const unsigned char *p) {
-  return ((unsigned long)p[0] << 24) | ((unsigned long)p[1] << 16) |
-         ((unsigned long)p[2] << 8) | p[3];
+static unsigned long be32(unsigned char *p) {
+  return (cast<as(unsigned long)>(p[0]) << 24) |
+      (cast<as(unsigned long)>(p[1]) << 16) |
+      (cast<as(unsigned long)>(p[2]) << 8) | p[3];
 }
 
 static i64 ztime(unsigned long i) {
   const unsigned char *p = ztrans + i * ztsize;
   if (ztsize == 4)
-    return (i64)(int)be32(p); /* 32 bits, signed */
-  return (i64)(((unsigned long long)be32(p) << 32) | be32(p + 4));
+    return cast<bits(int)>(be32(p)); /* 32 bits, signed */
+  return cast<bits(i64)>((cast<as(unsigned long long)>(be32(p)) << 32) |
+                         be32(p + 4));
 }
 
-static void ztype(unsigned long type, struct zone_info *z) {
+static void ztype(unsigned long type, out struct zone_info *z) {
   const unsigned char *p = ztypes + type * 6;
-  z->off = (int)be32(p);
+  z->off = cast<bits(int)>(be32(p));
   z->isdst = p[4] != 0;
   z->abbr = zabbr[type];
 }
@@ -393,7 +441,7 @@ static long zfind(i64 t) {
     else
       hi = mid - 1;
   }
-  return (long)lo;
+  return cast<int(long)>(lo);
 }
 
 /* The zone's rules govern `t`: a POSIX zone, or a file past its last
@@ -402,10 +450,10 @@ static int zone_rules_at(i64 t) {
   if (zone_mode == ZONE_POSIX)
     return 1;
   return zone_mode == ZONE_FILE && zone_has_rules &&
-         (ztimecnt == 0 || t >= ztime(ztimecnt - 1));
+      (ztimecnt == 0 || t >= ztime(ztimecnt - 1));
 }
 
-static void zone_at(i64 t, struct zone_info *z) {
+static void zone_at(i64 t, out struct zone_info *z) {
   if (zone_rules_at(t)) {
     posix_at(&zone_posix, t, z);
     return;
@@ -425,8 +473,9 @@ static void zone_at(i64 t, struct zone_info *z) {
 /* Offsets with isdst `want` in force around `t`, nearest first: the rules'
    where they govern `t`, and those of the transitions on either side. For
    mktime, which tries each and falls back on the first. */
-static int zone_offsets_near(i64 t, int want, long *out, int max) {
+static int zone_offsets_near(i64 t, int want, out long *out, int max) {
   int n = 0;
+  *out = 0;
   if (zone_mode == ZONE_UTC)
     return 0;
   if (zone_rules_at(t)) {
@@ -437,11 +486,11 @@ static int zone_offsets_near(i64 t, int want, long *out, int max) {
   }
   if (zone_mode == ZONE_FILE) {
     long i = zfind(t);
-    struct zone_info o;
-    for (long k = 0; n < max && k < (long)ztimecnt; k++) {
+    struct zone_info o = {};
+    for (long k = 0; n < max && k < cast<int(long)>(ztimecnt); k++) {
       long cand[2] = {i - k, i + k + 1};
       for (int c = 0; c < 2 && n < max; c++) {
-        if (cand[c] < -1 || cand[c] >= (long)ztimecnt)
+        if (cand[c] < -1 || cand[c] >= cast<int(long)>(ztimecnt))
           continue;
         ztype(cand[c] < 0 ? 0 : zidx[cand[c]], &o);
         if (o.isdst == want)
@@ -456,8 +505,12 @@ static int zone_offsets_near(i64 t, int want, long *out, int max) {
 }
 
 #ifndef YASLIBC_NOOS
-/* A TZif file in memory: check it and point the z* views into it. */
-static int zparse(unsigned char *buf, size_t len) {
+/* The TZif file zfile holds (len bytes): check it and point the z* views
+   into it. */
+static int zparse(size_t len) {
+  if (!zfile)
+    return 0;
+  const unsigned char *buf = zfile;
   if (len < 44 || memcmp(buf, "TZif", 4))
     return 0;
   int version = buf[4];
@@ -468,17 +521,18 @@ static int zparse(unsigned char *buf, size_t len) {
     unsigned long leapcnt = be32(h + 28), timecnt = be32(h + 32);
     unsigned long typecnt = be32(h + 36), charcnt = be32(h + 40);
     if (typecnt == 0 || typecnt > 256 || charcnt == 0 || timecnt > 65536 ||
-        charcnt > 65536 || leapcnt > 65536 || isutcnt > typecnt || isstdcnt > typecnt)
+        charcnt > 65536 || leapcnt > 65536 || isutcnt > typecnt ||
+        isstdcnt > typecnt)
       return 0;
     size_t body = timecnt * tsize + timecnt + typecnt * 6 + charcnt +
-                  leapcnt * (tsize + 4) + isstdcnt + isutcnt;
+        leapcnt * (tsize + 4) + isstdcnt + isutcnt;
     const unsigned char *data = h + 44;
-    if ((size_t)(data - buf) + body > len)
+    if (cast<int(size_t)>(data - buf) + body > len)
       return 0;
     if (tsize == 4 && version >= '2') {
       /* Skip the 32-bit body to the 64-bit header. */
       h = data + body;
-      if ((size_t)(h - buf) + 44 > len || memcmp(h, "TZif", 4))
+      if (cast<int(size_t)>(h - buf) + 44 > len || memcmp(h, "TZif", 4))
         return 0;
       tsize = 8;
       continue;
@@ -486,20 +540,20 @@ static int zparse(unsigned char *buf, size_t len) {
     ztrans = data;
     zidx = ztrans + timecnt * tsize;
     ztypes = zidx + timecnt;
-    const char *abbrs = (const char *)(ztypes + typecnt * 6);
+    const char *abbrs = cast<ptr(const char *)>(ztypes + typecnt * 6);
     if (abbrs[charcnt - 1] != '\0')
       return 0;
     for (unsigned long i = 0; i < timecnt; i++)
       if (zidx[i] >= typecnt)
         return 0;
-    zabbr = malloc(typecnt * sizeof(*zabbr));
+    zabbr = calloc(typecnt, sizeof(*zabbr));
     if (!zabbr)
       return 0;
     for (unsigned long i = 0; i < typecnt; i++) {
       unsigned long ai = ztypes[i * 6 + 5];
       if (ai >= charcnt) {
-        free(zabbr);
-        zabbr = NULL;
+        free(move(zabbr));
+        zabbr = nullptr;
         return 0;
       }
       zabbr[i] = intern(abbrs + ai);
@@ -511,10 +565,10 @@ static int zparse(unsigned char *buf, size_t len) {
     /* The footer: "\n<POSIX TZ>\n", possibly empty. */
     const unsigned char *f = data + body;
     if (tsize == 8 && f < buf + len && *f == '\n') {
-      const unsigned char *e = memchr(f + 1, '\n', buf + len - (f + 1));
+      const unsigned char *?e = memchr(f + 1, '\n', buf + len - (f + 1));
       if (e && e - f - 1 < 64) {
-        char rules[64];
-        memcpy(rules, f + 1, e - f - 1);
+        char rules[64] = undefined;
+        memcpy(rules, f + 1, cast<int(size_t)>(e - f - 1));
         rules[e - f - 1] = '\0';
         zone_has_rules = rules[0] && parse_posix(rules, &zone_posix);
       }
@@ -523,31 +577,38 @@ static int zparse(unsigned char *buf, size_t len) {
   }
 }
 
-static unsigned char *read_file(const char *path, size_t *len) {
-  int fd = open(path, O_RDONLY);
+static unsigned char *?owned(free) read_file(char *path, out size_t *len) {
+  *len = 0;
+  int ?owned(close) fd = open(path, O_RDONLY);
   if (fd < 0)
-    return NULL;
+    return nullptr;
   size_t cap = 2048, n = 0;
-  unsigned char *buf = malloc(cap);
+  unsigned char *?owned(free) buf = malloc(cap);
   while (buf) {
     if (n == cap) {
-      unsigned char *grown = cap < 65536 ? realloc(buf, cap * 2) : NULL;
-      if (!grown) {
+      if (cap >= 65536) {
         free(buf);
-        buf = NULL;
+        buf = nullptr;
         break;
       }
-      buf = grown;
+      /* null: buf is still ours */
+      unsigned char *?owned(free) grown = reallocarray(move(buf), cap, 2);
+      if (!grown) {
+        free(buf);
+        buf = nullptr;
+        break;
+      }
+      buf = move(grown);
       cap *= 2;
     }
     ssize_t r = read(fd, buf + n, cap - n);
     if (r < 0) {
       free(buf);
-      buf = NULL;
+      buf = nullptr;
     } else if (r == 0) {
       break;
     } else {
-      n += r;
+      n += cast<int(size_t)>(r);
     }
   }
   close(fd);
@@ -555,32 +616,38 @@ static unsigned char *read_file(const char *path, size_t *len) {
   return buf;
 }
 
-static int load_path(const char *path) {
-  size_t len;
-  unsigned char *buf = read_file(path, &len);
+static int load_path(char *path) {
+  size_t len = 0;
+  unsigned char *?owned(free) buf = read_file(path, &len);
   if (!buf)
     return 0;
-  if (!zparse(buf, len)) {
-    free(buf);
+  zfile_drop();
+  zfile = move(buf);
+  /* a new zfile: its views wait at zempty until zparse points them into it */
+  ztrans = zempty;
+  zidx = zempty;
+  ztypes = zempty;
+  if (!zparse(len)) {
+    zfile_drop();
     return 0;
   }
-  zfile = buf;
   return 1;
 }
 
 /* `name` as an IANA zone: an absolute path, or relative to $TZDIR, else the
    system's zoneinfo. No ".." anywhere: a zone name is not a way out. */
-static int load_zone_file(const char *name) {
-  char path[256];
+static int load_zone_file(char *name) {
+  char path[256] = {};
   if (!*name || strstr(name, ".."))
     return 0;
   if (name[0] == '/')
     return load_path(name);
-  const char *dirs[2] = {getenv("TZDIR"), "/usr/share/zoneinfo"};
+  const char *?dirs[2] = {getenv("TZDIR"), "/usr/share/zoneinfo"};
   for (int i = 0; i < 2; i++) {
     if (!dirs[i] || !*dirs[i])
       continue;
-    if (snprintf(path, sizeof(path), "%s/%s", dirs[i], name) >= (int)sizeof(path))
+    if (snprintf(path, sizeof(path), "%s/%s", dirs[i], name) >=
+        cast<int(int)>(sizeof(path)))
       continue;
     if (load_path(path))
       return 1;
@@ -590,10 +657,9 @@ static int load_zone_file(const char *name) {
 #endif
 
 static void zone_reset(void) {
-  free(zfile);
-  zfile = NULL;
-  free(zabbr);
-  zabbr = NULL;
+  zfile_drop();
+  free(move(zabbr));
+  zabbr = nullptr;
   ztimecnt = ztypecnt = 0;
   zone_has_rules = 0;
   zone_mode = ZONE_UTC;
@@ -610,10 +676,11 @@ static void zone_globals(void) {
   daylight = 0;
   if (zone_mode == ZONE_POSIX || (zone_mode == ZONE_FILE && zone_has_rules)) {
     posix_std_abbr = intern(zone_posix.std_name);
-    posix_dst_abbr = zone_posix.has_dst ? intern(zone_posix.dst_name) : posix_std_abbr;
+    posix_dst_abbr =
+        zone_posix.has_dst ? intern(zone_posix.dst_name) : posix_std_abbr;
   }
   if (zone_mode == ZONE_FILE) {
-    struct zone_info z;
+    struct zone_info z = {};
     int have_std = 0;
     ztype(0, &z);
     tzname[0] = tzname[1] = z.abbr;
@@ -645,12 +712,13 @@ static void zone_globals(void) {
 }
 
 void tzset(void) {
-  const char *tz = getenv("TZ");
-  if (zone_loaded && (tz ? (!zone_tz_unset && zone_tz && !strcmp(tz, zone_tz)) : zone_tz_unset))
+  const char *?tz = getenv("TZ");
+  if (zone_loaded && (tz ? (!zone_tz_unset && zone_tz && !strcmp(tz, borrow(zone_tz)))
+                         : zone_tz_unset))
     return;
   zone_reset();
   free(zone_tz);
-  zone_tz = tz ? strdup(tz) : NULL;
+  zone_tz = tz ? strdup(tz) : nullptr;
   zone_tz_unset = !tz;
   zone_loaded = 1;
   if (!tz) {
@@ -674,12 +742,13 @@ void tzset(void) {
   zone_globals();
 }
 
-/* --- public conversions ---------------------------------------------------- */
+/* --- public conversions ----------------------------------------------------
+ */
 
-struct tm *gmtime_r(const time_t *t, struct tm *tm) {
+struct tm *?borrows(tm) gmtime_r(time_t *t, out struct tm *tm) {
   if (!secs_to_tm(*t, tm)) {
     errno = EOVERFLOW;
-    return NULL;
+    return nullptr;
   }
   tm->tm_isdst = 0;
   tm->tm_gmtoff = 0;
@@ -687,18 +756,18 @@ struct tm *gmtime_r(const time_t *t, struct tm *tm) {
   return tm;
 }
 
-struct tm *gmtime(const time_t *t) {
+struct tm *?borrows(static) gmtime(time_t *t) {
   static struct tm tm;
   return gmtime_r(t, &tm);
 }
 
-struct tm *localtime_r(const time_t *t, struct tm *tm) {
-  struct zone_info z;
+struct tm *?borrows(tm) localtime_r(time_t *t, out struct tm *tm) {
+  struct zone_info z = {};
   tzset();
   zone_at(*t, &z);
-  if (!secs_to_tm((i64)*t + z.off, tm)) {
+  if (!secs_to_tm(cast<int(i64)>(*t) + z.off, tm)) {
     errno = EOVERFLOW;
-    return NULL;
+    return nullptr;
   }
   tm->tm_isdst = z.isdst;
   tm->tm_gmtoff = z.off;
@@ -706,29 +775,29 @@ struct tm *localtime_r(const time_t *t, struct tm *tm) {
   return tm;
 }
 
-struct tm *localtime(const time_t *t) {
+struct tm *?borrows(static) localtime(time_t *t) {
   static struct tm tm;
   return localtime_r(t, &tm);
 }
 
 static int fits_time_t(i64 t) {
-  if ((i64)(time_t)t == t)
+  if (cast<trunc(time_t)>(t) == t)
     return 1;
   errno = EOVERFLOW;
   return 0;
 }
 
-time_t timegm(struct tm *tm) {
+time_t timegm(inout struct tm *tm) {
   i64 t = tm_to_secs(tm);
   if (!fits_time_t(t))
-    return (time_t)-1;
-  time_t r = (time_t)t;
+    return cast<int(time_t)>(-1);
+  time_t r = cast<int(time_t)>(t);
   gmtime_r(&r, tm);
   return r;
 }
 
-time_t mktime(struct tm *tm) {
-  struct zone_info used, in_force;
+time_t mktime(inout struct tm *tm) {
+  struct zone_info used = {}, in_force = {};
   tzset();
   i64 local = tm_to_secs(tm);
   /* Guess the offset at `local` read as UTC, then settle it at the instant
@@ -756,10 +825,10 @@ time_t mktime(struct tm *tm) {
       if (in_force.isdst == want) {
         t = local - in_force.off;
       } else {
-        long offs[8];
+        long offs[8] = {};
         int n = zone_offsets_near(t, want, offs, 8), found = 0;
         for (int i = 0; i < n && !found; i++) {
-          struct zone_info z;
+          struct zone_info z = {};
           zone_at(local - offs[i], &z);
           if (z.off == offs[i] && z.isdst == want) {
             t = local - offs[i];
@@ -772,42 +841,43 @@ time_t mktime(struct tm *tm) {
     }
   }
   if (!fits_time_t(t))
-    return (time_t)-1;
-  time_t r = (time_t)t;
+    return cast<int(time_t)>(-1);
+  time_t r = cast<int(time_t)>(t);
   if (!localtime_r(&r, tm))
-    return (time_t)-1;
+    return cast<int(time_t)>(-1);
   return r;
 }
 
-char *asctime_r(const struct tm *tm, char *buf) {
+char *borrows(buf) asctime_r(struct tm *tm, out char *buf) {
   static const char wdays[] = "SunMonTueWedThuFriSat";
   static const char mons[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
   int wd = tm->tm_wday >= 0 && tm->tm_wday < 7 ? tm->tm_wday : 0;
   int mo = tm->tm_mon >= 0 && tm->tm_mon < 12 ? tm->tm_mon : 0;
   /* POSIX sizes the buffer at 26 bytes, enough for a four-digit year; a wider
      one is cut there rather than written past it. */
-  char line[80];
-  snprintf(line, sizeof(line), "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n", wdays + wd * 3,
-           mons + mo * 3, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec,
-           1900 + tm->tm_year);
+  char line[80] = {};
+  snprintf(line, sizeof(line), "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
+           wdays + wd * 3, mons + mo * 3, tm->tm_mday, tm->tm_hour, tm->tm_min,
+           tm->tm_sec, 1900 + tm->tm_year);
   memcpy(buf, line, 25);
   buf[25] = '\0';
   return buf;
 }
 
-char *asctime(const struct tm *tm) {
+char *borrows(static) asctime(struct tm *tm) {
   static char buf[26];
   return asctime_r(tm, buf);
 }
 
-char *ctime_r(const time_t *t, char *buf) {
-  struct tm tm;
+char *?borrows(buf) ctime_r(time_t *t, out char *buf) {
+  struct tm tm = {};
+  *buf = '\0';
   if (!localtime_r(t, &tm))
-    return NULL;
+    return nullptr;
   return asctime_r(&tm, buf);
 }
 
-char *ctime(const time_t *t) {
+char *?borrows(static) ctime(time_t *t) {
   static char buf[26];
   return ctime_r(t, buf);
 }

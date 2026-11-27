@@ -51,8 +51,8 @@ typedef struct {
 
 
 #pragma tcc c_end
-int regcomp(out regex_t owned(regfree) *preg, const char *regex, int cflags);
-int regexec(const regex_t *preg, const char *string, size_t nmatch, out regmatch_t * maybe pmatch,
+int regcomp(out regex_t owned(regfree) *preg, char *regex, int cflags);
+int regexec(regex_t *preg, char *string, size_t nmatch, out regmatch_t *?pmatch,
             int eflags);
 void regfree(drop regex_t owned(regfree) *preg);
 #pragma tcc c_begin

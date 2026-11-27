@@ -41,7 +41,7 @@ typedef struct dlclose_context {
 } dlclose_context;
 
 typedef struct dlsym_context {
-  void *handle;
+  const void *handle; /* RTLD_DEFAULT (null) or a dlopen handle; only read */
   const char *symbol __yl_view_maybe;
   void **result __yl_view;
 } dlsym_context;

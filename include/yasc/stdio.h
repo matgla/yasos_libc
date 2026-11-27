@@ -76,18 +76,21 @@ void setbuf(FILE *fp, char *buf) __yl_nonnull(1);
 FILE *tmpfile(void) __yl_dealloc(fclose, 1);
 #pragma tcc c_end
 /* BUFFER or a static one; null when no name is left */
-char * borrows(static, buffer) maybe tmpnam(out char * maybe buffer);
+char *?borrows(static, buffer) tmpnam(out char *?buffer);
 #pragma tcc c_begin
 int fputc(int c, FILE *fp) __yl_nonnull(2);
 int putchar(int c);
 int printf(const char *fmt, ...) __yl_nonnull(1);
 int vprintf(const char *fmt, va_list ap) __yl_nonnull(1);
 int fprintf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
-int sprintf(char *dst, const char *fmt, ...) __yl_nonnull(1, 2);
-int vsprintf(char *dst, const char *fmt, va_list ap) __yl_nonnull(1, 2);
+int sprintf(char *dst, const char *fmt, ...) __yl_nonnull(1, 2) __yl_unsafe("nothing bounds the output");
+int vsprintf(char *dst, const char *fmt, va_list ap) __yl_nonnull(1, 2) __yl_unsafe("nothing bounds the output");
 int vfprintf(FILE *fp, const char *fmt, va_list ap) __yl_nonnull(1, 2);
-int snprintf(char *dst, size_t sz, const char *fmt, ...) __yl_nonnull(3);
-int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) __yl_nonnull(3);
+#pragma tcc c_end
+/* at most SZ bytes of DST, the NUL included; DST may be null with SZ 0 */
+int snprintf(out char dst[?sz], size_t sz, char *fmt, ...) __yl_nonnull(3);
+int vsnprintf(out char dst[?sz], size_t sz, char *fmt, va_list ap) __yl_nonnull(3);
+#pragma tcc c_begin
 int fputs(const char *s, FILE *fp) __yl_nonnull(1, 2);
 int ferror(FILE *stream) __yl_nonnull(1);
 int puts(const char *s) __yl_nonnull(1);
@@ -103,7 +106,7 @@ FILE *popen(const char *command, const char *type) __yl_dealloc(pclose, 1) __yl_
 int fgetc(FILE *fp) __yl_nonnull(1);
 #pragma tcc c_end
 /* S, or null at the end of the input or on an error */
-char * borrows(s) maybe fgets(out char *s, int sz, inout FILE *fp) __yl_nonnull(1, 3);
+char *?borrows(s) fgets(out char s[sz], int sz, inout FILE *fp) __yl_nonnull(1, 3);
 #pragma tcc c_begin
 int scanf(const char *fmt, ...) __yl_nonnull(1);
 int fscanf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
@@ -121,20 +124,20 @@ void perror(const char *s);
 #pragma tcc c_end
 /* the line buffer is the caller's before and after (the callee may replace
    it), and must be freed even after -1 */
-ssize_t getline(inout char * owned(free) maybe *lineptr, inout size_t *n, inout FILE *fp) __yl_nonnull(3);
+ssize_t getline(inout char *?owned(free) *lineptr, inout size_t *n, inout FILE *fp) __yl_nonnull(3);
 #pragma tcc c_begin
 int setvbuf(FILE *fp, char *buf, int mode, size_t size) __yl_nonnull(1);
 #pragma tcc c_end
-int dprintf(int view fildes, const char *format, ...) __yl_nonnull(2);
-int vdprintf(int view fildes, const char *format, va_list ap) __yl_nonnull(2);
+int dprintf(int view fildes, char *format, ...) __yl_nonnull(2);
+int vdprintf(int view fildes, char *format, va_list ap) __yl_nonnull(2);
 #pragma tcc c_begin
 
 int fileno(FILE *fp) __yl_nonnull(1);
 
 int rename(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
 #pragma tcc c_end
-int renameat(int view maybe olddirfd, const char *oldpath, int view maybe newdirfd, const char *newpath) __yl_nonnull(2, 4);
-int renameat2(int view maybe olddirfd, const char *oldpath, int view maybe newdirfd, const char *newpath,
+int renameat(int ?view olddirfd, char *oldpath, int ?view newdirfd, char *newpath) __yl_nonnull(2, 4);
+int renameat2(int ?view olddirfd, char *oldpath, int ?view newdirfd, char *newpath,
               unsigned int flags) __yl_nonnull(2, 4);
 #pragma tcc c_begin
 
@@ -144,29 +147,14 @@ int renameat2(int view maybe olddirfd, const char *oldpath, int view maybe newdi
 #define RENAME_WHITEOUT (1 << 2)
 #pragma tcc c_end
 /* the stream takes the descriptor over; null: fd is still the caller's */
-FILE * owned(fclose) maybe takes(fd) fdopen(int owned(close) fd, const char *mode) __yl_nonnull(2);
+FILE *?@(owned(fclose), takes(fd)) fdopen(int owned(close) fd, char *mode) __yl_nonnull(2);
 #pragma tcc c_begin
 FILE *fmemopen(void *buf, size_t size, const char *mode) __yl_dealloc(fclose, 1) __yl_nonnull(3);
 #pragma tcc c_end
-ssize_t getdelim(inout char * owned(free) maybe *lineptr, inout size_t *n, int delimiter,
+ssize_t getdelim(inout char *?owned(free) *lineptr, inout size_t *n, int delimiter,
                  inout FILE *stream) __yl_nonnull(4);
 #pragma tcc c_begin
 void clearerr(FILE *fp) __yl_nonnull(1);
 
 int remove(const char *pathname) __yl_nonnull(1);
-/* _FORTIFY_SOURCE (sys/_fortify.h): the printf functions that know their
-   destination's size, and the checking functions they call when the compiler
-   cannot prove the output fits (fortify.c; glibc's names and arguments) */
-#include <sys/_fortify.h>
-#ifdef __YL_FORTIFY
-int __sprintf_chk(char *dst, int flag, size_t dstlen, const char *fmt, ...);
-int __snprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *fmt, ...);
-int __vsprintf_chk(char *dst, int flag, size_t dstlen, const char *fmt, va_list ap);
-int __vsnprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *fmt, va_list ap);
-
-#define sprintf(d, ...) __builtin___sprintf_chk(d, __yl_fortify_flag, __yl_bos(d), __VA_ARGS__)
-#define snprintf(d, n, ...) __builtin___snprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), __VA_ARGS__)
-#define vsprintf(d, f, ap) __builtin___vsprintf_chk(d, __yl_fortify_flag, __yl_bos(d), f, ap)
-#define vsnprintf(d, n, f, ap) __builtin___vsnprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), f, ap)
-#endif
 #pragma tcc c_end

@@ -1,0 +1,6 @@
+# tcc -format (tinycc docs/tcc_format.md): clang-format's LLVM layout for C and yasc
+IndentWidth: 2
+ContinuationIndentWidth: 4
+BraceStyle: attach
+# case X: return "name"; tables stay one case per line
+AllowShortCaseLabelsOnASingleLine: true

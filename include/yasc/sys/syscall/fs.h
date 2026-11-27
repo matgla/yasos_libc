@@ -32,63 +32,63 @@ struct timespec;
 struct statvfs;
 
 typedef struct open_context {
-  const char * view maybe path;
+  const char *?path;
   int flags;
   int mode;
   int fd;
 } open_context;
 
 typedef struct stat_context {
-  const char * view maybe pathname;
-  struct stat * view maybe statbuf;
+  const char *?pathname;
+  struct stat *?statbuf;
   int fd;
   uint8_t follow_links;
 } stat_context;
 
 typedef struct fstat_context {
   int fd;
-  struct stat * view maybe buf;
+  struct stat *?buf;
 } fstat_context;
 
 typedef struct statvfs_context {
   /* Path to describe, or NULL to describe the file `fd` is open on. */
-  const char * view maybe path;
+  const char *?path;
   int fd;
-  struct statvfs * view maybe buf;
+  struct statvfs *?buf;
 } statvfs_context;
 
 typedef struct getdents_context {
   int fd;
-  struct dirent * view maybe dirp;
+  struct dirent *?dirp;
   size_t count;
-  ssize_t * view result;
+  ssize_t *result;
 } getdents_context;
 
 typedef struct mkdir_context {
-  const char * view maybe path;
+  const char *?path;
   mode_t mode;
   int fd;
 } mkdir_context;
 
 typedef struct link_context {
   int olddirfd;
-  const char * view maybe oldpath;
+  const char *?oldpath;
   int newdirfd;
-  const char * view maybe newpath;
+  const char *?newpath;
   int flags;
 } link_context;
 
 typedef struct symlink_context {
-  const char * view maybe target;
+  const char *?target;
   int dirfd;
-  const char * view maybe linkpath;
+  const char *?linkpath;
 } symlink_context;
 
 /* readlink(2)/readlinkat(2). `buf` is not NUL-terminated on return, and a
  * target longer than `bufsiz` is silently truncated -- both as POSIX has it. */
 typedef struct readlink_context {
-  const char * view maybe pathname;
-  char * view maybe buf;
+  const char *?pathname;
+  char *?buf;
   size_t bufsiz;
   int fd;
 } readlink_context;
@@ -102,29 +102,29 @@ typedef struct readlink_context {
 /* renameat2(2) arguments. */
 typedef struct rename_context {
   int olddirfd;
-  const char * view maybe oldpath;
+  const char *?oldpath;
   int newdirfd;
-  const char * view maybe newpath;
+  const char *?newpath;
   unsigned int flags;
 } rename_context;
 
 typedef struct unlink_context {
   int dirfd;
-  const char * view maybe pathname;
+  const char *?pathname;
   int flags;
 } unlink_context;
 
 typedef struct remove_context {
-  const char * view maybe pathname;
+  const char *?pathname;
 } remove_context;
 
 typedef struct realpath_context {
-  const char * view maybe path;
-  char * view maybe resolved_path;
+  const char *?path;
+  char *?resolved_path;
 } realpath_context;
 
 typedef struct access_context {
-  const char * view maybe pathname;
+  const char *?pathname;
   int mode;
   int dirfd;
   int flags;
@@ -137,15 +137,15 @@ typedef struct access_context {
  * (futimens), and otherwise `fd` is the directory a relative path resolves
  * against. */
 typedef struct utimensat_context {
-  const char * view maybe pathname;
-  const struct timespec * view maybe times;
+  const char *?pathname;
+  const struct timespec *?times;
   int fd;
   int flags;
 } utimensat_context;
 
 /* fchmodat(2); fchmod(2) is path NULL with fd the open file. */
 typedef struct chmod_context {
-  const char * view maybe path;
+  const char *?path;
   int fd;
   mode_t mode;
   int flags; /* AT_SYMLINK_NOFOLLOW */
@@ -154,7 +154,7 @@ typedef struct chmod_context {
 /* fchownat(2); fchown(2) is path NULL with fd the open file. -1 leaves an id
  * unchanged. */
 typedef struct chown_context {
-  const char * view maybe path;
+  const char *?path;
   int fd;
   uid_t uid;
   gid_t gid;
@@ -162,27 +162,27 @@ typedef struct chown_context {
 } chown_context;
 
 typedef struct mount_context {
-  const char * view maybe source;
-  const char * view maybe target;
-  const char * view maybe filesystemtype;
+  const char *?source;
+  const char *?target;
+  const char *?filesystemtype;
   unsigned long mountflags;
   /* The option string ("nofail,spill=/var/tmp"), or NULL. */
-  const void * view maybe data;
+  const void *?data;
 } mount_context;
 
 typedef struct umount_context {
-  const char * view maybe target;
+  const char *?target;
   int flags;
 } umount_context;
 
 typedef struct getcwd_context {
-  char * view maybe buf;
+  char *?buf;
   size_t size;
-  char * view maybe * view result;
+  char *?view *result;
 } getcwd_context;
 
 typedef struct chdir_context {
-  const char * view maybe path;
+  const char *?path;
 } chdir_context;
 
 typedef struct fchdir_context {

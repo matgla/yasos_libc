@@ -7,7 +7,7 @@
 #include <errno.h>
 
 struct __dirent_dir {
-  int owned(close) maybe fd;
+  int ?owned(close) fd;
   int buf_pos;
   int buf_end;
   /* getdents scratch. 1 KiB still batches several entries per syscall and keeps
@@ -16,14 +16,14 @@ struct __dirent_dir {
   char buf[1024];
 };
 
-DIR *owned(closedir) maybe opendir(const char *path)
+DIR *?owned(closedir) opendir(char *path)
 { 
-  int owned(close) maybe fd = 0;
+  int ?owned(close) fd = 0;
   if ((fd = open(path, O_RDONLY | O_DIRECTORY)) < 0)
     return nullptr;
   fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
   
-  DIR *owned(free) maybe dir = malloc(sizeof(*dir));
+  DIR *?owned(free) dir = malloc(sizeof(*dir));
   if (!dir) {
     close(fd);
     return nullptr;
@@ -34,7 +34,7 @@ DIR *owned(closedir) maybe opendir(const char *path)
   return dir;
 }
 
-int closedir(drop DIR *owned maybe dir) {
+int closedir(drop DIR *?owned dir) {
   if (!dir) {
     errno = EBADF;
     return -1;
@@ -47,7 +47,7 @@ int closedir(drop DIR *owned maybe dir) {
 
 int getdents(int view fd, struct dirent *de, size_t len);
 
-struct dirent *borrows(dir) maybe readdir(inout DIR *dir) {
+struct dirent *?borrows(dir) readdir(inout DIR *dir) {
   int len;
   if (dir->buf_pos >= dir->buf_end) {
     if (dir->fd < 0) {
@@ -65,9 +65,9 @@ struct dirent *borrows(dir) maybe readdir(inout DIR *dir) {
   return de;
 }
 
-DIR *owned(closedir) maybe takes(fd) fdopendir(int owned(close) fd) {
+DIR *?@(owned(closedir), takes(fd)) fdopendir(int owned(close) fd) {
   fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-  DIR *owned(free) maybe dir = malloc(sizeof(*dir));
+  DIR *?owned(free) dir = malloc(sizeof(*dir));
   if (!dir) {
     return nullptr;
   }

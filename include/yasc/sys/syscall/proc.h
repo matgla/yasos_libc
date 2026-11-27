@@ -40,27 +40,46 @@ typedef struct kill_context {
 typedef struct sigaction_context {
   int sig;
   int disposition;
-  int * view old;
+  int *old;
 } sigaction_context;
 
 typedef struct waitpid_context {
   pid_t pid;
-  int * view maybe status;
+  int *?status;
   int options;
 } waitpid_context;
 
 typedef struct execve_context {
-  const char * view maybe filename;
-  char * view maybe * const view maybe argv;
-  char * view maybe * const view maybe envp;
+  const char *?filename;
+  char *?view *?const argv;
+  char *?view *?const envp;
 } execve_context;
 
 typedef struct prlimit_context {
   pid_t pid;
   int resource;
-  const struct rlimit * view maybe new_limit;
-  struct rlimit * view maybe old_limit;
+  const struct rlimit *?new_limit;
+  struct rlimit *?old_limit;
 } prlimit_context;
+
+/* user and group ids: ENOSYS until the kernel keeps them */
+typedef struct setgid_context {
+  gid_t gid;
+} setgid_context;
+
+typedef struct getgroups_context {
+  int size; /* 0: count only */
+  gid_t *?list;
+} getgroups_context;
+
+typedef struct setgroups_context {
+  size_t size;
+  const gid_t *?list;
+} setgroups_context;
+
+typedef struct setuid_context {
+  uid_t uid;
+} setuid_context;
 
 /* Registers and ptrace's arguments are raw words, not objects. */
 #pragma tcc c_begin

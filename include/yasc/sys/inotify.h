@@ -29,9 +29,9 @@
 
 
 #pragma tcc c_end
-int owned(close) maybe inotify_init(void);
-int owned(close) maybe inotify_init1(int flags);
-int inotify_add_watch(int view fd, const char *pathname, uint32_t mask) __yl_nonnull(2);
+int ?owned(close) inotify_init(void);
+int ?owned(close) inotify_init1(int flags);
+int inotify_add_watch(int view fd, char *pathname, uint32_t mask) __yl_nonnull(2);
 #pragma tcc c_begin
 
 #define IN_ACCESS 0x00000001

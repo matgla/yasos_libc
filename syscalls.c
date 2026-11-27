@@ -34,6 +34,7 @@
 
 #include <sys/time.h>
 #include <sys/times.h>
+#include <time.h>
 #include <sys/stat.h>
 
 #include "sys/syscall.h"
@@ -440,7 +441,7 @@ time_t time(time_t *timep) {
 //   return result;
 // }
 
-int nanosleep(struct timespec *req, struct timespec *rem) {
+int nanosleep(const struct timespec *req, struct timespec *rem) {
   const nanosleep_context context = {
       .req = req,
       .rem = rem,

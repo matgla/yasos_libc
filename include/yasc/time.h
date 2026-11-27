@@ -1,12 +1,11 @@
 #pragma yasc
-#pragma tcc c_begin
 #pragma once
 
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/_attrs.h>
 
-int nanosleep(struct timespec *req, struct timespec *rem) __yl_nonnull(1);
+int nanosleep(struct timespec *req, out struct timespec *?rem);
 
 /* Processor time. There is no per-process CPU clock, so clock() measures
  * wall time since its first call; only differences are meaningful anyway. */
@@ -25,32 +24,29 @@ struct tm {
   int tm_yday;
   int tm_isdst;
   long tm_gmtoff;
-  char *tm_zone;
+  const char *tm_zone; /* the library's: copy it to keep it */
 };
 
-
-time_t time(time_t *timep);
-long strftime(char *s, size_t len, const char *fmt, struct tm *tm) __yl_nonnull(3, 4);
-#pragma tcc c_end
-struct tm * borrows(static) maybe localtime(const time_t *timep) __yl_nonnull(1);
-struct tm * borrows(result) maybe localtime_r(const time_t *timer, out struct tm *result) __yl_nonnull(1, 2);
-struct tm * borrows(static) maybe gmtime(const time_t *timep) __yl_nonnull(1);
-struct tm * borrows(result) maybe gmtime_r(const time_t *timer, out struct tm *result) __yl_nonnull(1, 2);
-#pragma tcc c_begin
+time_t time(out time_t *?timep);
+/* the length written, 0 when it (with its NUL) does not fit in LEN */
+long strftime(out char s[len], size_t len, char *fmt, struct tm *tm);
+struct tm *?borrows(static) localtime(time_t *timep);
+struct tm *?borrows(result) localtime_r(time_t *timer, out struct tm *result);
+struct tm *?borrows(static) gmtime(time_t *timep);
+struct tm *?borrows(result) gmtime_r(time_t *timer, out struct tm *result);
 
 /* Time zones: $TZ (an IANA name or a POSIX TZ string), else /etc/localtime,
  * else UTC. tzset() sets these; localtime() and mktime() call it. */
 extern long timezone; /* standard time, seconds WEST of UTC */
 extern int daylight;  /* the zone has daylight saving time */
-extern char *tzname[2];
+extern const char *c_api(char *) tzname[2];
 void tzset(void);
 
-time_t mktime(struct tm *tm) __yl_nonnull(1);
-time_t timegm(struct tm *tm) __yl_nonnull(1);
-#pragma tcc c_end
-char * borrows(static) asctime(const struct tm *tm) __yl_nonnull(1);
-char * borrows(buf) asctime_r(const struct tm *tm, out char *buf) __yl_nonnull(1, 2);
-char * borrows(static) maybe ctime(const time_t *timep) __yl_nonnull(1);
-char * borrows(buf) maybe ctime_r(const time_t *timep, out char *buf) __yl_nonnull(1, 2);
+time_t mktime(inout struct tm *tm);
+time_t timegm(inout struct tm *tm);
+char *borrows(static) asctime(struct tm *tm);
+char *borrows(buf) asctime_r(struct tm *tm, out char *buf);
+char *?borrows(static) ctime(time_t *timep);
+char *?borrows(buf) ctime_r(time_t *timep, out char *buf);
 /* past the parsed text in S, or null when it does not match FMT */
-char * borrows(s) maybe strptime(const char *s, const char *fmt, inout struct tm *tm) __yl_nonnull(1, 2, 3);
+char *?borrows(s) strptime(char *s, char *fmt, inout struct tm *tm);

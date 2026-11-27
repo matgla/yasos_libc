@@ -51,9 +51,9 @@ int isatty(int fd);
 
 /* an invalid handle is fine (EBADF), as free(NULL) is */
 int close(int fd);
-ssize_t write(int fd, const void *buf, size_t n);
+ssize_t write(int fd, const void *buf, size_t n) __yl_access(read_only, 2, 3);
 /* buf may be null with n == 0 */
-ssize_t read(int fd, void *buf, size_t n);
+ssize_t read(int fd, void *buf, size_t n) __yl_access(write_only, 2, 3);
 int fsync(int fd);
 void sync(void);
 
@@ -92,20 +92,27 @@ __attribute__((noreturn)) void _exit(int status);
 
 int sleep(int n);
 
-char *getcwd(char *buf, size_t size);
+/* null BUF: a block of SIZE (PATH_MAX for 0) from malloc */
+char *getcwd(char *buf, size_t size) __yl_access(write_only, 1, 2);
 int chdir(const char *path) __yl_nonnull(1);
 int rmdir(const char *path) __yl_nonnull(1);
 int fchdir(int fd);
 
 /* DIRFD may be AT_FDCWD; the link's text is not NUL-terminated */
-ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(2);
-ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(1);
+ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(2) __yl_access(write_only, 3, 4);
+ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) __yl_nonnull(1) __yl_access(write_only, 2, 3);
 
 uid_t getuid(void);
 uid_t geteuid(void);
 int setuid(uid_t uid);
 pid_t setsid(void);
+int seteuid(uid_t uid);
 int setgid(gid_t gid);
+/* no ids in the kernel yet: getgid/getegid 0, getgroups none, set*id ENOSYS */
+gid_t getgid(void);
+gid_t getegid(void);
+int setegid(gid_t gid);
+int getgroups(int size, gid_t list[]);
 
 int chown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int fchown(int fd, uid_t owner, gid_t group);
@@ -115,8 +122,9 @@ int lchown(const char *path, uid_t owner, gid_t group) __yl_nonnull(1);
 int link(const char *oldpath, const char *newpath) __yl_nonnull(1, 2);
 int chroot(const char *path) __yl_nonnull(1);
 int faccessat(int dirfd, const char *pathname, int mode, int flags) __yl_nonnull(2);
-int gethostname(char *name, size_t size);
-int sethostname(const char *name, size_t size);
+/* NAME is cut at SIZE, NUL-terminated only when it fits */
+int gethostname(char *name, size_t size) __yl_access(write_only, 1, 2);
+int sethostname(const char *name, size_t size) __yl_access(read_only, 1, 2);
 
 long sysconf(int name);
 pid_t getsid(pid_t pid);
@@ -140,6 +148,7 @@ unsigned alarm(unsigned seconds);
 #define _SC_PAGESIZE 2
 #define _SC_CLK_TCK 3
 #define _SC_NPROCESSORS_CONF 4
+#define _SC_NGROUPS_MAX 5
 
 #define _POSIX_VERSION 200112L
 #endif /* __YASC__ */

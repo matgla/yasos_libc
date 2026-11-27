@@ -42,3 +42,6 @@
 #endif
 
 #define LOGIN_NAME_MAX 32
+
+#define _POSIX_NGROUPS_MAX 8
+#define NGROUPS_MAX 32

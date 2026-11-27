@@ -35,12 +35,12 @@
 #include <limits.h>
 #include <stdio.h>
 
-int sut_atoi(const char *s);
-long sut_atol(const char *s);
-long sut_strtol(const char *s, out char * view * maybe endptr, int base);
-unsigned long sut_strtoul(const char *s, out char * view * maybe endptr, int base);
-long long sut_strtoll(const char *s, out char * view * maybe endptr, int base);
-unsigned long long sut_strtoull(const char *s, out char * view * maybe endptr, int base);
+int sut_atoi(char *s);
+long sut_atol(char *s);
+long sut_strtol(char *s, out char *view *?endptr, int base);
+unsigned long sut_strtoul(char *s, out char *view *?endptr, int base);
+long long sut_strtoll(char *s, out char *view *?endptr, int base);
+unsigned long long sut_strtoull(char *s, out char *view *?endptr, int base);
 
 /* The library under test carries its own errno (rename_symbols.sh / the QEMU
  * suite rename every libc symbol): `errno` here would never see what it set. */
@@ -50,15 +50,13 @@ extern int sut_errno;
 
 #define N_OF(a) (sizeof(a) / sizeof((a)[0]))
 
-UTEST(atoi, golden_table_is_complete)
-{
+UTEST(atoi, golden_table_is_complete) {
   ASSERT_EQ(N_OF(INPUTS) * N_OF(BASES), N_OF(GOLDEN));
 }
 
 /* one function's answer against the table's: value, end, ERANGE */
-static int same(const char *what, const struct strto_golden *g, int eq, long end, int range,
-                int want_end, int want_range)
-{
+static int same(char *what, struct strto_golden *g, int eq, long end, int range,
+                int want_end, int want_range) {
   if (eq && end == want_end && range == want_range)
     return 1;
   printf("%s(\"%s\", base %d): end %ld range %d, want end %d range %d%s\n", what, g->input, g->base, end, range,
@@ -66,22 +64,20 @@ static int same(const char *what, const struct strto_golden *g, int eq, long end
   return 0;
 }
 
-UTEST(atoi, strtoll_matches_glibc)
-{
+UTEST(atoi, strtoll_matches_glibc) {
   for (size_t i = 0; i < N_OF(GOLDEN); i++) {
-    const struct strto_golden * view g = &GOLDEN[i];
-    char * view end = nullptr;
+    const struct strto_golden *g = &GOLDEN[i];
+    char *end = nullptr;
     sut_errno = 0;
     long long v = sut_strtoll(g->input, &end, g->base);
     ASSERT_TRUE(same("strtoll", g, v == g->ll, end - g->input, sut_errno == ERANGE, g->ll_end, g->ll_range));
   }
 }
 
-UTEST(atoi, strtoull_matches_glibc)
-{
+UTEST(atoi, strtoull_matches_glibc) {
   for (size_t i = 0; i < N_OF(GOLDEN); i++) {
-    const struct strto_golden * view g = &GOLDEN[i];
-    char * view end = nullptr;
+    const struct strto_golden *g = &GOLDEN[i];
+    char *end = nullptr;
     sut_errno = 0;
     unsigned long long v = sut_strtoull(g->input, &end, g->base);
     ASSERT_TRUE(same("strtoull", g, v == g->ull, end - g->input, sut_errno == ERANGE, g->ull_end, g->ull_range));
@@ -89,23 +85,21 @@ UTEST(atoi, strtoull_matches_glibc)
 }
 
 /* 32-bit long: the narrowing of the long long answers */
-UTEST(atoi, strtol_matches_glibc_32)
-{
+UTEST(atoi, strtol_matches_glibc_32) {
   ASSERT_EQ(4u, sizeof(long));
   for (size_t i = 0; i < N_OF(GOLDEN); i++) {
-    const struct strto_golden * view g = &GOLDEN[i];
-    char * view end = nullptr;
+    const struct strto_golden *g = &GOLDEN[i];
+    char *end = nullptr;
     sut_errno = 0;
     long v = sut_strtol(g->input, &end, g->base);
     ASSERT_TRUE(same("strtol", g, v == g->l, end - g->input, sut_errno == ERANGE, g->l_end, g->l_range));
   }
 }
 
-UTEST(atoi, strtoul_matches_glibc_32)
-{
+UTEST(atoi, strtoul_matches_glibc_32) {
   for (size_t i = 0; i < N_OF(GOLDEN); i++) {
-    const struct strto_golden * view g = &GOLDEN[i];
-    char * view end = nullptr;
+    const struct strto_golden *g = &GOLDEN[i];
+    char *?end = nullptr;
     sut_errno = 0;
     unsigned long v = sut_strtoul(g->input, &end, g->base);
     ASSERT_TRUE(same("strtoul", g, v == g->ul, end - g->input, sut_errno == ERANGE, g->ul_end, g->ul_range));
@@ -114,10 +108,9 @@ UTEST(atoi, strtoul_matches_glibc_32)
 
 /* atoi and atol are strtol(s, nullptr, 10) wherever that is defined: the
    value fits.  Past that C says nothing (atoi.c wraps). */
-UTEST(atoi, atoi_atol_match_glibc_in_range)
-{
+UTEST(atoi, atoi_atol_match_glibc_in_range) {
   for (size_t i = 0; i < N_OF(GOLDEN); i++) {
-    const struct strto_golden * view g = &GOLDEN[i];
+    const struct strto_golden *g = &GOLDEN[i];
     if (g->base != 10 || g->l_range || g->l < INT_MIN || g->l > INT_MAX)
       continue;
     if (sut_atoi(g->input) != g->l || sut_atol(g->input) != g->l)
@@ -131,9 +124,8 @@ UTEST(atoi, atoi_atol_match_glibc_in_range)
  * The three the assembler actually asks for (tccasm.c parses every operand
  * with strtoull(p, &p, 0)), spelled out so a failure names the instruction.
  */
-UTEST(atoi, base_zero_is_read_off_the_prefix)
-{
-  char * view end = nullptr;
+UTEST(atoi, base_zero_is_read_off_the_prefix) {
+  char *end = nullptr;
 
   /* `movs r3, #10` */
   ASSERT_EQ(10ULL, sut_strtoull("10", &end, 0));
@@ -151,9 +143,8 @@ UTEST(atoi, base_zero_is_read_off_the_prefix)
 
 /* The binary prefix, which C23 added and an assembler has always spelled that
    way; glibc answers it only in C23, so it is asserted here. */
-UTEST(atoi, binary_prefix)
-{
-  char * view end = nullptr;
+UTEST(atoi, binary_prefix) {
+  char *end = nullptr;
 
   ASSERT_EQ(5ULL, sut_strtoull("0b101", &end, 0));
   ASSERT_EQ('\0', (int)*end);
@@ -183,10 +174,9 @@ UTEST(atoi, binary_prefix)
 
 /* A prefix with nothing behind it is not a failed conversion: the longest
    initial subsequence of the expected form is the `0`. */
-UTEST(atoi, bare_prefix_converts_the_zero)
-{
-  char * view end = nullptr;
-  const char * view minus = "-0b";
+UTEST(atoi, bare_prefix_converts_the_zero) {
+  char *end = nullptr;
+  const char *minus = "-0b";
 
   ASSERT_EQ(0ULL, sut_strtoull("0x", &end, 0));
   ASSERT_EQ('x', (int)*end);
@@ -200,7 +190,7 @@ UTEST(atoi, bare_prefix_converts_the_zero)
   /* Whereas nothing of the expected form at all hands the caller its own
    * pointer back -- blanks and sign included -- which is how it tells this
    * case from a real zero. */
-  const char * view nope = "  -zzz";
+  const char *nope = "  -zzz";
   ASSERT_EQ(0ULL, sut_strtoull(nope, &end, 0));
   ASSERT_TRUE(end == nope);
   ASSERT_EQ(0L, sut_strtol(nope, &end, 10));
@@ -210,8 +200,7 @@ UTEST(atoi, bare_prefix_converts_the_zero)
 }
 
 /* ENDPTR may be null: nothing is written, the value is the same */
-UTEST(atoi, null_endptr)
-{
+UTEST(atoi, null_endptr) {
   ASSERT_EQ(-42L, sut_strtol(" -42x", nullptr, 10));
   ASSERT_EQ(255UL, sut_strtoul("0xff", nullptr, 0));
   ASSERT_EQ(LLONG_MIN, sut_strtoll("-9223372036854775808", nullptr, 10));
@@ -222,8 +211,7 @@ UTEST(atoi, null_endptr)
 
 /* errno: ERANGE on overflow, and a caller's errno survives every call that
    does not overflow -- strtoul clears it around its strtoull and puts it back */
-UTEST(atoi, errno_only_on_overflow)
-{
+UTEST(atoi, errno_only_on_overflow) {
   sut_errno = 1234;
   ASSERT_EQ(5L, sut_strtol("5", nullptr, 10));
   ASSERT_EQ(5UL, sut_strtoul("5", nullptr, 10));
@@ -250,9 +238,8 @@ UTEST(atoi, errno_only_on_overflow)
 
 /* C's strtoul negates a "-" number in unsigned long: "-1" is ULONG_MAX, and
    the range is checked on the magnitude */
-UTEST(atoi, strtoul_negates)
-{
-  char * view end = nullptr;
+UTEST(atoi, strtoul_negates) {
+  char *?end = nullptr;
   sut_errno = 0;
   ASSERT_EQ(ULONG_MAX, sut_strtoul("-1", &end, 10));
   ASSERT_EQ(1UL, sut_strtoul("-4294967295", &end, 10));
@@ -271,8 +258,7 @@ UTEST(atoi, strtoul_negates)
  * old signed accumulator overflowed on "-2147483648" -- UB inside the libc for
  * an input C defines.  Neither may touch errno, nor read a base prefix.
  */
-UTEST(atoi, atoi_atol_limits_leave_errno_alone)
-{
+UTEST(atoi, atoi_atol_limits_leave_errno_alone) {
   ASSERT_EQ(INT_MAX, sut_atoi("2147483647"));
   ASSERT_EQ(INT_MIN, sut_atoi("-2147483648"));
   ASSERT_EQ(LONG_MAX, sut_atol("2147483647"));

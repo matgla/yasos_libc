@@ -29,21 +29,21 @@ struct sysinfo;
 struct utsname;
 
 typedef struct sysinfo_context {
-  struct sysinfo * view maybe info;
+  struct sysinfo *?info;
 } sysinfo_context;
 
 /* uname(2). The kernel writes the whole struct through `buf`. */
 typedef struct uname_context {
-  struct utsname * view maybe buf;
+  struct utsname *?buf;
 } uname_context;
 
 typedef struct sysconf_context {
   int name;
-  long * view result;
+  long *result;
 } sysconf_context;
 
 typedef struct getentropy_context {
-  void * view maybe buffer;
+  void *?buffer;
   size_t length;
 } getentropy_context;
 

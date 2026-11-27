@@ -21,8 +21,8 @@
 /* What the libc's declarations say about pointers, as GCC attributes.
  *
  * tcc's yasc dialect reads them: a pointer from regular C is unchecked, but
- * one these name is believed -- a malloc result is `owned maybe`, the
- * deallocator's argument `owned maybe drop` (tinycc docs/yasc_modules.md,
+ * one these name is believed -- a malloc result is `*?owned`, the
+ * deallocator's argument `drop *?owned` (tinycc docs/yasc_modules.md,
  * "Legacy C").  gcc and clang use them too: -Wnonnull, and gcc's analyzer
  * pairs allocators with deallocators (-Wmismatched-dealloc).  Other compilers
  * see nothing.  Its own names (__yl_*), so it never clashes with the
@@ -49,8 +49,8 @@
 #define __yl_nonnull(...) __attribute__((__nonnull__(__VA_ARGS__)))
 #define __yl_returns_nonnull __attribute__((__returns_nonnull__))
 /* the result points to an object of the size argument N (from 1) gives, or
-   of the product of N and M: what __builtin_object_size and _FORTIFY_SOURCE
-   (sys/_fortify.h) read of a block from it.  tcc knows malloc, calloc,
+   of the product of N and M: what __builtin_object_size and tcc's -ffortify
+   read of a block from it.  tcc knows malloc, calloc,
    realloc, aligned_alloc and memalign by name as well; gcc and clang need it */
 #define __yl_alloc_size(...) __attribute__((__alloc_size__(__VA_ARGS__)))
 /* never returns (C11 _Noreturn, for C99 and the declarations' own place) */
@@ -83,9 +83,35 @@
 #define __yl_cstr(n)
 #endif
 
+/* Argument REF (from 1) points to at least argument SIZE's count of its
+ * elements (bytes for void), which the function reads (read_only), writes
+ * (write_only) or both (read_write) -- what a yasc parameter `T p[n]` says.
+ * tcc checks every call where the caller names the buffer (-ffortify, as
+ * __yl_cstr): a size past the buffer traps, a constant one warns too.  gcc 10
+ * warns with it (-Wstringop-overflow); clang has no such attribute. */
+#if defined(__TINYC__) || (defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 10)
+#define __yl_access(mode, ref, size) __attribute__((__access__(mode, ref, size)))
+#else
+#define __yl_access(mode, ref, size)
+#endif
+
+/* A function nothing bounds: what it writes has no size argument (strcpy,
+ * sprintf).  yasc code calls it inside unsafe { } only, else tcc's
+ * -Wyasc-unsafe-call says why (WHY) and names the bounded call (strlcpy,
+ * snprintf); regular C is not told.  An older tcc, gcc and clang see
+ * nothing. */
+#if defined(__TINYC__) && defined(__has_attribute)
+#if __has_attribute(__yasc_unsafe__)
+#define __yl_unsafe(why) __attribute__((__yasc_unsafe__(why)))
+#endif
+#endif
+#ifndef __yl_unsafe
+#define __yl_unsafe(why)
+#endif
+
 /* A struct member's pointer, after its declarator (`ssize_t *result
  * __yl_view;`): yasc code reads it as `view` -- borrowed, never freed through
- * the struct, not null -- or with __yl_view_maybe `view maybe`, instead of a
+ * the struct, not null -- or with __yl_view_maybe `*?view`, instead of a
  * pointer from regular C, which it dereferences only inside `unsafe`.  A
  * struct defined in a yasc header says `view` itself, and its C header gets
  * these.  Only a tcc that knows the attributes (__has_attribute): an older

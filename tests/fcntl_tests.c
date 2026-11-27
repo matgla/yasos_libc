@@ -37,7 +37,7 @@
 
 /* Declared without fcntl.h's owned(close): the fds here are the fake's
  * numbers, nothing to close. */
-int sut_openat(int dirfd, const char *pathname, int flags, ...);
+int sut_openat(int dirfd, char *pathname, int flags, ...);
 int sut_umask(int mask);
 
 /* The library under test carries its own errno (the QEMU suite renames every
@@ -57,10 +57,10 @@ static struct {
 static int answer_result;
 static int answer_err;
 
-static void fake_syscall(int number, const void *args, inout syscall_result *result) {
+static void fake_syscall(int number, void *args, inout syscall_result *result) {
   seen.number = number;
   if (number == sys_open) {
-    const open_context *view ctx = cast<ptr(const open_context *view)>(args);
+    const auto ctx = cast<ptr(const open_context *)>(args);
     seen.path_null = ctx->path == nullptr;
     if (ctx->path != nullptr) {
       strncpy(seen.path, ctx->path, sizeof(seen.path) - 1);

@@ -22,27 +22,31 @@
 
 #pragma once
 
-#include <sys/types.h>
 #include <sys/_attrs.h>
-
-typedef struct passwd {
-  char *pw_name;   /* username */
-  char *pw_passwd; /* password */
-  uid_t pw_uid;    /* user ID */
-  gid_t pw_gid;    /* group ID */
-  char *pw_gecos;  /* real name */
-  char *pw_dir;    /* home directory */
-  char *pw_shell;  /* shell program */
-} passwd;
-
+#include <sys/types.h>
 
 #pragma tcc c_end
-struct passwd * borrows(static) maybe getpwnam(const char *name) __yl_nonnull(1);
-struct passwd * borrows(static) maybe getpwuid(uid_t uid);
-#pragma tcc c_begin
 
-int getpwnam_r(const char *name, struct passwd *pwd, char *buf, size_t size,
-               struct passwd **result);
-int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf, size_t size,
-               struct passwd **result);
-#pragma tcc c_end
+struct passwd {
+  const char *c_api(char *) pw_name;   /* user name */
+  const char *c_api(char *) pw_passwd; /* password */
+  uid_t pw_uid;                        /* user ID */
+  gid_t pw_gid;                        /* group ID */
+  const char *c_api(char *) pw_gecos;  /* real name */
+  const char *c_api(char *) pw_dir;    /* home directory */
+  const char *c_api(char *) pw_shell;  /* shell program */
+};
+
+/* Not found: 0 and *result null (_r), or null with errno unchanged. */
+struct passwd *?borrows(static) getpwnam(char *name) __yl_nonnull(1);
+struct passwd *?borrows(static) getpwuid(uid_t uid);
+/* ERANGE: buf too small.  inout, not out buf[size]: tinycc
+ * docs/bugs/yasc-c-header-forward-bound.md */
+int getpwnam_r(char *name, out struct passwd *pwd, inout char *buf, size_t size,
+               out struct passwd *?borrows(pwd) *result) __yl_nonnull(1);
+int getpwuid_r(uid_t uid, out struct passwd *pwd, inout char *buf, size_t size,
+               out struct passwd *?borrows(pwd) *result);
+
+struct passwd *?borrows(static) getpwent(void);
+void setpwent(void);
+void endpwent(void);

@@ -28,7 +28,7 @@
  * programs that want the lot.
  *
  * The contexts' pointers: `view` where libc always points it at an object of
- * its own (a result), `view maybe` where it passes on the caller's pointer,
+ * its own (a result), `*?view` where it passes on the caller's pointer,
  * which may be null -- the kernel checks every one.  Raw addresses and handles
  * (mmap's addr, dlsym's handle, vfork's registers, ptrace's arguments) are not
  * objects to dereference and yasc has no word for them, so their contexts are

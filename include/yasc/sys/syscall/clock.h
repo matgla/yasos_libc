@@ -30,21 +30,21 @@ struct timezone;
 struct timespec;
 
 typedef struct gettimeofday_context {
-  struct timeval * view maybe tv;
-  struct timezone * view maybe tz;
+  struct timeval *?tv;
+  struct timezone *?tz;
 } gettimeofday_context;
 
 typedef struct settimeofday_context {
-  const struct timeval * view maybe tv;
-  const struct timezone * view maybe tz;
+  const struct timeval *?tv;
+  const struct timezone *?tz;
 } settimeofday_context;
 
 typedef struct nanosleep_context {
-  const struct timespec * view maybe req;
-  struct timespec * view maybe rem;
+  const struct timespec *?req;
+  struct timespec *?rem;
 } nanosleep_context;
 
 typedef struct time_context {
-  time_t * view maybe timep;
-  time_t * view result;
+  time_t *?timep;
+  time_t *result;
 } time_context;

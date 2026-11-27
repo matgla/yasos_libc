@@ -30,11 +30,11 @@
 
 /* dlclose first: dlopen names it as its deallocator (sys/_attrs.h); every
    handle dlopen returns is given back with one dlclose. */
-int dlclose(drop void * owned handle);
-void *owned(dlclose) maybe dlopen(const char * maybe path, int mode);
+int dlclose(drop void *owned handle);
+void *?owned(dlclose) dlopen(char *?path, int mode);
 
 /* null when the symbol is not found; HANDLE may be RTLD_DEFAULT (null) */
-void * borrows(static) maybe dlsym(inout void * maybe handle, const char *name) __yl_nonnull(2);
+inout void *?borrows(static, handle) dlsym(void *?handle, char *name) __yl_nonnull(2);
 /* null when no error happened since the last call; the text is libc's: C
    sees POSIX's `char *`, which it must not write through either */
-const char * borrows(static) maybe c_api(char *) dlerror(void);
+const char *?@(borrows(static), c_api(char *)) dlerror(void);

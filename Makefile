@@ -1,8 +1,8 @@
 CC ?= gcc
 CFLAGS = -Wall -Werror -Wno-nonnull-compare -Ilibs $(ROOTFS_DEBUG_CFLAGS) -fPIC -pedantic -nostdlib -nostdinc -Iinclude -I../../source/sys/include -I../tinycc/include
 CFLAGS += $(ROOTFS_OPT_CFLAGS)
-# libc's own sources are never fortified (sys/_fortify.h): they define the
-# functions the fortified headers turn into macros
+# libc's own sources get no _FORTIFY_SOURCE: under -ccompat it would turn
+# on tcc's call checks (-ffortify) in the functions those checks are about
 CFLAGS += -U_FORTIFY_SOURCE
 # nor do they get the C23-style const-keeping strto* macros of <stdlib.h>,
 # for the same reason
@@ -48,7 +48,7 @@ SRCS += $(wildcard *.c) $(wildcard sys/*.c) $(wildcard arpa/*.c)
 
 # Sources written in yasc (`#pragma yasc`: slices, ownership): only tinycc
 # builds them, so the host unit tests' gcc build leaves them out.
-YASC_SRCS := libgen.c assert.c atoi.c byteswap.c complex.c ctype.c dirent.c dl.c fcntl.c
+YASC_SRCS := libgen.c assert.c atoi.c byteswap.c complex.c ctype.c dirent.c dl.c fcntl.c fnmatch.c grp.c langinfo.c dbfile.c pwd.c localtime.c
 ifneq ($(ARM_BUILD),y)
 SRCS := $(filter-out $(YASC_SRCS),$(SRCS))
 endif

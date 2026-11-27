@@ -64,11 +64,12 @@ rm -f "$out/libc_sut.a"
 arm-none-eabi-ar rcs "$out/libc_sut.a" $objs
 
 # The tests build against newlib's headers, plus the few of libc's that newlib
-# does not have: sys/_attrs.h (include/assert.h and the yasc/ headers reach for it) and
-# sys/mman.h (the tests' "host" mmap, qemu_shim.c) -- from this tree, not the
-# copies the cross finds installed in the rootfs.
+# does not have: sys/_attrs.h (include/assert.h and the yasc/ headers reach for it),
+# sys/syscall_ids.h (yasc/sys/syscall/core.h's syscall count) and sys/mman.h
+# (the tests' "host" mmap, qemu_shim.c) -- from this tree, not the copies the
+# cross finds installed in the rootfs.
 mkdir -p "$out/inc/sys"
-for h in sys/_attrs.h sys/mman.h; do
+for h in sys/_attrs.h sys/syscall_ids.h sys/mman.h; do
   ln -sfn "$libc/include/$h" "$out/inc/$h"
 done
 

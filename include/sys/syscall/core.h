@@ -117,6 +117,14 @@ typedef enum SystemCall {
   sys_sigaction,
   sys_sync,
   sys_reboot,
+  sys_getgid,
+  sys_getegid,
+  sys_setgid,
+  sys_setegid,
+  sys_getgroups,
+  sys_setgroups,
+  sys_setuid,
+  sys_seteuid,
   SYSCALL_COUNT,
 } SystemCall;
 

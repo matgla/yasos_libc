@@ -33,10 +33,10 @@
 /* libc's (dlfcn.h): the tests build against newlib's headers, which have none */
 #define RTLD_NOW 0x00002
 
-int sut_dlclose(drop void * owned handle);
-void *owned(sut_dlclose) maybe sut_dlopen(const char * maybe path, int mode);
-void *borrows(static) maybe sut_dlsym(inout void * maybe handle, const char *name);
-char *borrows(static) maybe sut_dlerror(void);
+int sut_dlclose(drop void *owned handle);
+void *?owned(sut_dlclose) sut_dlopen(char *?path, int mode);
+void *?borrows(static) sut_dlsym(inout void *?handle, char *name);
+char *?borrows(static) sut_dlerror(void);
 char *borrows(static) sut_strerror(int errnum);
 
 /* The library under test carries its own errno (the QEMU suite renames every
@@ -48,7 +48,7 @@ static int calls;
 static int handle_object; /* what a dlopen that works gives */
 static int symbol_object; /* what a dlsym that works finds */
 
-static void fake_syscall(int number, const void *args, inout syscall_result *result) {
+static void fake_syscall(int number, void *args, inout syscall_result *result) {
   ++calls;
   result->err = fail_with;
   result->result = fail_with ? -1 : 0;
@@ -70,7 +70,7 @@ static void reset(void) {
 }
 
 /* "WHAT: NAME: strerror(ERR)" in WANT, NAME left out when null */
-static void message_for(out char want[192], const char *what, const char * maybe name, int err) {
+static void message_for(out char want[192], char *what, char *?name, int err) {
   if (name)
     snprintf(want, 192, "%s: %s: %s", what, name, sut_strerror(err));
   else
@@ -82,7 +82,7 @@ static void message_for(out char want[192], const char *what, const char * maybe
   do {                                                                                                                 \
     char want[192] = undefined;                                                                                        \
     message_for(want, what, name, err);                                                                                \
-    const char *msg = sut_dlerror();                                                                                   \
+    const char *?msg = sut_dlerror();                                                                             \
     ASSERT_TRUE(msg != nullptr);                                                                                       \
     ASSERT_STREQ(want, msg);                                                                                           \
     ASSERT_TRUE(sut_dlerror() == nullptr);                                                                             \
@@ -113,7 +113,7 @@ UTEST(dl, calls_that_work_leave_errno_and_say_nothing) {
   reset();
   sut_errno = EAGAIN;
   /* every call before the first ASSERT, which may return with h open */
-  void *owned(sut_dlclose) maybe h = sut_dlopen("libdltest.so", RTLD_NOW);
+  void *?owned(sut_dlclose) h = sut_dlopen("libdltest.so", RTLD_NOW);
   const bool opened = h == &handle_object;
   const bool found = sut_dlsym(h, "dltest_answer") == &symbol_object;
   int closed = -1;
@@ -166,7 +166,7 @@ UTEST(dl, a_long_path_is_cut_not_overrun) {
   path[sizeof path - 1] = '\0';
   fail_with = ENOENT;
   ASSERT_TRUE(sut_dlopen(path, RTLD_NOW) == nullptr);
-  const char *msg = sut_dlerror();
+  const char *?msg = sut_dlerror();
   ASSERT_TRUE(msg != nullptr);
   const bool fits = strlen(msg) < 192;
   ASSERT_TRUE(fits);

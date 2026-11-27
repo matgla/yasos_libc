@@ -38,7 +38,7 @@ int dlclose(void *handle);
 void *dlopen(const char *path, int mode) __yl_dealloc(dlclose, 1);
 
 /* null when the symbol is not found; HANDLE may be RTLD_DEFAULT (null) */
-void *dlsym(void *handle, const char *name) __yl_nonnull(2);
+void *dlsym(const void *handle, const char *name) __yl_nonnull(2);
 /* null when no error happened since the last call; the text is libc's: C
    sees POSIX's `char *`, which it must not write through either */
 char *dlerror(void) __yl_c_api(0, const char *);

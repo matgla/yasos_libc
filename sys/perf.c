@@ -89,6 +89,14 @@ static const char *syscall_name(unsigned int id) {
     case sys_sigaction: return "sigaction";
     case sys_sync: return "sync";
     case sys_reboot: return "reboot";
+    case sys_getgid: return "getgid";
+    case sys_getegid: return "getegid";
+    case sys_setgid: return "setgid";
+    case sys_setegid: return "setegid";
+    case sys_getgroups: return "getgroups";
+    case sys_setgroups: return "setgroups";
+    case sys_setuid: return "setuid";
+    case sys_seteuid: return "seteuid";
     case sys_nanosleep: return "nanosleep";
     case sys_chdir: return "chdir";
     case sys_time: return "time";

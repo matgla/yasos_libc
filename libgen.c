@@ -63,7 +63,7 @@ static size_t basename_start([]char s)
     return i;
 }
 
-char *borrows(static, path) dirname(inout char * maybe path)
+char *borrows(static, path) dirname(inout char *?path)
 {
     static char dot[] = ".";
     size_t len, end;
@@ -77,7 +77,7 @@ char *borrows(static, path) dirname(inout char * maybe path)
     return path;
 }
 
-char *borrows(static, path) basename(inout char * maybe path)
+char *borrows(static, path) basename(inout char *?path)
 {
     static char dot[] = ".";
     size_t len;

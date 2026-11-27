@@ -22,29 +22,34 @@
 
 #pragma once
 
-#include <sys/types.h>
 #include <sys/_attrs.h>
+#include <sys/types.h>
+
+#pragma tcc c_end
 
 struct group {
-  char *gr_name;   /* group name */
-  char *gr_passwd; /* group password */
-  gid_t gr_gid;    /* group ID */
-  char **gr_mem;   /* NULL-terminated array of pointers
-                      to names of group members */
+  const char *c_api(char *) gr_name;   /* group name */
+  const char *c_api(char *) gr_passwd; /* group password */
+  gid_t gr_gid;                        /* group ID */
+  /* NULL-terminated array of pointers to names of group members */
+  const char *const *?c_api(char **) gr_mem;
 };
 
+/* Not found: 0 and *result null (_r), or null with errno unchanged. */
+struct group *?borrows(static) getgrgid(gid_t gid);
+struct group *?borrows(static) getgrnam(char *name) __yl_nonnull(1);
+/* ERANGE: buf too small.  inout, not out buf[size]: tinycc
+ * docs/bugs/yasc-c-header-forward-bound.md */
+int getgrgid_r(gid_t gid, out struct group *grp, inout char *buf, size_t size,
+               out struct group *?borrows(grp) *result);
+int getgrnam_r(char *name, out struct group *grp, inout char *buf, size_t size,
+               out struct group *?borrows(grp) *result) __yl_nonnull(1);
 
-#pragma tcc c_end
-struct group * borrows(static) maybe getgrgid(gid_t gid);
-#pragma tcc c_begin
-int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
-               struct group **result);
+struct group *?borrows(static) getgrent(void);
+void setgrent(void);
+void endgrent(void);
 
-#pragma tcc c_end
-struct group * borrows(static) maybe getgrnam(const char *name) __yl_nonnull(1);
-#pragma tcc c_begin
-int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
-               struct group **result);
-
-int initgroups(const char *user, gid_t group) __yl_nonnull(1);
-#pragma tcc c_end
+/* not POSIX (BSD, glibc) */
+int getgrouplist(char *user, gid_t group, inout gid_t *?groups, inout int *ngroups) __yl_nonnull(1, 4);
+int setgroups(size_t size, gid_t list[?size]);
+int initgroups(char *user, gid_t group) __yl_nonnull(1);

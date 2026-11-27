@@ -51,9 +51,9 @@ typedef struct perf_syscall_entry {
 
 typedef struct perf_dump_context {
   /* in */
-  perf_syscall_entry * view maybe entries;
+  perf_syscall_entry *?entries;
   int max_entries;
-  int * view maybe num_entries;
+  int *?num_entries;
   int reset;
   /* out, filled by the kernel */
   unsigned int cycles_per_us;

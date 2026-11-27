@@ -44,50 +44,81 @@ int sut_toupper(int c);
 
 /* The POSIX locale's classes (XBD 7.3.1 LC_CTYPE), spelled out rather than
  * computed the way ctype.c computes them. */
-static const char *view const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-static const char *view const LOWER = "abcdefghijklmnopqrstuvwxyz";
-static const char *view const DIGIT = "0123456789";
-static const char *view const XDIGIT = "0123456789ABCDEFabcdef";
-static const char *view const SPACE = " \t\n\v\f\r";
-static const char *view const BLANK = " \t";
-static const char *view const PUNCT = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+static const char *const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+static const char *const LOWER = "abcdefghijklmnopqrstuvwxyz";
+static const char *const DIGIT = "0123456789";
+static const char *const XDIGIT = "0123456789ABCDEFabcdef";
+static const char *const SPACE = " \t\n\v\f\r";
+static const char *const BLANK = " \t";
+static const char *const PUNCT = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
 /* c in s; NUL, EOF and bytes past 127 are in none of the sets */
-static int in(const char *s, int c)
-{
+static int in(char *s, int c) {
   if (c <= 0 || c > 127)
     return 0;
   return strchr(s, c) != nullptr;
 }
 
-static int ref_upper(int c) { return in(UPPER, c); }
-static int ref_lower(int c) { return in(LOWER, c); }
-static int ref_alpha(int c) { return in(UPPER, c) || in(LOWER, c); }
-static int ref_digit(int c) { return in(DIGIT, c); }
-static int ref_alnum(int c) { return ref_alpha(c) || ref_digit(c); }
-static int ref_xdigit(int c) { return in(XDIGIT, c); }
-static int ref_space(int c) { return in(SPACE, c); }
-static int ref_blank(int c) { return in(BLANK, c); }
-static int ref_punct(int c) { return in(PUNCT, c); }
-static int ref_graph(int c) { return ref_alnum(c) || ref_punct(c); }
-static int ref_print(int c) { return ref_graph(c) || c == ' '; }
-static int ref_cntrl(int c) { return (c >= 0 && c <= 0x1f) || c == 0x7f; }
-static int ref_ascii(int c) { return c >= 0 && c <= 0x7f; }
+static int ref_upper(int c) {
+  return in(UPPER, c);
+}
+static int ref_lower(int c) {
+  return in(LOWER, c);
+}
+static int ref_alpha(int c) {
+  return in(UPPER, c) || in(LOWER, c);
+}
+static int ref_digit(int c) {
+  return in(DIGIT, c);
+}
+static int ref_alnum(int c) {
+  return ref_alpha(c) || ref_digit(c);
+}
+static int ref_xdigit(int c) {
+  return in(XDIGIT, c);
+}
+static int ref_space(int c) {
+  return in(SPACE, c);
+}
+static int ref_blank(int c) {
+  return in(BLANK, c);
+}
+static int ref_punct(int c) {
+  return in(PUNCT, c);
+}
+static int ref_graph(int c) {
+  return ref_alnum(c) || ref_punct(c);
+}
+static int ref_print(int c) {
+  return ref_graph(c) || c == ' ';
+}
+static int ref_cntrl(int c) {
+  return (c >= 0 && c <= 0x1f) || c == 0x7f;
+}
+static int ref_ascii(int c) {
+  return c >= 0 && c <= 0x7f;
+}
 
 typedef struct {
-  const char *view name;
+  const char *name;
   int (*sut)(int);
   int (*ref)(int);
   int count; /* members among 0..255 */
 } ctype_class;
 
 static const ctype_class CLASSES[] = {
-    {"isupper", sut_isupper, ref_upper, 26},   {"islower", sut_islower, ref_lower, 26},
-    {"isalpha", sut_isalpha, ref_alpha, 52},   {"isdigit", sut_isdigit, ref_digit, 10},
-    {"isalnum", sut_isalnum, ref_alnum, 62},   {"isxdigit", sut_isxdigit, ref_xdigit, 22},
-    {"isspace", sut_isspace, ref_space, 6},    {"isblank", sut_isblank, ref_blank, 2},
-    {"ispunct", sut_ispunct, ref_punct, 32},   {"isgraph", sut_isgraph, ref_graph, 94},
-    {"isprint", sut_isprint, ref_print, 95},   {"iscntrl", sut_iscntrl, ref_cntrl, 33},
+    {"isupper", sut_isupper, ref_upper, 26},
+    {"islower", sut_islower, ref_lower, 26},
+    {"isalpha", sut_isalpha, ref_alpha, 52},
+    {"isdigit", sut_isdigit, ref_digit, 10},
+    {"isalnum", sut_isalnum, ref_alnum, 62},
+    {"isxdigit", sut_isxdigit, ref_xdigit, 22},
+    {"isspace", sut_isspace, ref_space, 6},
+    {"isblank", sut_isblank, ref_blank, 2},
+    {"ispunct", sut_ispunct, ref_punct, 32},
+    {"isgraph", sut_isgraph, ref_graph, 94},
+    {"isprint", sut_isprint, ref_print, 95},
+    {"iscntrl", sut_iscntrl, ref_cntrl, 33},
     {"isascii", sut_isascii, ref_ascii, 128},
 };
 
@@ -95,8 +126,7 @@ static const ctype_class CLASSES[] = {
 
 /* every classifier, for EOF and every unsigned char value; POSIX asks only
  * for nonzero on a member, so the answers are compared as truth values */
-UTEST(ctype, classes_match_posix_locale)
-{
+UTEST(ctype, classes_match_posix_locale) {
   for (size_t i = 0; i < NCLASSES; i++) {
     for (int c = CTYPE_EOF; c <= 255; c++) {
       int got = CLASSES[i].sut(c) != 0;
@@ -109,8 +139,7 @@ UTEST(ctype, classes_match_posix_locale)
 }
 
 /* the sizes of the classes, which do not depend on the reference sets above */
-UTEST(ctype, class_sizes)
-{
+UTEST(ctype, class_sizes) {
   for (size_t i = 0; i < NCLASSES; i++) {
     int n = 0;
     for (int c = 0; c <= 255; c++)
@@ -121,15 +150,13 @@ UTEST(ctype, class_sizes)
   }
 }
 
-UTEST(ctype, eof_is_in_no_class)
-{
+UTEST(ctype, eof_is_in_no_class) {
   for (size_t i = 0; i < NCLASSES; i++)
     ASSERT_FALSE(CLASSES[i].sut(CTYPE_EOF));
 }
 
 /* the relations C11 7.4.1 and POSIX state between the classes */
-UTEST(ctype, class_relations)
-{
+UTEST(ctype, class_relations) {
   for (int c = CTYPE_EOF; c <= 255; c++) {
     ASSERT_EQ(sut_isalpha(c) != 0, sut_isupper(c) != 0 || sut_islower(c) != 0);
     ASSERT_EQ(sut_isalnum(c) != 0, sut_isalpha(c) != 0 || sut_isdigit(c) != 0);
@@ -144,8 +171,7 @@ UTEST(ctype, class_relations)
   }
 }
 
-UTEST(ctype, tolower_toupper)
-{
+UTEST(ctype, tolower_toupper) {
   for (int c = CTYPE_EOF; c <= 255; c++) {
     int lower = ref_upper(c) ? c - 'A' + 'a' : c;
     int upper = ref_lower(c) ? c - 'a' + 'A' : c;
@@ -166,8 +192,7 @@ UTEST(ctype, tolower_toupper)
 }
 
 /* <ctype.h>'s inline versions (the macros) answer as ctype.c's functions do */
-UTEST(ctype, header_inlines_match_functions)
-{
+UTEST(ctype, header_inlines_match_functions) {
   for (int c = CTYPE_EOF; c <= 255; c++) {
     ASSERT_EQ(sut_isupper(c) != 0, isupper(c) != 0);
     ASSERT_EQ(sut_islower(c) != 0, islower(c) != 0);
@@ -188,10 +213,9 @@ UTEST(ctype, header_inlines_match_functions)
 }
 
 /* C11 7.1.4: a library macro evaluates its argument exactly once */
-UTEST(ctype, header_macros_evaluate_argument_once)
-{
+UTEST(ctype, header_macros_evaluate_argument_once) {
   static const char text[] = "aZ9 ";
-  const char *view p = text;
+  const char *p = text;
 
   ASSERT_TRUE(isalpha(*p++));
   ASSERT_TRUE(p == text + 1);

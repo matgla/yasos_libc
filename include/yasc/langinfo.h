@@ -86,5 +86,5 @@
 
 
 #pragma tcc c_end
-char * borrows(static) nl_langinfo(nl_item item);
-char * borrows(static) nl_langinfo_l(nl_item item, locale_t locale);
+const char *@(borrows(static), c_api(char *)) nl_langinfo(nl_item item);
+const char *@(borrows(static), c_api(char *)) nl_langinfo_l(nl_item item, locale_t locale);

@@ -13,7 +13,7 @@ static char *ROREL const mon[] = {"January",   "February", "March",    "April",
                       "May",       "June",     "July",     "August",
                       "September", "October",  "November", "December"};
 
-static char *putstr(char *d, char *s) {
+static char *putstr(char *d, const char *s) {
   while (*s)
     *d++ = *s++;
   return d;
@@ -66,7 +66,7 @@ static char *puttz(char *s, const struct tm *tm) {
   return s;
 }
 
-long strftime(char *s, size_t n, const char *f, struct tm *tm) {
+long strftime(char *s, size_t n, const char *f, const struct tm *tm) {
   int val;
   char *beg = s;
   char *e = s + n;
@@ -154,7 +154,11 @@ long strftime(char *s, size_t n, const char *f, struct tm *tm) {
          that produced `tm`, timezone included. toybox's `date` asks for this
          with a bare "%s" and treats a zero-length result as a bad format, so
          its absence made `date +%s` an error rather than a missing field. */
-      s = putul(s, (unsigned long)mktime(tm));
+      {
+        /* mktime normalises what it is given; the caller's tm is not ours */
+        struct tm t = *tm;
+        s = putul(s, (unsigned long)mktime(&t));
+      }
       break;
     case 'S':
       s = puti(s, tm->tm_sec, 2, 1);

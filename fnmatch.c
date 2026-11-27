@@ -1,37 +1,8 @@
 /*
  * fnmatch(3) -- shell wildcards against a string.
  *
- * The header declared it and nothing defined it, which is a shape this libc
- * has had before ([[strtoull]]): the program that wants it does not fail to
- * build against the header, it fails to *link*, and only once somebody enables
- * the applet that needs it. Here that was `grep`, which uses fnmatch for the
- * globs behind --include and --exclude, and which therefore could not be built
- * into the rootfs at all -- `.tcc: error: undefined symbol 'fnmatch'`.
- *
- * ## Iterative, not recursive
- *
- * The textbook implementation recurses on every `*`, which on a pattern like
- * `*a*a*a*a*b` against a long string is exponential -- and on a device whose
- * whole stack is measured in kilobytes, the depth is the more immediate
- * problem. This backtracks instead, remembering the one place a `*` could give
- * a character back, which is all a single-star language needs: constant stack,
- * and the pathological pattern degrades to O(n*m) rather than 2^n.
- *
- * ## The three flags that change what a wildcard is
- *
- * `FNM_PATHNAME` is the one with teeth: a slash then has to be matched by a
- * slash in the pattern, so `*` no longer crosses a directory boundary and a
- * bracket cannot contain one. That is checked where the star gives ground --
- * if the character it would have to swallow is a slash, the match fails there
- * rather than continuing into the next segment.
- *
- * `FNM_PERIOD` makes a leading dot special, at the start of the string and
- * (under FNM_PATHNAME) after every slash: it has to be matched by a literal
- * dot, never by `*`, `?` or a bracket. This is what stops `*` matching the
- * dotfiles in a directory.
- *
- * `FNM_NOESCAPE` takes the meaning off backslash, so `\*` stops being a
- * literal asterisk and becomes a backslash followed by any string.
+ * Iterative: a mismatch backtracks to the last `*` instead of recursing, so
+ * stack use is constant and the worst case is O(n*m).
  */
 
 #include <ctype.h>
@@ -46,15 +17,11 @@ static int same(char a, char b, int flags) {
 }
 
 /*
- * Match one bracket expression against one character.
- *
- * On success `*after` is left on the character following the `]`, which is
- * what lets the caller carry on without knowing how long the expression was.
- * An unterminated `[` is not an error: POSIX says it is then an ordinary
- * character, which is why that case reports no-match here and the caller
- * retries the `[` as a literal.
+ * Match one bracket expression against `c`: `*hit` says whether it matched.
+ * Returns the pattern just past the `]`, or null when the `[` is
+ * unterminated (it is then an ordinary character).
  */
-static int bracket(const char *pattern, char c, int flags, const char **after) {
+static const char *?borrows(pattern) bracket(char *pattern, char c, int flags, out int *hit) {
   const char *p = pattern + 1; /* past the '[' */
   int negated = 0;
   int matched = 0;
@@ -63,7 +30,7 @@ static int bracket(const char *pattern, char c, int flags, const char **after) {
     negated = 1;
     p++;
   }
-  /* A ']' first is a literal ']' rather than the end of an empty set. */
+  /* A leading ']' is a literal. */
   if (*p == ']') {
     if (same(*p, c, flags)) matched = 1;
     p++;
@@ -97,45 +64,36 @@ static int bracket(const char *pattern, char c, int flags, const char **after) {
   }
 
   if (*p != ']') {
-    return 0; /* unterminated: the caller treats '[' as an ordinary character */
+    *hit = 0;
+    return nullptr;
   }
-  *after = p + 1;
-
-  /* A slash is never inside a bracket under FNM_PATHNAME, however the set is
-   * written -- including a negated one, which would otherwise match it. */
-  if ((flags & FNM_PATHNAME) && c == '/') {
-    return 0;
-  }
-  return negated ? !matched : matched;
+  /* Under FNM_PATHNAME no bracket, negated or not, matches '/'. */
+  *hit = (flags & FNM_PATHNAME) && c == '/' ? 0 : negated ? !matched : matched;
+  return p + 1;
 }
 
-int fnmatch(const char *pattern, const char *string, int flags) {
+int fnmatch(char *pattern, char *string, int flags) {
   const char *p = pattern;
   const char *s = string;
-  const char *star_p = NULL; /* the pattern just after the last '*' */
-  const char *star_s = NULL; /* what that '*' was standing at */
+  const char *?star_p = nullptr; /* the pattern just after the last '*' */
+  const char *?star_s = nullptr; /* what that '*' was standing at */
   int leading = 1;           /* the next character begins a path segment */
 
   while (*s) {
-    /* FNM_LEADING_DIR: the pattern is allowed to describe just the first few
-     * segments. It is satisfied the moment the pattern runs out standing on a
-     * slash -- "the string continues into a subdirectory" -- and NOT by a
-     * pattern that still has `/...` left to match, which is the reading that
-     * would make `*` match `a` and is what glibc refuses. */
+    /* FNM_LEADING_DIR: the pattern ran out at a '/' in the string. */
     if (!*p && (flags & FNM_LEADING_DIR) && *s == '/') {
       return 0;
     }
 
-    /* A dot at the start of a segment is only ever matched by a real dot. */
+    /* FNM_PERIOD: a leading dot only matches a literal dot. */
     if ((flags & FNM_PERIOD) && leading && *s == '.' && *p != '.') {
       return FNM_NOMATCH;
     }
 
     if (*p == '*') {
-      while (*p == '*') p++;   /* several in a row are one */
+      while (*p == '*') p++;
       if (!*p) {
-        /* Trailing '*' takes the rest -- but not across a slash, if slashes
-         * are structural. */
+        /* Trailing '*' takes the rest, but not across '/' under FNM_PATHNAME. */
         if (flags & FNM_PATHNAME) {
           while (*s && *s != '/') s++;
           if (!*s) return 0;
@@ -150,17 +108,14 @@ int fnmatch(const char *pattern, const char *string, int flags) {
     }
 
     if (*p) {
-      const char *after = NULL;
       int hit = 0;
 
       if (*p == '[') {
-        hit = bracket(p, *s, flags, &after);
-        if (hit) {
-          p = after;
-        } else if (after) {
-          hit = 0; /* a well-formed set that simply did not match */
+        const char *?end = bracket(p, *s, flags, &hit);
+        if (end) {
+          if (hit) p = end;
         } else {
-          hit = same('[', *s, flags); /* unterminated: an ordinary '[' */
+          hit = same('[', *s, flags); /* unterminated: literal '[' */
           if (hit) p++;
         }
       } else if (*p == '?') {
@@ -187,9 +142,8 @@ int fnmatch(const char *pattern, const char *string, int flags) {
       }
     }
 
-    /* No match here. Give the last '*' one more character, unless doing so
-     * would carry it over a slash it is not allowed to cross. */
-    if (!star_p) {
+    /* Mismatch: let the last '*' take one more character. */
+    if (!star_p || !star_s) {
       return FNM_NOMATCH;
     }
     if ((flags & FNM_PATHNAME) && *star_s == '/') {

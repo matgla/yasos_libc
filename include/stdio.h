@@ -84,11 +84,12 @@ int putchar(int c);
 int printf(const char *fmt, ...) __yl_nonnull(1);
 int vprintf(const char *fmt, va_list ap) __yl_nonnull(1);
 int fprintf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
-int sprintf(char *dst, const char *fmt, ...) __yl_nonnull(1, 2);
-int vsprintf(char *dst, const char *fmt, va_list ap) __yl_nonnull(1, 2);
+int sprintf(char *dst, const char *fmt, ...) __yl_nonnull(1, 2) __yl_unsafe("nothing bounds the output");
+int vsprintf(char *dst, const char *fmt, va_list ap) __yl_nonnull(1, 2) __yl_unsafe("nothing bounds the output");
 int vfprintf(FILE *fp, const char *fmt, va_list ap) __yl_nonnull(1, 2);
-int snprintf(char *dst, size_t sz, const char *fmt, ...) __yl_nonnull(3);
-int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) __yl_nonnull(3);
+/* at most SZ bytes of DST, the NUL included; DST may be null with SZ 0 */
+int snprintf(char *dst, size_t sz, const char *fmt, ...) __yl_nonnull(3) __yl_access(write_only, 1, 2);
+int vsnprintf(char *dst, size_t sz, const char *fmt, va_list ap) __yl_nonnull(3) __yl_access(write_only, 1, 2);
 int fputs(const char *s, FILE *fp) __yl_nonnull(1, 2);
 int ferror(FILE *stream) __yl_nonnull(1);
 int puts(const char *s) __yl_nonnull(1);
@@ -103,7 +104,7 @@ FILE *popen(const char *command, const char *type) __yl_dealloc(pclose, 1) __yl_
 
 int fgetc(FILE *fp) __yl_nonnull(1);
 /* S, or null at the end of the input or on an error */
-char *fgets(char *s, int sz, FILE *fp) __yl_nonnull(1, 3);
+char *fgets(char *s, int sz, FILE *fp) __yl_nonnull(1, 3) __yl_access(write_only, 1, 2);
 int scanf(const char *fmt, ...) __yl_nonnull(1);
 int fscanf(FILE *fp, const char *fmt, ...) __yl_nonnull(1, 2);
 int sscanf(const char *s, const char *fmt, ...) __yl_nonnull(1, 2);
@@ -143,19 +144,4 @@ ssize_t getdelim(char **lineptr, size_t *n, int delimiter,
 void clearerr(FILE *fp) __yl_nonnull(1);
 
 int remove(const char *pathname) __yl_nonnull(1);
-/* _FORTIFY_SOURCE (sys/_fortify.h): the printf functions that know their
-   destination's size, and the checking functions they call when the compiler
-   cannot prove the output fits (fortify.c; glibc's names and arguments) */
-#include <sys/_fortify.h>
-#ifdef __YL_FORTIFY
-int __sprintf_chk(char *dst, int flag, size_t dstlen, const char *fmt, ...);
-int __snprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *fmt, ...);
-int __vsprintf_chk(char *dst, int flag, size_t dstlen, const char *fmt, va_list ap);
-int __vsnprintf_chk(char *dst, size_t sz, int flag, size_t dstlen, const char *fmt, va_list ap);
-
-#define sprintf(d, ...) __builtin___sprintf_chk(d, __yl_fortify_flag, __yl_bos(d), __VA_ARGS__)
-#define snprintf(d, n, ...) __builtin___snprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), __VA_ARGS__)
-#define vsprintf(d, f, ap) __builtin___vsprintf_chk(d, __yl_fortify_flag, __yl_bos(d), f, ap)
-#define vsnprintf(d, n, f, ap) __builtin___vsnprintf_chk(d, n, __yl_fortify_flag, __yl_bos(d), f, ap)
-#endif
 #endif /* __YASC__ */

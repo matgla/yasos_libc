@@ -55,8 +55,8 @@ typedef struct waitpid_context {
 
 typedef struct execve_context {
   const char *filename __yl_view_maybe;
-  char ** const argv __yl_view_maybe;
-  char ** const envp __yl_view_maybe;
+  char **const argv __yl_view_maybe;
+  char **const envp __yl_view_maybe;
 } execve_context;
 
 typedef struct prlimit_context {
@@ -65,6 +65,25 @@ typedef struct prlimit_context {
   const struct rlimit *new_limit __yl_view_maybe;
   struct rlimit *old_limit __yl_view_maybe;
 } prlimit_context;
+
+/* user and group ids: ENOSYS until the kernel keeps them */
+typedef struct setgid_context {
+  gid_t gid;
+} setgid_context;
+
+typedef struct getgroups_context {
+  int size; /* 0: count only */
+  gid_t *list __yl_view_maybe;
+} getgroups_context;
+
+typedef struct setgroups_context {
+  size_t size;
+  const gid_t *list __yl_view_maybe;
+} setgroups_context;
+
+typedef struct setuid_context {
+  uid_t uid;
+} setuid_context;
 
 /* Registers and ptrace's arguments are raw words, not objects. */
 typedef struct vfork_context {

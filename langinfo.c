@@ -35,16 +35,44 @@ static const char *ROREL const c_locale_items[] = {
     [T_FMT_AMPM] = "%I:%M:%S %p",
     [AM_STR] = "AM",
     [PM_STR] = "PM",
-    [DAY_1] = "Sunday", [DAY_2] = "Monday", [DAY_3] = "Tuesday", [DAY_4] = "Wednesday",
-    [DAY_5] = "Thursday", [DAY_6] = "Friday", [DAY_7] = "Saturday",
-    [ABDAY_1] = "Sun", [ABDAY_2] = "Mon", [ABDAY_3] = "Tue", [ABDAY_4] = "Wed",
-    [ABDAY_5] = "Thu", [ABDAY_6] = "Fri", [ABDAY_7] = "Sat",
-    [MON_1] = "January", [MON_2] = "February", [MON_3] = "March", [MON_4] = "April",
-    [MON_5] = "May", [MON_6] = "June", [MON_7] = "July", [MON_8] = "August",
-    [MON_9] = "September", [MON_10] = "October", [MON_11] = "November", [MON_12] = "December",
-    [ABMON_1] = "Jan", [ABMON_2] = "Feb", [ABMON_3] = "Mar", [ABMON_4] = "Apr",
-    [ABMON_5] = "May", [ABMON_6] = "Jun", [ABMON_7] = "Jul", [ABMON_8] = "Aug",
-    [ABMON_9] = "Sep", [ABMON_10] = "Oct", [ABMON_11] = "Nov", [ABMON_12] = "Dec",
+    [DAY_1] = "Sunday",
+    [DAY_2] = "Monday",
+    [DAY_3] = "Tuesday",
+    [DAY_4] = "Wednesday",
+    [DAY_5] = "Thursday",
+    [DAY_6] = "Friday",
+    [DAY_7] = "Saturday",
+    [ABDAY_1] = "Sun",
+    [ABDAY_2] = "Mon",
+    [ABDAY_3] = "Tue",
+    [ABDAY_4] = "Wed",
+    [ABDAY_5] = "Thu",
+    [ABDAY_6] = "Fri",
+    [ABDAY_7] = "Sat",
+    [MON_1] = "January",
+    [MON_2] = "February",
+    [MON_3] = "March",
+    [MON_4] = "April",
+    [MON_5] = "May",
+    [MON_6] = "June",
+    [MON_7] = "July",
+    [MON_8] = "August",
+    [MON_9] = "September",
+    [MON_10] = "October",
+    [MON_11] = "November",
+    [MON_12] = "December",
+    [ABMON_1] = "Jan",
+    [ABMON_2] = "Feb",
+    [ABMON_3] = "Mar",
+    [ABMON_4] = "Apr",
+    [ABMON_5] = "May",
+    [ABMON_6] = "Jun",
+    [ABMON_7] = "Jul",
+    [ABMON_8] = "Aug",
+    [ABMON_9] = "Sep",
+    [ABMON_10] = "Oct",
+    [ABMON_11] = "Nov",
+    [ABMON_12] = "Dec",
     [RADIXCHAR] = ".",
     [THOUSEP] = "",
     [YESEXPR] = "^[yY]",
@@ -52,14 +80,17 @@ static const char *ROREL const c_locale_items[] = {
     [CRNCYSTR] = "-",
 };
 
-char *nl_langinfo(nl_item item) {
-  if (item < 0 || item >= (nl_item)(sizeof(c_locale_items) / sizeof(c_locale_items[0])) ||
+const char *@(borrows(static), c_api(char *)) nl_langinfo(nl_item item) {
+  if (item < 0 ||
+      item >= cast<int(nl_item)>(sizeof(c_locale_items) /
+                                 sizeof(c_locale_items[0])) ||
       !c_locale_items[item])
-    return (char *)"";
-  return (char *)c_locale_items[item];
+    return "";
+  return c_locale_items[item];
 }
 
-char *nl_langinfo_l(nl_item item, locale_t locale) {
+const char *@(borrows(static), c_api(char *))
+    nl_langinfo_l(nl_item item, locale_t locale) {
   (void)locale;
   return nl_langinfo(item);
 }

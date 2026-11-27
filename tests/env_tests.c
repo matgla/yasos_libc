@@ -92,19 +92,19 @@ UTEST(env, setenv_grows_past_initial_capacity) {
   reset_env();
   char name[16], value[16];
   for (int i = 0; i < 100; i++) {
-    sprintf(name, "V%d", i);
-    sprintf(value, "%d", i * 3);
+    snprintf(name, sizeof name, "V%d", i);
+    snprintf(value, sizeof value, "%d", i * 3);
     ASSERT_EQ(0, sut_setenv(name, value, 1));
   }
   ASSERT_EQ(102u, env_entries());
   for (int i = 0; i < 100; i++) {
-    sprintf(name, "V%d", i);
-    sprintf(value, "%d", i * 3);
+    snprintf(name, sizeof name, "V%d", i);
+    snprintf(value, sizeof value, "%d", i * 3);
     ASSERT_STREQ(value, sut_getenv(name));
   }
   ASSERT_STREQ("/root", sut_getenv("HOME"));
   for (int i = 0; i < 100; i++) {
-    sprintf(name, "V%d", i);
+    snprintf(name, sizeof name, "V%d", i);
     ASSERT_EQ(0, sut_unsetenv(name));
   }
   ASSERT_EQ(2u, env_entries());

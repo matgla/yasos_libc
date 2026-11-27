@@ -40,9 +40,9 @@ struct addrinfo {
 
 
 #pragma tcc c_end
-int getaddrinfo(const char * maybe node, const char * maybe service, const struct addrinfo * maybe hints,
-                out struct addrinfo * owned(freeaddrinfo) maybe *res);
+int getaddrinfo(char *?node, char *?service, struct addrinfo *?hints,
+                out struct addrinfo *?owned(freeaddrinfo) *res);
 /* the list is written on success (0) only; freeaddrinfo releases it */
-void freeaddrinfo(drop struct addrinfo * owned(freeaddrinfo) maybe res);
+void freeaddrinfo(drop struct addrinfo *?owned(freeaddrinfo) res);
 /* a fixed message, never null */
-const char * borrows(static) gai_strerror(int errcode);
+const char *borrows(static) gai_strerror(int errcode);

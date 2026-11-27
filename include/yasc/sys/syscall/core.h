@@ -118,6 +118,14 @@ typedef enum SystemCall {
   sys_sigaction,
   sys_sync,
   sys_reboot,
+  sys_getgid,
+  sys_getegid,
+  sys_setgid,
+  sys_setegid,
+  sys_getgroups,
+  sys_setgroups,
+  sys_setuid,
+  sys_seteuid,
   SYSCALL_COUNT,
 } SystemCall;
 
@@ -129,7 +137,7 @@ typedef char yasos_syscall_count_is_in_sync
     [(SYSCALL_COUNT == YASOS_SYSCALL_COUNT) ? 1 : -1];
 
 /* ARGS is the call's context, null for the calls that take none (getpid, sync) */
-int trigger_syscall(int number, const void * maybe args);
+int trigger_syscall(int number, void *?args);
 
 #define SYS_renameat2 sys_renameat2
 

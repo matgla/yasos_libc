@@ -32,4 +32,4 @@ unsigned short ntohs(unsigned short n);
 
 #pragma tcc c_end
 /* DST, or null when AF is unknown or SIZE too small */
-const char * borrows(dst) maybe inet_ntop(int af, const void *src, out char *dst, socklen_t size);
+const char *?borrows(dst) inet_ntop(int af, void *src, out char dst[size], socklen_t size);

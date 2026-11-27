@@ -6,7 +6,7 @@
  * either side (64-bit and 32-bit), strings that are not numbers, `1b`/`1f`
  * (local labels to an assembler: stopping on the right character is the
  * answer), the punctuation on either side of the letters, every blank */
-static const char * view const INPUTS[] = {
+static const char *const INPUTS[] = {
     "10", "100", "0xCCCD", "0xCCCC", "1b", "1f", "4", "0", "0777", "0x0",
     "  42", "-17", "+9", "0X1F", "abc", "", "0x", "7z", "  -0x10zz",
     "  \t 0755q", "-0", "1103515245", "\n\v\f\r 12", "- 5", "+-5", "--5",
@@ -31,7 +31,7 @@ static const int BASES[] = {0, 2, 8, 10, 16, 36};
 /* input, base, then glibc's strtoll / strtoull (64-bit) and strtol / strtoul
    (32-bit long): value, characters converted, ERANGE */
 static const struct strto_golden {
-  const char * view input;
+  const char * input;
   int base;
   long long ll; int ll_end, ll_range;
   unsigned long long ull; int ull_end, ull_range;

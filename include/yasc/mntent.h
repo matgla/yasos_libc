@@ -51,9 +51,9 @@ int endmntent(FILE *streamp);
 FILE *setmntent(const char *filename, const char *type) __yl_dealloc(endmntent, 1) __yl_nonnull(1, 2);
 #pragma tcc c_end
 /* null at the end of the table */
-struct mntent * borrows(static) maybe getmntent(inout FILE *stream) __yl_nonnull(1);
+struct mntent *?borrows(static) getmntent(inout FILE *stream) __yl_nonnull(1);
 #pragma tcc c_begin
 int addmntent(FILE *stream, const struct mntent *mnt) __yl_nonnull(1, 2);
 #pragma tcc c_end
 /* where OPT starts in mnt_opts, or null when it is not there */
-char * borrows(mnt) maybe hasmntopt(const struct mntent *mnt, const char *opt) __yl_nonnull(1, 2);
+char *?borrows(mnt) hasmntopt(struct mntent *mnt, char *opt) __yl_nonnull(1, 2);

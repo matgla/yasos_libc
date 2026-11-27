@@ -39,11 +39,11 @@ static size_t out_len;
 static int raised;
 static jmp_buf back;
 
-static void fake_syscall(int number, const void *args, inout syscall_result *result) {
+static void fake_syscall(int number, void *args, inout syscall_result *result) {
   result->result = 0;
   result->err = -1;
   if (number == sys_write) {
-    const write_context *view ctx = cast<ptr(const write_context *view)>(args);
+    const write_context *ctx = cast<ptr(const write_context *view)>(args);
     size_t n = ctx->count;
     if (out_len + n > cast<int(int)>(sizeof(buf)) - 1)
       n = sizeof(buf) - 1 - out_len;

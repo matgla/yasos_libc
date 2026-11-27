@@ -88,6 +88,6 @@
 #define ERA_T_FMT 55
 
 
-char *nl_langinfo(nl_item item);
-char *nl_langinfo_l(nl_item item, locale_t locale);
+char *nl_langinfo(nl_item item) __yl_c_api(0, const char *);
+char *nl_langinfo_l(nl_item item, locale_t locale) __yl_c_api(0, const char *);
 #endif /* __YASC__ */

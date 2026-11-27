@@ -29,5 +29,5 @@
 #pragma tcc c_end
 /* never null: "." for a null or empty PATH; PATH's NUL is inside the buffer
    the caller names (tcc checks each call) */
-char * borrows(static, path) dirname(inout char path[maybe :0]);
-char * borrows(static, path) basename(inout char path[maybe :0]);
+char *borrows(static, path) dirname(inout char path[?:0]);
+char *borrows(static, path) basename(inout char path[?:0]);

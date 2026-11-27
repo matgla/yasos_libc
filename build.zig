@@ -45,10 +45,11 @@ const portable_sources = [_][]const u8{
     // cast<...>), which clang cannot build.  <byteswap.h> and <ctype.h> give
     // their callers inline versions, and nothing without an OS opens a file.
     "errno.c",
-    "fnmatch.c",
+    // fnmatch.c and localtime.c are yasc too (Makefile: YASC_SRCS), and the
+    // kernel calls neither fnmatch nor the time-zone functions (strftime.c's
+    // %s / %z / %Z need them, and nothing without an OS calls strftime).
     // libgen.c is yasc (slices: `#pragma yasc`), which clang cannot build;
     // nothing without an OS calls dirname/basename (Makefile: YASC_SRCS).
-    "localtime.c",
     "qsort.c",
     "rand.c",
     "scanf.c",
@@ -84,10 +85,9 @@ pub fn build(b: *std.Build) void {
     const flags = [_][]const u8{
         "-std=gnu11",
         "-DYASLIBC_NOOS",
-        // libc's own sources are never fortified (sys/_fortify.h; the Makefile
-        // undefines it too): zig's clang defines _FORTIFY_SOURCE when it
-        // optimizes, and <string.h>'s macros would rewrite strcpy's own
-        // definition into a __builtin___strcpy_chk call.
+        // libc's own sources get no _FORTIFY_SOURCE (the Makefile undefines
+        // it too): zig's clang defines it when it optimizes, and the string
+        // routines are the functions such checks are about.
         "-U_FORTIFY_SOURCE",
         // The string routines are the loops a compiler would otherwise turn
         // back into calls to themselves.

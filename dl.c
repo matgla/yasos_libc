@@ -31,7 +31,7 @@ static char dl_message[192];
 static bool dl_pending;
 
 /* a dl call failed with errno: the message is "WHAT: NAME: cause" */
-static void dl_failed(const char *what, const char * maybe name) {
+static void dl_failed(char *what, char *?name) {
   const char *cause = errno ? strerror(errno) : "failed";
   if (name)
     snprintf(dl_message, sizeof dl_message, "%s: %s: %s", what, name, cause);
@@ -42,7 +42,7 @@ static void dl_failed(const char *what, const char * maybe name) {
 
 /* the system call NUMBER with CONTEXT: errno is the kernel's on a failure,
    and as it was when the call works */
-static int dl_call(int number, const void *context) {
+static int dl_call(int number, void *context) {
   const int saved = errno;
   errno = 0;
   const int rc = trigger_syscall(number, context);
@@ -51,7 +51,7 @@ static int dl_call(int number, const void *context) {
   return rc;
 }
 
-void *owned(dlclose) maybe dlopen(const char * maybe path, int mode) {
+void *?owned(dlclose) dlopen(char *?path, int mode) {
   void *result = nullptr;
   const dlopen_context context = {
       .path = path,
@@ -66,8 +66,8 @@ void *owned(dlclose) maybe dlopen(const char * maybe path, int mode) {
   return unsafe(result);
 }
 
-void *borrows(static) maybe dlsym(inout void * maybe handle, const char *symbol_name) {
-  void *borrows(static) maybe result = nullptr;
+inout void *?borrows(static, handle) dlsym(void *?handle, char *symbol_name) {
+  void *?borrows(static) result = nullptr;
   const dlsym_context context = {
       .handle = handle,
       .symbol = symbol_name,
@@ -80,7 +80,7 @@ void *borrows(static) maybe dlsym(inout void * maybe handle, const char *symbol_
   return result;
 }
 
-int dlclose(drop void * owned handle) {
+int dlclose(drop void *owned handle) {
   /* the kernel takes the handle back, whatever it answers */
   const dlclose_context context = {
       .handle = move(handle),
@@ -91,7 +91,7 @@ int dlclose(drop void * owned handle) {
   return rc;
 }
 
-const char * borrows(static) maybe dlerror(void) {
+const char *?borrows(static) dlerror(void) {
   if (!dl_pending)
     return nullptr;
   dl_pending = false;

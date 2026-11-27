@@ -66,8 +66,8 @@
 
 
 #pragma tcc c_end
-int owned(close) maybe open(const char *path, int flags, ...) __yl_nonnull(1);
-int owned(close) maybe creat(const char *path, int mode) __yl_nonnull(1);
+int ?owned(close) open(char *path, int flags, ...) __yl_nonnull(1);
+int ?owned(close) creat(char *path, int mode) __yl_nonnull(1);
 #pragma tcc c_begin
 
 #pragma tcc c_end
@@ -76,7 +76,7 @@ int fcntl(int view fd, int cmd, ...);
 
 #pragma tcc c_end
 /* dirfd may be AT_FDCWD */
-int owned(close) maybe openat(int view maybe dirfd, const char *pathname, int flags, ...) __yl_nonnull(2);
+int ?owned(close) openat(int ?view dirfd, char *pathname, int flags, ...) __yl_nonnull(2);
 #pragma tcc c_begin
 
 /* pid_t / off_t now live in <sys/types.h> (included above). */

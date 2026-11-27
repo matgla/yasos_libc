@@ -4,6 +4,7 @@
 // Copyright (c) 2025 Mateusz Stadnik <matgla@live.com>
 
 #include <unistd.h>
+#include <limits.h>
 
 #include <fcntl.h> /* AT_FDCWD */
 #include <signal.h>
@@ -133,10 +134,22 @@ uid_t getuid(void) {
   return trigger_syscall(sys_getuid, NULL);
 }
 
+static int set_user_id(int number, uid_t uid) {
+  const uid_t none = -1;
+  if (uid == none) {
+    errno = EINVAL;
+    return -1;
+  }
+  const setuid_context context = {.uid = uid};
+  return trigger_syscall(number, &context);
+}
+
 int setuid(uid_t uid) {
-  printf("TODO: Implement setuid\n");
-  errno = ENOSYS;
-  return -1; // Not implemented
+  return set_user_id(sys_setuid, uid);
+}
+
+int seteuid(uid_t uid) {
+  return set_user_id(sys_seteuid, uid);
 }
 
 pid_t setsid(void) {
@@ -145,10 +158,59 @@ pid_t setsid(void) {
   return -1; // Not implemented
 }
 
+/* POSIX: getgid/getegid cannot fail -- 0 while the kernel has no ids */
+static gid_t group_id(int number) {
+  const int saved = errno;
+  errno = 0;
+  const int gid = trigger_syscall(number, NULL);
+  const int failed = errno != 0;
+  errno = saved;
+  const gid_t answer = gid;
+  return failed ? 0 : answer;
+}
+
+gid_t getgid(void) {
+  return group_id(sys_getgid);
+}
+
+gid_t getegid(void) {
+  return group_id(sys_getegid);
+}
+
+static int set_group_id(int number, gid_t gid) {
+  const gid_t none = -1;
+  if (gid == none) {
+    errno = EINVAL;
+    return -1;
+  }
+  const setgid_context context = {.gid = gid};
+  return trigger_syscall(number, &context);
+}
+
 int setgid(gid_t gid) {
-  printf("TODO: Implement setgid\n");
-  errno = ENOSYS;
-  return -1; // Not implemented
+  return set_group_id(sys_setgid, gid);
+}
+
+int setegid(gid_t gid) {
+  return set_group_id(sys_setegid, gid);
+}
+
+int getgroups(int size, gid_t list[]) {
+  if (size < 0 || (size > 0 && list == NULL)) {
+    errno = EINVAL;
+    return -1;
+  }
+  const getgroups_context context = {.size = size, .list = size ? list : NULL};
+  const int saved = errno;
+  errno = 0;
+  const int n = trigger_syscall(sys_getgroups, &context);
+  if (errno == ENOSYS) {
+    errno = saved;
+    return 0;
+  }
+  if (errno == 0)
+    errno = saved;
+  return n;
 }
 
 /* chown(2) family. ext4 records owners; FAT and ramfs accept and ignore, as
@@ -270,6 +332,8 @@ void _exit(int status) {
 }
 
 long sysconf(int name) {
+  if (name == _SC_NGROUPS_MAX)
+    return NGROUPS_MAX;
   long result;
   sysconf_context ctx = {.name = name, .result = &result};
   int rc = trigger_syscall(sys_sysconf, &ctx);

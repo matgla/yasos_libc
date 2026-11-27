@@ -29,7 +29,7 @@ typedef unsigned char locale_t;
 #pragma tcc c_end
 /* null when the locale is not available (this libc has only "C", but code
    written for any libc tests it); LOCALE null queries the current one */
-char * borrows(static) maybe setlocale(int category, const char * maybe locale);
+char *?borrows(static) setlocale(int category, char *?locale);
 #pragma tcc c_begin
 locale_t uselocale(locale_t locale);
 locale_t newlocale(int category_mask, const char *locale, locale_t base);

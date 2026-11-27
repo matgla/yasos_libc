@@ -16,7 +16,7 @@
  * ERANGE through strtol is not required.  Callers that need to detect
  * overflow or "not a number" use strtol.
  */
-int atoi(const char *s) {
+int atoi(char *s) {
   unsigned num = 0;
   int neg = 0;
   while (isspace(*s))
@@ -28,7 +28,7 @@ int atoi(const char *s) {
   return cast<trunc(int)>(neg ? 0u - num : num);
 }
 
-long atol(const char *s) {
+long atol(char *s) {
   unsigned long num = 0;
   int neg = 0;
   while (isspace(*s))
@@ -61,7 +61,7 @@ static int digit(char c, int base) {
 /* The `long` pair narrows the `long long` one below (same on a 64-bit host),
  * which already hands back the caller's own pointer when nothing converted --
  * this one used to leave it past the blanks and the sign. */
-long strtol(const char *s, out char *borrows(s) * maybe endptr, int base) {
+long strtol(char *s, out char *borrows(s) *?endptr, int base) {
   long long v = strtoll(s, endptr, base);
 
   if (v > LONG_MAX) {
@@ -77,7 +77,7 @@ long strtol(const char *s, out char *borrows(s) * maybe endptr, int base) {
 
 /* C's strtoul negates a "-" number in unsigned long, so the range check is on
  * the magnitude. */
-unsigned long strtoul(const char *s, out char *borrows(s) * maybe endptr, int base) {
+unsigned long strtoul(char *s, out char *borrows(s) *?endptr, int base) {
   const char *p = s;
   int saved = errno, neg;
   unsigned long long v;
@@ -132,7 +132,7 @@ unsigned long strtoul(const char *s, out char *borrows(s) * maybe endptr, int ba
  * pattern that way, and this libc's whole reason for caring is tcc's inline
  * assembler.
  */
-static int strto_base(inout const char *view *s, int base, out const char *view maybe *after_zero) {
+static int strto_base(inout const char *view *s, int base, out const char *?view *after_zero) {
   const char *p = *s;
 
   *after_zero = nullptr;
@@ -158,9 +158,9 @@ static int strto_base(inout const char *view *s, int base, out const char *view 
   return base;
 }
 
-unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, int base) {
+unsigned long long strtoull(char *s, out char *borrows(s) *?endptr, int base) {
   const char *start = s;
-  const char *maybe after_zero = nullptr;
+  const char *?after_zero = nullptr;
   unsigned long long num = 0;
   unsigned long long cutoff;
   int cutlim;
@@ -202,9 +202,9 @@ unsigned long long strtoull(const char *s, out char *borrows(s) * maybe endptr, 
   return num;
 }
 
-long long strtoll(const char *s, out char *borrows(s) * maybe endptr, int base) {
+long long strtoll(char *s, out char *borrows(s) *?endptr, int base) {
   const char * start = s;
-  const char *maybe after_zero;
+  const char *?after_zero;
   unsigned long long num = 0;
   unsigned long long limit;
   unsigned long long cutoff;

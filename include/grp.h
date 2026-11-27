@@ -25,25 +25,34 @@
 
 #pragma once
 
-#include <sys/types.h>
 #include <sys/_attrs.h>
+#include <sys/types.h>
+
 
 struct group {
-  char *gr_name;   /* group name */
-  char *gr_passwd; /* group password */
-  gid_t gr_gid;    /* group ID */
-  char **gr_mem;   /* NULL-terminated array of pointers
-                      to names of group members */
+  char *gr_name __yl_view;   /* group name */
+  char *gr_passwd __yl_view; /* group password */
+  gid_t gr_gid;                        /* group ID */
+  /* NULL-terminated array of pointers to names of group members */
+  char **gr_mem __yl_view_maybe;
 };
 
-
+/* Not found: 0 and *result null (_r), or null with errno unchanged. */
 struct group *getgrgid(gid_t gid);
-int getgrgid_r(gid_t gid, struct group *grp, char *buffer, size_t bufsize,
-               struct group **result);
-
 struct group *getgrnam(const char *name) __yl_nonnull(1);
-int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
+/* ERANGE: buf too small.  inout, not out buf[size]: tinycc
+ * docs/bugs/yasc-c-header-forward-bound.md */
+int getgrgid_r(gid_t gid, struct group *grp, char *buf, size_t size,
                struct group **result);
+int getgrnam_r(const char *name, struct group *grp, char *buf, size_t size,
+               struct group **result) __yl_nonnull(1);
 
+struct group *getgrent(void);
+void setgrent(void);
+void endgrent(void);
+
+/* not POSIX (BSD, glibc) */
+int getgrouplist(const char *user, gid_t group, gid_t *groups, int *ngroups) __yl_nonnull(1, 4);
+int setgroups(size_t size, const gid_t *list) __yl_access(read_only, 2, 1);
 int initgroups(const char *user, gid_t group) __yl_nonnull(1);
 #endif /* __YASC__ */

@@ -24,8 +24,8 @@ Rules:
   `<header>` is written from it (`make headers`, tinycc's `-yasc-c-header`);
   each function is declared once. Until then what only yasc can say went into
   a `sys/yasc/<header>.h` twin, which drifted from the C declarations. Every
-  pointer in a yasc declaration says `view` or `owned`, `maybe` where null is
-  allowed: a parameter without `maybe` is nonnull to the flow checks. Its
+  pointer in a yasc declaration says `view` or `owned`, `?` where null is
+  allowed: a parameter without `?` is nonnull to the flow checks. Its
   `__yl_nonnull` / `__yl_returns_nonnull` (for C) are still written by hand:
   `view` is the yasc caller's rule, C's nonnull says null is undefined (the
   next point). `owned(D)` gives the C header `__yl_dealloc(D, n)`. Parts not
@@ -48,7 +48,7 @@ Rules:
 - [x] `calloc` checks `n * m` for overflow (`malloc.c`).
 - [x] `MALLOC_DEBUG` (compile-time only): poisons freed blocks with 0xDE and
   reports a poison violation when a block is reused.
-- [x] `__chk_fail()` (now `fortify.c`; `chk_calls` is libtcc1's).
+- [x] `__chk_fail()` (libtcc1's, weak, beside `chk_calls`). `fortify.c`, `sys/_fortify.h` and the header macros are gone: tcc checks the calls itself (`-ffortify`: the `[n]` / `[:0]` parameters, strcpy / strcat / sprintf by name).
 - [x] `MEMTST` allocation tracking, on x86_64 only.
 - [x] **The annotation header** `sys/_attrs.h` (0ce2dc5).
 - [x] **Allocators and their deallocators** (0ce2dc5, 2e3d79f):
@@ -56,8 +56,8 @@ Rules:
   `malloc(free, 1)`), `realloc` (`malloc(free, 1)` only), `strdup`/`strndup`
   (`malloc`); `fopen`/`fdopen`/`tmpfile`/`fmemopen` -> `fclose`, `popen` ->
   `pclose`, `opendir`/`fdopendir` -> `closedir`, `setmntent` -> `endmntent`,
-  `dlopen` -> `dlclose`. In yasc a result is `owned maybe` and the
-  deallocator's argument `owned maybe drop`: leaks, double close, use after
+  `dlopen` -> `dlclose`. In yasc a result is `?owned` and the
+  deallocator's argument `?owned drop`: leaks, double close, use after
   close and discarded results warn (-Wlifetime).
 - [x] **`nonnull`** (0ce2dc5, 980648a; -Wnonnull in tcc, gcc, clang):
   - the whole-string `str*` functions, `strdup`, `strtok`/`strtok_r`'s
@@ -76,7 +76,7 @@ Rules:
   - time.h's `time_t` / `struct tm` pointers, `strftime`'s format,
     `strptime`, `nanosleep`'s request; `readdir`, `getmntent`/`addmntent`/
     `hasmntopt`, `dlsym`'s name, `getpwnam`, `getgrnam`, `initgroups`.
-- [x] **`maybe` results** (e0b04d4, `yasc/`), `view maybe`: `strchr`,
+- [x] **`?` results** (e0b04d4, `yasc/`), `?view`: `strchr`,
   `strrchr`, `strstr`, `strpbrk`, `memchr` (and `__memchr_c`), `memrchr`,
   `strtok`, `strtok_r`, `getenv`, `bsearch`, `mkdtemp`, `fgets`, `tmpnam`,
   `readdir`, `localtime(_r)`, `gmtime(_r)`, `ctime(_r)`, `strptime`,
@@ -88,7 +88,7 @@ Rules:
     type and the call's -Wlifetime record; check.sh runs both ways)
     tcc's string builtins (`gen/builtin/string.c`) redirect `strchr`,
     `strrchr`, `strstr` and `strpbrk` to `__tcc_*` helpers with a result type
-    of their own, which drops `maybe` (only `-fno-builtin` keeps it), and give
+    of their own, which drops `?` (only `-fno-builtin` keeps it), and give
     `strchr` the converted argument's type: `char *p = strchr(s, c)` with a
     plain `char *s` reports "assignment discards qualifiers" (-Wall; an error
     in the safe default -- 38 of the ratchet's errors, all acutest.h:901).
@@ -155,7 +155,7 @@ Rules:
   argument. With discarded-qualifiers an error, this is what keeps a `const`
   from being cast away by a libc call. tcc's builtin redirect half-does it
   (above, wrongly for a non-const argument); a header `_Generic` would be
-  regular C and drop the yasc declaration's `maybe`. [tcc builtin fix first]
+  regular C and drop the yasc declaration's `?`. [tcc builtin fix first]
 
 ## P1: yasc ownership signatures (`yasc/`)
 
@@ -166,7 +166,7 @@ only as far as its attributes or its `yasc/` declaration say.
 - [x] Wrong deallocator (`free(f)` on a FILE): tcc maps the existing
   `malloc(fclose, 1)` (`__yl_dealloc`) to `owned(fclose)`, so libc needed
   nothing: "'f' is released by fclose, not free" (2026-11-20).
-- [x] `realloc`: `void * owned(free) maybe takes(v) realloc(...)` in
+- [x] `realloc`: `void *?@(owned(free), takes(v)) realloc(...)` in
   `yasc/stdlib.h`; `fdopen` takes its fd the same way (`yasc/stdio.h`)
   (2026-11-20).
 - [x] (2026-11-20) Results that point into an argument: `borrows(s)` on
@@ -187,16 +187,16 @@ only as far as its attributes or its `yasc/` declaration say.
   one that borrows the right parameter (clean).
   - Not done: `memcpy`/`memmove`/`memset`/`mempcpy`/`memccpy`, `strncpy`/
     `stpncpy`/`strncat`, the `wmem*`: length-bounded, so their destination
-    is `view maybe` and the result would be maybe too -- noise for a result
+    is `?view` and the result would be maybe too -- noise for a result
     nearly nobody reads. `getcwd`/`realpath`: below.
   - [ ] tcc follows `borrows(...)` through a call's result for escapes (the
     HIT lines above) but not yet in the use-after-free flow check:
     `v = strchr(b, 'x'); free(b); *v` is reported only when `v = b`. [tcc,
     "then `borrows` through calls"]
-- [x] File descriptors (2026-11-20): `int owned(close) maybe` from open,
+- [x] File descriptors (2026-11-20): `int ?owned(close)` from open,
   creat, openat, dup, socket, accept (with `listen`, new ENOSYS stubs like the
   other socket calls; the listening fd is `int view`), mkstemp,
-  inotify_init/inotify_init1; `int close(int drop owned(close) maybe fd)` (an
+  inotify_init/inotify_init1; `int close(int drop ?owned(close) fd)` (an
   invalid one is fine, as free(NULL)); read/write and inotify_add_watch take
   `int view fd`. `dup2(int view fd, int fd2)` returns a plain int: the
   result is fd2, a number the caller picked and already accounts for (nearly
@@ -209,19 +209,19 @@ only as far as its attributes or its `yasc/` declaration say.
     for that command. `fileno` would be an `int view` borrowing its FILE --
     untried on int handles.
 - [x] Allocation through out-parameters (2026-11-20): `getline`/`getdelim`
-  (`char * owned(free) maybe * view lineptr`, in/out: still the caller's after
-  -1), `posix_memalign` (`out void * owned(free) maybe * view`, written on 0
-  only), `getaddrinfo` (`out struct addrinfo * owned(freeaddrinfo) maybe *
+  (`char *?owned(free) *view lineptr`, in/out: still the caller's after
+  -1), `posix_memalign` (`out void *?owned(free) *view`, written on 0
+  only), `getaddrinfo` (`out struct addrinfo *?owned(freeaddrinfo) *
   view res`) with `freeaddrinfo` its drop.  tcc follows `&v` passed to such a
   parameter and reads a status result's test (0 / >= 0 success).
   - Done later the same day: `regcomp`/`regexec`/`regfree` (`regex_t
     owned(regfree)`, an object owned as a whole: yasc/regex.h) and
-    `pipe`/`pipe2` (`out int owned(close) maybe * view fds`: both written on
-    0, followed in a local `int owned(close) maybe p[2]`).
+    `pipe`/`pipe2` (`out int ?owned(close) *view fds`: both written on
+    0, followed in a local `int ?owned(close) p[2]`).
   - Still to do: `asprintf`/`vasprintf` and `scandir` do not exist here;
     `socketpair` does not either.
 - [ ] Out parameters that are only written: `strtol`/`strtod`'s `endptr`
-  (`char * view * out maybe`), `pipe(int fds[2])`, `localtime_r`'s result,
+  (`char *view * out maybe`), `pipe(int fds[2])`, `localtime_r`'s result,
   `stat`'s buffer -- useful once callers' `-Wmaybe-uninitialized` reads `out`
   at a call. [tcc]
 - [ ] Not annotated on purpose: `freopen` (returns its argument; the result
@@ -233,15 +233,15 @@ only as far as its attributes or its `yasc/` declaration say.
 
 - [x] `strlcpy` / `strlcat` (POSIX 2024, `string_safe.c`, 2026-11-20):
   nonnull `src`, `dst` may be null with size 0; yasc: `src` a view, `dst` a
-  view maybe.
+  ?view.
 - [x] `memset_explicit` (C23) and `explicit_bzero` (2026-11-20): memset and
   an empty asm that reads the memory. tcc knows `memset` by name (frame DFE,
   `ir/frame_dfe.c`) and drops one into a local not read again at -O1 and up;
   it does not know these, so the call stays (checked in the disassembly; gcc
-  -O2 the same). yasc: `void * borrows(s) maybe`, `s` a view maybe.
+  -O2 the same). yasc: `void *?borrows(s)`, `s` a ?view.
 - [x] `reallocarray` (2026-11-20): null with ENOMEM when `n * m` overflows,
   `p` untouched. C: `malloc(free, 1)` as realloc; yasc:
-  `void * owned(free) maybe takes(p)`.
+  `void *?@(owned(free), takes(p))`.
 - [ ] `asprintf` / `vasprintf` (POSIX 2024) -- with owned out-parameters.
 - [x] `ckd_add` / `ckd_sub` / `ckd_mul` in `<stdckdint.h>` (2026-11-20): on
   `__builtin_{add,sub,mul}_overflow`. tcc implements them but its
@@ -255,11 +255,14 @@ where it returns a pointer that may be null) when it is added; host tests in
 
 ## P2: runtime hardening
 
-- [ ] **`_FORTIFY_SOURCE`**: `__memcpy_chk`, `__memmove_chk`, `__memset_chk`,
-  `__strcpy_chk`, `__strcat_chk`, `__sprintf_chk`, `__snprintf_chk`,
-  `__vsnprintf_chk`, `__read_chk` and `__fgets_chk`, all calling `__chk_fail`.
-  Header wrappers use `__builtin_object_size(dst, 1)`. Level 3 uses
-  `__builtin_dynamic_object_size`. [tcc object size builtins]
+- [x] **`_FORTIFY_SOURCE`**: done in the compiler instead of glibc's `__*_chk`
+  entries and header macros (gone): the declarations say their buffers
+  (`T p[n]`, `char s[:0]` -> `access`, `null_terminated_string_arg`), tcc
+  checks every call where the caller names the buffer, and knows strcpy,
+  stpcpy, strcat, sprintf and vsprintf by name; the runtime is libtcc1's
+  (`__tcc_fortify_*`, `__tcc_sprintf_chk`, `__chk_fail`).  yasc calls the
+  unbounded ones inside `unsafe` only (`__yl_unsafe`).  gcc / clang objects
+  built with `-D_FORTIFY_SOURCE` find no `__memcpy_chk` here.
 - [ ] **Stack protector runtime**: `__stack_chk_guard`, seeded at startup from
   the RP2350 TRNG or the kernel (an `AT_RANDOM`-style auxv entry), and
   `__stack_chk_fail` (prints and `abort()`s). [tcc `-fstack-protector-strong`]

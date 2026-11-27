@@ -29,30 +29,30 @@
 
 typedef struct read_context {
   int fd;
-  void * view maybe buf;
+  void *?buf;
   size_t count;
-  ssize_t * view result;
+  ssize_t *result;
 } read_context;
 
 typedef struct write_context {
   int fd;
-  const void * view maybe buf;
+  const void *?buf;
   size_t count;
-  ssize_t * view result;
+  ssize_t *result;
 } write_context;
 
 typedef struct lseek_context {
   int fd;
   off_t offset;
   int whence;
-  off_t * view result;
+  off_t *result;
 } lseek_context;
 
 typedef struct lseek64_context {
   int fd;
   long long offset;
   int whence;
-  long long * view result;
+  long long *result;
 } lseek64_context;
 
 typedef struct ioctl_context {
@@ -70,14 +70,14 @@ typedef struct fcntl_context {
 /* `fds` stays in user memory: the kernel validates it and writes `revents`
  * back through it in place, the same shape `sys_read` uses for its buffer. */
 typedef struct poll_context {
-  struct pollfd * view maybe fds;
+  struct pollfd *?fds;
   nfds_t nfds;
   int timeout;
 } poll_context;
 
 typedef struct pipe_context {
   /* Where the kernel puts the two descriptors: [0] read end, [1] write end. */
-  int * view maybe fds;
+  int *?fds;
   int flags;
 } pipe_context;
 
